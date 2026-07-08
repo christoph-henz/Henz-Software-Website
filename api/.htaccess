@@ -1,0 +1,11 @@
+RewriteEngine On
+
+# Sicherheit: Direktzugriff auf PHP-Dateien (außer index.php) sperren
+RewriteCond %{THE_REQUEST} \s/.*\.php[\s?] [NC]
+RewriteCond %{REQUEST_URI} !^/index\.php$
+RewriteRule \.php$ - [F,L]
+
+# Alle anderen Requests an index.php weiterleiten
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.php [QSA,L]
