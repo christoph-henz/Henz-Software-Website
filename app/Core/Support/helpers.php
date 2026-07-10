@@ -29,10 +29,32 @@ if (!function_exists('app')) {
 if (!function_exists('db')) {
     /**
      * Get a database connection and return a query builder for the specified table
+     *
+     * 1 or null => DB1 (henz_software_main)
+     * 2 => DB2 (henz_software_logging)
+     *
+     * @param int|string|array<int, int|string>|null $database
      */
-    function db(string $table): \App\Core\Database\QueryBuilder
+    function db(string $table, int|string|array|null $database = 1): \App\Core\Database\QueryBuilder|\App\Core\Database\MultiConnectionQueryBuilder
     {
-        return app(Database::class)->table($table);
+        $normalizeConnection = static function (int|string|null $connection): string {
+            return match ($connection) {
+                null, 1, '1', 'db1', 'main', 'production', 'mysql', 'henz_software_main' => 'henz_software_main',
+                2, '2', 'db2', 'log', 'logging', 'henz_software_logging' => 'henz_software_logging',
+                default => (string) $connection,
+            };
+        };
+
+        if (is_array($database)) {
+            $connections = [];
+            foreach ($database as $connection) {
+                $connections[] = $normalizeConnection(is_int($connection) || is_string($connection) ? $connection : null);
+            }
+
+            return app(Database::class)->table($table, $connections);
+        }
+
+        return app(Database::class)->table($table, $normalizeConnection($database));
     }
 }
 

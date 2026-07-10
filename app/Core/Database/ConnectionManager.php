@@ -15,7 +15,7 @@ final class ConnectionManager
 
     public function connection(?string $name = null): PDO
     {
-        $connectionName = $name ?? (string) config('database.default', 'mysql');
+        $connectionName = $this->normalizeConnectionName($name ?? (string) config('database.default', 'henz_software_main'));
 
         if (isset($this->connections[$connectionName])) {
             return $this->connections[$connectionName];
@@ -46,6 +46,15 @@ final class ConnectionManager
 
         $this->connections[$connectionName] = $pdo;
         return $pdo;
+    }
+
+    private function normalizeConnectionName(string $name): string
+    {
+        return match ($name) {
+            '1', 'db1', 'main', 'production', 'mysql' => 'henz_software_main',
+            '2', 'db2', 'log', 'logging' => 'henz_software_logging',
+            default => $name,
+        };
     }
 
     /** @param array<string, mixed> $config */

@@ -19,9 +19,16 @@ final class Database
         return $this->manager->connection($name);
     }
 
-    public function table(string $table): QueryBuilder
+    /**
+     * @param string|array<int, string>|null $connection
+     */
+    public function table(string $table, string|array|null $connection = null): QueryBuilder|MultiConnectionQueryBuilder
     {
-        return new QueryBuilder($this->connection(), $table);
+        if (is_array($connection)) {
+            return new MultiConnectionQueryBuilder($this, $table, $connection);
+        }
+
+        return new QueryBuilder($this->connection($connection), $table);
     }
 
     /** @param Closure(PDO): mixed $callback */
