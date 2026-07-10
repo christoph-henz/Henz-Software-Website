@@ -101,6 +101,24 @@ Router::get('/storage/media/persistent/{file}', function (Request $request): Res
     return serveMediaFileFromStorage(base_path('storage/media/persistent/' . $file));
 })->name('storage.media.persistent');
 
+/**
+ * Resolves and serves media files from the referenced projects storage directory.
+ *
+ * @param Request $request Request containing file route attribute.
+ * @return Response Media file response or JSON 404 response.
+ */
+Router::get('/storage/media/referenced_projects/{file}', function (Request $request): Response {
+    $file = trim((string) $request->attribute('file', ''));
+    if ($file === '' || str_contains($file, '/') || str_contains($file, '\\')) {
+        return Response::json([
+            'error' => true,
+            'message' => 'Resource not found',
+        ], 404);
+    }
+
+    return serveMediaFileFromStorage(base_path('storage/media/referenced_projects/' . $file));
+})->name('storage.media.referenced_projects');
+
 // Backward-compatible route for legacy filenames that were stored without year/month path.
 /**
  * Resolves and serves legacy media files stored without dated subdirectories.

@@ -1,0 +1,31 @@
+{
+  "name": "henz-software-website",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "tailwind:build": "tailwindcss -i ./public/ui/_assets/css/tailwind.src.css -o ./public/ui/_assets/css/tailwind.css --minify",
+    "tailwind:watch": "tailwindcss -i ./public/ui/_assets/css/tailwind.src.css -o ./public/ui/_assets/css/tailwind.css --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/christoph-henz/Henz-Software-Website.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/christoph-henz/Henz-Software-Website/issues"
+  },
+  "homepage": "https://github.com/christoph-henz/Henz-Software-Website#readme",
+  "dependencies": {
+    "@tailwindcss/cli": "^4.3.2",
+    "tailwindcss": "^4.3.2"
+  }
+}
