@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-$cfg = require base_path('public/ui/_config/widerruf.php');
+$cfg = require base_path('public/ui/_config/legal/widerruf.php');
 $pageTitle = (string) ($cfg['page_title'] ?? 'Widerrufsbelehrung – Henz Software Solutions');
 ?><!doctype html>
 <html lang="de">

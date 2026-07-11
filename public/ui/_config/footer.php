@@ -8,7 +8,6 @@ return [
     'links' => [
         ['label' => 'Impressum', 'href' => '/impressum'],
         ['label' => 'Datenschutz', 'href' => '/datenschutz'],
-        ['label' => 'Widerruf', 'href' => '/widerruf'],
         ['label' => 'AGB', 'href' => '/agb'],
     ],
 ];

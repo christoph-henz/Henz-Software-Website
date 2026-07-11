@@ -246,71 +246,56 @@ Router::get('/', function (): Response {
 })->name('home');
 
 /**
- * Renders the begleitung page.
+ * Renders the leistungen page.
  *
- * @return Response HTML response for the begleitung page.
+ * @return Response HTML response for the leistungen page.
  */
-Router::get('/begleitung', function (): Response {
+Router::get('/leistungen', function (): Response {
     ob_start();
-    require base_path('public/ui/_templates/begleitung-page.php');
+    require base_path('public/ui/_templates/leistungen-page.php');
     $html = (string) ob_get_clean();
 
     return new Response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
-})->name('begleitung');
+})->name('leistungen');
 
 /**
- * Renders the ueber-mich page.
+ * Renders the referenzen page.
+ *
+ * @return Response HTML response for the referenzen page.
+ */
+Router::get('/referenzen', function (): Response {
+    ob_start();
+    require base_path('public/ui/_templates/referenzen-page.php');
+    $html = (string) ob_get_clean();
+
+    return new Response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
+})->name('referenzen');
+
+/**
+ * Renders the referenzen page.
+ *
+ * @return Response HTML response for the referenzen page.
+ */
+Router::get('/zielgruppen', function (): Response {
+    ob_start();
+    require base_path('public/ui/_templates/zielgruppen-page.php');
+    $html = (string) ob_get_clean();
+
+    return new Response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
+})->name('zielgruppen');
+
+/**
+ * Renders the ueber-uns page.
  *
  * @return Response HTML response for the ueber-mich page.
  */
-Router::get('/ueber-mich', function (): Response {
+Router::get('/ueber-uns', function (): Response {
     ob_start();
-    require base_path('public/ui/_templates/ueber-mich-page.php');
+    require base_path('public/ui/_templates/ueber-uns-page.php');
     $html = (string) ob_get_clean();
 
     return new Response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
 })->name('ueber-mich');
-
-/**
- * Renders the meine-geschichte page.
- *
- * @return Response HTML response for the meine-geschichte page.
- */
-Router::get('/meine-geschichte', function (): Response {
-    ob_start();
-    require base_path('public/ui/_templates/meine-geschichte-page.php');
-    $html = (string) ob_get_clean();
-
-    return new Response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
-})->name('meine-geschichte');
-
-/**
- * Renders the prices page.
- *
- * @return Response HTML response for the prices page.
- */
-Router::get('/prices', function (): Response {
-    ob_start();
-    require base_path('public/ui/_templates/prices-page.php');
-    $html = (string) ob_get_clean();
-
-    return new Response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
-})->name('prices');
-
-/**
- * Renders the booking page.
- *
- * @return Response HTML response for the booking page.
- */
-Router::get('/booking', function (): Response {
-    ob_start();
-    require base_path('public/ui/_templates/booking-page.php');
-    $html = (string) ob_get_clean();
-
-    return new Response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
-})->name('booking');
-
-require __DIR__ . '/admin.php';
 
 /**
  * Renders the impressum page.
@@ -342,7 +327,8 @@ Router::get('/datenschutz', function (): Response {
  * Renders the widerruf page.
  *
  * @return Response HTML response for the widerruf page.
- */
+ **/
+/*
 Router::get('/widerruf', function (): Response {
     ob_start();
     require base_path('public/ui/_templates/widerruf-page.php');
@@ -350,6 +336,7 @@ Router::get('/widerruf', function (): Response {
 
     return new Response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
 })->name('widerruf');
+*/
 
 /**
  * Renders the AGB page.

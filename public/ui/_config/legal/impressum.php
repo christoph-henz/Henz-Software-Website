@@ -19,11 +19,11 @@ return [
     'sections' => [
 
         [
-            'title' => 'Anbieter',
+            'title' => 'Diensteanbieter',
             'blocks' => [
                 [
                     'type' => 'text',
-                    'text' => "Henz Software Solutions\nChristoph Henz\nGüterberg 30a\n63739 Aschaffenburg",
+                    'text' => "Henz Software Solutions\nInhaber: Christoph Henz\nGüterberg 30a\n63739 Aschaffenburg",
                 ],
             ],
         ],
@@ -35,7 +35,7 @@ return [
                     'type' => 'list',
                     'items' => [
                         'E-Mail: ' . $contactEmail,
-                        'Technische Anfragen: ' . $supportEmail,
+                        'Support: ' . $supportEmail,
                         'Telefon: ' . $contactPhone,
                     ],
                 ],
@@ -43,7 +43,7 @@ return [
         ],
 
         [
-            'title' => 'Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV',
+            'title' => 'Verantwortlich für den Inhalt',
             'blocks' => [
                 [
                     'type' => 'text',
@@ -53,13 +53,14 @@ return [
         ],
 
         [
-            'title' => 'Technische Umsetzung und Betreuung',
+            'title' => 'Leistungen',
             'blocks' => [
                 [
                     'type' => 'text',
-                    'text' => "Christoph Henz\nE-Mail: {$supportEmail}\nTelefon: {$contactPhone}",
+                    'text' => "Entwicklung individueller Softwarelösungen, Webanwendungen, Websites sowie technische Beratung und Betreuung.",
                 ],
             ],
         ],
+
     ],
 ];

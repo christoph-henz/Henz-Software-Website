@@ -13,7 +13,7 @@ return [
     'hero' => [
         'tag' => 'Rechtliches',
         'title' => 'Widerrufsbelehrung',
-        'intro' => 'Informationen zum gesetzlichen Widerrufsrecht für Dienstleistungsverträge mit Henz Software Solutions.',
+        'intro' => 'Informationen zum gesetzlichen Widerrufsrecht für Verbraucher bei Dienstleistungsverträgen.',
     ],
 
     'sections' => [
@@ -23,7 +23,7 @@ return [
             'blocks' => [
                 [
                     'type' => 'text',
-                    'text' => 'Sie haben das Recht, binnen vierzehn Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen.',
+                    'text' => 'Verbraucher haben das Recht, binnen vierzehn Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen.',
                 ],
                 [
                     'type' => 'text',
@@ -42,6 +42,10 @@ return [
                 [
                     'type' => 'text',
                     'text' => 'Der Widerruf kann per E-Mail oder postalisch erfolgen.',
+                ],
+                [
+                    'type' => 'text',
+                    'text' => 'Zur Wahrung der Widerrufsfrist genügt es, dass Sie die Mitteilung über die Ausübung des Widerrufsrechts vor Ablauf der Widerrufsfrist absenden.',
                 ],
                 [
                     'type' => 'contact',
@@ -67,6 +71,10 @@ return [
                     'type' => 'text',
                     'text' => 'Für die Rückzahlung verwenden wir dasselbe Zahlungsmittel, das Sie bei der ursprünglichen Transaktion eingesetzt haben, es sei denn, mit Ihnen wurde ausdrücklich etwas anderes vereinbart.',
                 ],
+                [
+                    'type' => 'text',
+                    'text' => 'Für diese Rückzahlung werden Ihnen keine Entgelte berechnet.',
+                ],
             ],
         ],
 
@@ -75,11 +83,21 @@ return [
             'blocks' => [
                 [
                     'type' => 'text',
-                    'text' => 'Bei Dienstleistungen erlischt das Widerrufsrecht vorzeitig, wenn die Dienstleistung vollständig erbracht wurde und mit der Ausführung der Dienstleistung erst begonnen wurde, nachdem Sie ausdrücklich zugestimmt haben, dass wir vor Ablauf der Widerrufsfrist mit der Ausführung beginnen.',
+                    'text' => 'Bei Dienstleistungsverträgen erlischt das Widerrufsrecht, wenn wir die Dienstleistung vollständig erbracht haben und mit der Ausführung erst begonnen haben, nachdem Sie ausdrücklich zugestimmt haben, dass wir vor Ablauf der Widerrufsfrist mit der Ausführung beginnen.',
                 ],
                 [
                     'type' => 'text',
-                    'text' => 'Sie bestätigen außerdem, dass Ihnen bekannt ist, dass Sie durch Ihre Zustimmung mit vollständiger Vertragserfüllung Ihr Widerrufsrecht verlieren.',
+                    'text' => 'Sie bestätigen außerdem, dass Ihnen bekannt ist, dass Sie mit vollständiger Vertragserfüllung Ihr Widerrufsrecht verlieren.',
+                ],
+            ],
+        ],
+
+        [
+            'title' => 'Hinweis zu individuell angefertigten Leistungen',
+            'blocks' => [
+                [
+                    'type' => 'text',
+                    'text' => 'Bei individuell für den Kunden entwickelten Softwarelösungen, Websites oder sonstigen auf persönliche Anforderungen zugeschnittenen Leistungen kann das gesetzliche Widerrufsrecht nach den gesetzlichen Vorschriften ausgeschlossen oder vorzeitig erlöschen. Maßgeblich sind die jeweiligen vertraglichen Vereinbarungen sowie die gesetzlichen Bestimmungen.',
                 ],
             ],
         ],
@@ -93,7 +111,19 @@ return [
                 ],
                 [
                     'type' => 'quote',
-                    'text' => "Hiermit widerrufe ich den von mir abgeschlossenen Vertrag über die Erbringung der folgenden Dienstleistung:\n\nBestellt am:\nName:\nAnschrift:\n\nDatum:\nUnterschrift (nur bei Mitteilung auf Papier)",
+                    'text' => "Hiermit widerrufe(n) ich/wir (*) den von mir/uns (*) abgeschlossenen Vertrag über die Erbringung der folgenden Dienstleistung:
+
+                                Bestellt am:
+
+                                Name des/der Verbraucher(s):
+
+                                Anschrift des/der Verbraucher(s):
+
+                                Datum:
+
+                                Unterschrift (nur bei Mitteilung auf Papier)
+
+                                (*) Unzutreffendes streichen.",
                 ],
             ],
         ],
@@ -107,7 +137,6 @@ return [
                         Henz Software Solutions
                         Christoph Henz
                         E-Mail (Kontakt): " . $contactEmail . "
-                        E-Mail (Support): " . $supportEmail . "
                         Telefon: " . $contactPhone
                 ],
             ],
