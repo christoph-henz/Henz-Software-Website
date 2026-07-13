@@ -8,7 +8,6 @@ use App\Controllers\Api\BaseApiController;
 use App\Core\Database\Database;
 use App\Core\Http\Request;
 use App\Core\Http\Response;
-use App\Support\PermissionBits;
 
 final class ServiceAdminController extends BaseApiController
 {
@@ -23,7 +22,7 @@ final class ServiceAdminController extends BaseApiController
         }
 
         $rows = db('services')
-            ->select(['id', 'name', 'slug', 'duration_minutes', 'price', 'description', 'is_active', 'is_featured', 'display_order', 'created_at', 'updated_at'])
+            ->select(['id', 'name', 'slug', 'duration_minutes', 'price', 'description', 'is_active', 'is_featured', 'display_order', 'sort_order', 'structure', 'data', 'created_at', 'updated_at'])
             ->orderBy('display_order', 'asc')
             ->orderBy('name', 'asc')
             ->get();
@@ -75,8 +74,9 @@ final class ServiceAdminController extends BaseApiController
         $description = trim((string) ($data['description'] ?? ''));
         $isActive = $this->normalizeBool($data['is_active'] ?? true);
         $isFeatured = $this->normalizeBool($data['is_featured'] ?? false);
-
         $errors = [];
+        $structurePayload = $this->normalizeJsonPayload($data['structure'] ?? [], true, 'structure', $errors);
+        $dataPayload = $this->normalizeJsonPayload($data['data'] ?? [], false, 'data', $errors);
         if ($name === '') {
             $errors['name'][] = 'required';
         }
@@ -102,8 +102,8 @@ final class ServiceAdminController extends BaseApiController
 
         $pdo = app(Database::class)->connection();
         $stmt = $pdo->prepare(
-            'INSERT INTO services (name, slug, duration_minutes, price, description, is_active, display_order, is_featured)
-             VALUES (:name, :slug, :duration_minutes, :price, :description, :is_active, :display_order, :is_featured)'
+            'INSERT INTO services (name, slug, duration_minutes, price, description, is_active, display_order, is_featured, structure, data)
+             VALUES (:name, :slug, :duration_minutes, :price, :description, :is_active, :display_order, :is_featured, :structure, :data)'
         );
         $stmt->execute([
             ':name' => $name,
@@ -114,9 +114,12 @@ final class ServiceAdminController extends BaseApiController
             ':is_active' => $isActive,
             ':display_order' => $displayOrder,
             ':is_featured' => $isFeatured,
+            ':structure' => $structurePayload,
+            ':data' => $dataPayload,
         ]);
 
         $id = (int) $pdo->lastInsertId();
+        $this->ensureServiceMediaAssignments($slug, $this->decodeJsonArray($structurePayload));
         $row = $this->fetchServiceRow($id);
 
         return $this->ok([
@@ -153,8 +156,9 @@ final class ServiceAdminController extends BaseApiController
         $description = trim((string) ($data['description'] ?? ($existing['description'] ?? '')));
         $isActive = $this->normalizeBool($data['is_active'] ?? ($existing['is_active'] ?? true));
         $isFeatured = $this->normalizeBool($data['is_featured'] ?? ($existing['is_featured'] ?? false));
-
         $errors = [];
+        $structurePayload = $this->normalizeJsonPayload($data['structure'] ?? ($existing['structure'] ?? []), true, 'structure', $errors);
+        $dataPayload = $this->normalizeJsonPayload($data['data'] ?? ($existing['data'] ?? []), false, 'data', $errors);
         if ($name === '') {
             $errors['name'][] = 'required';
         }
@@ -189,6 +193,8 @@ final class ServiceAdminController extends BaseApiController
                  is_active = :is_active,
                  display_order = :display_order,
                  is_featured = :is_featured,
+                 structure = :structure,
+                 data = :data,
                  updated_at = NOW()
              WHERE id = :id'
         );
@@ -201,8 +207,22 @@ final class ServiceAdminController extends BaseApiController
             ':is_active' => $isActive,
             ':display_order' => $displayOrder,
             ':is_featured' => $isFeatured,
+            ':structure' => $structurePayload,
+            ':data' => $dataPayload,
             ':id' => $id,
         ]);
+
+        $previousSlug = (string) ($existing['slug'] ?? '');
+        if ($previousSlug !== '' && $previousSlug !== $slug) {
+            db('page_media_assignments')
+                ->where('page_key', 'service')
+                ->where('section_key', $previousSlug)
+                ->update([
+                    'section_key' => $slug,
+                ]);
+        }
+
+        $this->ensureServiceMediaAssignments($slug, $this->decodeJsonArray($structurePayload));
 
         $row = $this->fetchServiceRow($id);
 
@@ -445,8 +465,7 @@ final class ServiceAdminController extends BaseApiController
 
     private function canManageServices(Request $request): bool
     {
-        $bit = PermissionBits::resolve('manage_services', self::MANAGE_SERVICES_BIT);
-        return ($this->actorRoleMask($request) & $bit) !== 0;
+        return ($this->actorRoleMask($request) & self::MANAGE_SERVICES_BIT) !== 0;
     }
 
     private function actorRoleMask(Request $request): int
@@ -462,7 +481,7 @@ final class ServiceAdminController extends BaseApiController
     {
         $row = db('services')
             ->where('id', $id)
-            ->select(['id', 'name', 'slug', 'duration_minutes', 'price', 'description', 'is_active', 'is_featured', 'display_order', 'created_at', 'updated_at'])
+            ->select(['id', 'name', 'slug', 'duration_minutes', 'price', 'description', 'is_active', 'is_featured', 'display_order', 'sort_order', 'structure', 'data', 'created_at', 'updated_at'])
             ->first();
 
         return is_array($row) ? $row : null;
@@ -545,9 +564,94 @@ final class ServiceAdminController extends BaseApiController
         return in_array($normalized, ['1', 'true', 'yes', 'on'], true) ? 1 : 0;
     }
 
+    /**
+     * @param array<string, array<int, string>> $errors
+     */
+    private function normalizeJsonPayload(mixed $value, bool $requireList, string $field, array &$errors): string
+    {
+        if (is_string($value)) {
+            $decoded = json_decode($value, true);
+            if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+                $errors[$field][] = 'invalid_json';
+                return $requireList ? '[]' : '{}';
+            }
+
+            if ($requireList && !array_is_list($decoded)) {
+                $errors[$field][] = 'invalid_shape';
+                return '[]';
+            }
+
+            return (string) json_encode($decoded, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        }
+
+        if (!is_array($value)) {
+            $errors[$field][] = 'invalid_json';
+            return $requireList ? '[]' : '{}';
+        }
+
+        if ($requireList && !array_is_list($value)) {
+            $errors[$field][] = 'invalid_shape';
+            return '[]';
+        }
+
+        return (string) json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function decodeJsonArray(string $json): array
+    {
+        $decoded = json_decode($json, true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $structure
+     */
+    private function ensureServiceMediaAssignments(string $slug, array $structure): void
+    {
+        $slots = [];
+
+        foreach ($structure as $node) {
+            if (!is_array($node)) {
+                continue;
+            }
+
+            $slotKey = trim((string) ($node['image_var'] ?? $node['src_var'] ?? ''));
+            if ($slotKey !== '') {
+                $slots[$slotKey] = true;
+            }
+        }
+
+        foreach (array_keys($slots) as $slotKey) {
+            $existing = db('page_media_assignments')
+                ->where('page_key', 'service')
+                ->where('section_key', $slug)
+                ->where('slot_key', $slotKey)
+                ->select(['id'])
+                ->first();
+
+            if (is_array($existing)) {
+                continue;
+            }
+
+            db('page_media_assignments')->insert([
+                'page_key' => 'service',
+                'section_key' => $slug,
+                'slot_key' => $slotKey,
+                'asset_id' => null,
+                'gallery_id' => null,
+                'sort_order' => 1,
+            ]);
+        }
+    }
+
     /** @param array<string, mixed> $row */
     private static function formatServiceRow(array $row): array
     {
+        $structureRaw = $row['structure'] ?? [];
+        $dataRaw = $row['data'] ?? [];
+
         return [
             'id' => (int) ($row['id'] ?? 0),
             'name' => (string) ($row['name'] ?? ''),
@@ -558,6 +662,9 @@ final class ServiceAdminController extends BaseApiController
             'is_active' => (int) ($row['is_active'] ?? 0) === 1,
             'is_featured' => (int) ($row['is_featured'] ?? 0) === 1,
             'display_order' => (int) ($row['display_order'] ?? 0),
+            'sort_order' => (int) ($row['sort_order'] ?? 0),
+            'structure' => is_string($structureRaw) ? (json_decode($structureRaw, true) ?: []) : (is_array($structureRaw) ? $structureRaw : []),
+            'data' => is_string($dataRaw) ? (json_decode($dataRaw, true) ?: []) : (is_array($dataRaw) ? $dataRaw : []),
             'created_at' => (string) ($row['created_at'] ?? ''),
             'updated_at' => (string) ($row['updated_at'] ?? ''),
         ];

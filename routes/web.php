@@ -252,7 +252,7 @@ Router::get('/', function (): Response {
  */
 Router::get('/leistungen', function (): Response {
     ob_start();
-    require base_path('public/ui/_templates/leistungen-page.php');
+    require base_path('public/ui/_templates/service-page.php');
     $html = (string) ob_get_clean();
 
     return new Response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
@@ -263,6 +263,7 @@ Router::get('/leistungen', function (): Response {
  *
  * @return Response HTML response for the referenzen page.
  */
+/*
 Router::get('/referenzen', function (): Response {
     ob_start();
     require base_path('public/ui/_templates/referenzen-page.php');
@@ -270,6 +271,24 @@ Router::get('/referenzen', function (): Response {
 
     return new Response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
 })->name('referenzen');
+*/
+
+foreach (project_page_entries() as $project) {
+    $routeSlug = trim((string) ($project['route_slug'] ?? ''));
+    if ($routeSlug === '') {
+        continue;
+    }
+
+    $routeName = preg_replace('/[^a-z0-9_-]+/i', '-', $routeSlug) ?? $routeSlug;
+
+    Router::get('/' . ltrim($routeSlug, '/'), static function () use ($project): Response {
+        ob_start();
+        require base_path('public/ui/_templates/project-page.php');
+        $html = (string) ob_get_clean();
+
+        return new Response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
+    })->name('project.' . trim($routeName, '-'));
+}
 
 /**
  * Renders the referenzen page.
