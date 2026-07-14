@@ -2,12 +2,11 @@
 
 declare(strict_types=1);
 
-namespace App\Controllers\Admin;
+namespace App\Controllers\Operations;
 
 use App\Core\Http\Request;
 use App\Core\Http\Response;
 use App\Core\Security\CsrfTokenManager;
-use App\Core\Support\PermissionBits;
 
 final class SettingsPageController
 {
@@ -19,7 +18,7 @@ final class SettingsPageController
 
     /**
      * manage_admin_settings (2048)
-     * Required to view or edit settings flagged as admin-only.
+     * Used for optional UI flags in templates.
      */
     private const ADMIN_ONLY_BIT = 2048;
 
@@ -37,14 +36,14 @@ final class SettingsPageController
         }
 
         $canManageAdmin = ($roleMask & self::ADMIN_ONLY_BIT) !== 0;
-        $settingsConfig  = require base_path('public/ui/_config/admin-settings.php');
+        $settingsConfig  = require base_path('public/ui/_config/operations/admin-settings.php');
         $hiddenKeys = $this->resolveHiddenKeys($settingsConfig);
-        $settingsByGroup = $this->loadSettings($canManageAdmin, $hiddenKeys);
+        $settingsByGroup = $this->loadSettings($roleMask, $hiddenKeys);
 
         return $this->render('admin-settings-page.php', [
             'pageTitle'       => 'Einstellungen – Getragen Begleiten',
             'adminUser'       => $adminUser,
-            'logoutAction'    => '/admin/logout',
+            'logoutAction'    => '/logout',
             'csrfToken'       => app(CsrfTokenManager::class)->token(),
             'settingsByGroup' => $settingsByGroup,
             'settingsConfig'  => $settingsConfig,
@@ -66,7 +65,7 @@ final class SettingsPageController
         }
 
         $canManageAdmin = ($roleMask & self::ADMIN_ONLY_BIT) !== 0;
-        $settingsConfig  = require base_path('public/ui/_config/admin-settings.php');
+        $settingsConfig  = require base_path('public/ui/_config/operations/admin-settings.php');
         $hiddenKeys = $this->resolveHiddenKeys($settingsConfig);
 
         // CSRF validation
@@ -81,7 +80,7 @@ final class SettingsPageController
         }
 
         // Load settings the user is allowed to see/edit
-        $settingsByGroup = $this->loadSettings($canManageAdmin, $hiddenKeys);
+        $settingsByGroup = $this->loadSettings($roleMask, $hiddenKeys);
         $flat = [];
         foreach ($settingsByGroup as $rows) {
             foreach ($rows as $row) {
@@ -92,8 +91,10 @@ final class SettingsPageController
         $errors = [];
 
         foreach ($flat as $key => $setting) {
-            // Guard: admin-only fields require the admin bit even in POST
-            if ((bool) $setting['is_admin_only'] && !$canManageAdmin) {
+            $minPermissionSum = (int) ($setting['min_permission_sum'] ?? 0);
+
+            // Guard: editing requires full bitmask containment of min_permission_sum.
+            if (!$this->hasRequiredPermissionSum($roleMask, $minPermissionSum)) {
                 continue;
             }
 
@@ -147,16 +148,16 @@ final class SettingsPageController
             admin_flash('success', 'Einstellungen wurden erfolgreich gespeichert.');
         }
 
-        return Response::redirect('/admin/settings');
+        return Response::redirect('/settings');
     }
 
     /**
      * Load all settings rows from the database, grouped by the `group` column.
-     * Admin-only rows are excluded when $canManageAdmin is false.
+     * Rows are filtered by min_permission_sum bitmask containment.
      *
      * @return array<string, list<array<string, mixed>>>
      */
-    private function loadSettings(bool $canManageAdmin, array $hiddenKeys = []): array
+    private function loadSettings(int $roleMask, array $hiddenKeys = []): array
     {
         $rows    = db('settings')->select(['*'])->get();
         $grouped = [];
@@ -167,7 +168,8 @@ final class SettingsPageController
                 continue;
             }
 
-            if ((bool) $row['is_admin_only'] && !$canManageAdmin) {
+            $minPermissionSum = (int) ($row['min_permission_sum'] ?? 0);
+            if (!$this->hasRequiredPermissionSum($roleMask, $minPermissionSum)) {
                 continue;
             }
             $group             = (string) ($row['group'] ?? 'general');
@@ -198,6 +200,15 @@ final class SettingsPageController
         return $keys;
     }
 
+    private function hasRequiredPermissionSum(int $roleMask, int $minPermissionSum): bool
+    {
+        if ($minPermissionSum <= 0) {
+            return true;
+        }
+
+        return ($roleMask & $minPermissionSum) === $minPermissionSum;
+    }
+
     /** @return array<string, mixed> */
     private function adminUser(Request $request): array
     {
@@ -224,7 +235,7 @@ final class SettingsPageController
         extract($data, EXTR_SKIP);
 
         ob_start();
-        require base_path('public/ui/_templates/' . $template);
+        require base_path('public/ui/_templates/operations/' . $template);
         $html = (string) ob_get_clean();
 
         return new Response($html, $status, ['Content-Type' => 'text/html; charset=utf-8']);

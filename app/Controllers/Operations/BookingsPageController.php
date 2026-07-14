@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Controllers\Admin;
+namespace App\Controllers\Operations;
 
 use App\Core\Http\Request;
 use App\Core\Http\Response;
@@ -55,7 +55,7 @@ final class BookingsPageController
         return $this->render('admin-bookings-page.php', [
             'pageTitle' => 'Buchungen – Getragen Begleiten',
             'adminUser' => $adminUser,
-            'logoutAction' => '/admin/logout',
+            'logoutAction' => '/logout',
             'csrfToken' => app(CsrfTokenManager::class)->token(),
             'bookingsConfig' => $config,
         ]);

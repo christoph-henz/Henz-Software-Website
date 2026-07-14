@@ -5,17 +5,16 @@ declare(strict_types=1);
 use App\Core\Http\Request;
 use App\Core\Http\Response;
 use App\Core\Routing\RouterFacade as Router;
-use App\Controllers\Admin\AuthController as AdminAuthController;
-use App\Controllers\Admin\RequestsPageController;
-use App\Controllers\Admin\BookingsPageController;
-use App\Controllers\Admin\ImagesPageController;
-use App\Controllers\Admin\SettingsPageController;
-use App\Controllers\Admin\UsersPageController;
-use App\Controllers\Admin\ClientsPageController;
-use App\Controllers\Admin\ServicesPageController;
-use App\Controllers\Admin\SessionTemplatesPageController;
-use App\Controllers\Admin\AvailabilityPageController;
-use App\Controllers\Admin\EmailTemplatesPageController;
+use App\Controllers\Operations\AuthController as AdminAuthController;
+use App\Controllers\Operations\RequestsPageController;
+use App\Controllers\Operations\BookingsPageController;
+use App\Controllers\Operations\ImagesPageController;
+use App\Controllers\Operations\SettingsPageController;
+use App\Controllers\Operations\UsersPageController;
+use App\Controllers\Operations\ClientsPageController;
+use App\Controllers\Operations\ServicesPageController;
+use App\Controllers\Operations\AvailabilityPageController;
+use App\Controllers\Operations\EmailTemplatesPageController;
 use App\Controllers\InviteController;
 use App\Controllers\Api\V1\AvailabilityController;
 use App\Controllers\Api\V1\Admin\BookingAdminController;
@@ -25,8 +24,6 @@ use App\Controllers\Api\V1\Admin\ClientAdminController;
 use App\Controllers\Api\V1\Admin\ServiceAdminController;
 use App\Controllers\Api\V1\Admin\AvailabilityAdminController;
 use App\Controllers\Api\V1\Admin\RequestAdminController;
-use App\Controllers\Api\V1\Admin\SessionRecordAdminController;
-use App\Controllers\Api\V1\Admin\SessionTemplateAdminController;
 use App\Controllers\Api\V1\Admin\MediaController;
 use App\Controllers\Api\V1\Admin\GalleryController;
 use App\Controllers\Api\V1\Admin\PageMediaAssignmentController;
@@ -34,9 +31,45 @@ use App\Middleware\AdminAuthMiddleware;
 use App\Middleware\AdminSubdomainMiddleware;
 use App\Core\Support\OperationHost;
 
-Router::get('/login', function (Request $request): Response {
+if (!function_exists('operations_not_found_response')) {
+    function operations_not_found_response(): Response
+    {
+        $code = 404;
+        $httpStatus = 404;
+        $title = 'Seite nicht gefunden';
+        $message = 'Diese Route ist nur auf der Operations-Subdomain verfuegbar.';
+        $hints = [
+            'Rufe den Bereich ueber die Operations-Subdomain auf.',
+            'Auf der Hauptdomain sind diese Routen absichtlich nicht verfuegbar.',
+        ];
+
+        ob_start();
+        require base_path('public/ui/_templates/error-page.php');
+        $html = (string) ob_get_clean();
+
+        return new Response($html, 404, ['Content-Type' => 'text/html; charset=utf-8']);
+    }
+}
+
+Router::get('/', function (Request $request): Response {
     if (!OperationHost::isOperationHost($request)) {
         return Response::redirect(OperationHost::buildOperationUrl($request, OperationHost::currentPathWithQuery($request)), 302);
+    }
+
+    $session = $request->session();
+    $sessionKey = (string) config('admin.session_key', 'admin_user');
+    $adminUser = $session[$sessionKey] ?? null;
+
+    return Response::redirect(
+        (is_array($adminUser) && $adminUser !== [])
+            ? (string) config('admin.dashboard_path', '/dashboard')
+            : (string) config('admin.login_path', '/login'),
+        302
+    );
+});
+Router::get('/login', function (Request $request): Response {
+    if (!OperationHost::isOperationHost($request)) {
+        return operations_not_found_response();
     }
 
     $token = trim((string) $request->query('token', ''));
@@ -49,7 +82,7 @@ Router::get('/login', function (Request $request): Response {
 
 Router::post('/login', function (Request $request): Response {
     if (!OperationHost::isOperationHost($request)) {
-        return Response::redirect(OperationHost::buildOperationUrl($request, OperationHost::currentPathWithQuery($request)), 302);
+        return operations_not_found_response();
     }
 
     return app(AdminAuthController::class)->login($request);
@@ -57,15 +90,15 @@ Router::post('/login', function (Request $request): Response {
 
 Router::post('/login/accept', function (Request $request): Response {
     if (!OperationHost::isOperationHost($request)) {
-        return Response::redirect(OperationHost::buildOperationUrl($request, OperationHost::currentPathWithQuery($request)), 302);
+        return operations_not_found_response();
     }
 
     return app(InviteController::class)->submit($request);
 })->name('invite.accept');
 
-Router::group('/admin', function (): void {
-    Router::get('/', fn (): Response => Response::redirect('/admin/calender'))->name('admin.dashboard.root');
-    Router::get('/calender', [AdminAuthController::class, 'dashboard'])->name('admin.dashboard');
+Router::group('', function (): void {
+    Router::get('/dashboard', [AdminAuthController::class, 'dashboard'])->name('admin.dashboard');
+    Router::get('/calender', fn (): Response => Response::redirect('/dashboard', 302))->name('admin.dashboard.legacy');
     Router::get('/dashboard/bookings', [BookingAdminController::class, 'index'])->name('admin.dashboard.bookings.index');
     Router::get('/bookings/data/meta', [BookingAdminController::class, 'meta'])->name('admin.bookings.data.meta');
     Router::get('/bookings/data/blocked', [BookingAdminController::class, 'listBlocked'])->name('admin.bookings.data.blocked.index');

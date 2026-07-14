@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Controllers\Admin;
+namespace App\Controllers\Operations;
 
 use App\Core\Http\Request;
 use App\Core\Http\Response;
@@ -38,7 +38,7 @@ final class AvailabilityPageController
         return $this->render('admin-availability-page.php', [
             'pageTitle' => 'Verfügbarkeit - Getragen Begleiten',
             'adminUser' => $adminUser,
-            'logoutAction' => '/admin/logout',
+            'logoutAction' => '/logout',
             'csrfToken' => app(CsrfTokenManager::class)->token(),
             'availabilityConfig' => $config,
         ]);

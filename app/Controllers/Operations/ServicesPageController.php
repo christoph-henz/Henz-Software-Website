@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Controllers\Admin;
+namespace App\Controllers\Operations;
 
 use App\Core\Http\Request;
 use App\Core\Http\Response;
@@ -45,7 +45,7 @@ final class ServicesPageController
         return $this->render('admin-services-page.php', [
             'pageTitle' => 'Leistungen - Getragen Begleiten',
             'adminUser' => $adminUser,
-            'logoutAction' => '/admin/logout',
+            'logoutAction' => '/logout',
             'csrfToken' => app(CsrfTokenManager::class)->token(),
             'servicesConfig' => $config,
         ]);

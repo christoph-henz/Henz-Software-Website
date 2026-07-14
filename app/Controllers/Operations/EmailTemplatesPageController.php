@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Controllers\Admin;
+namespace App\Controllers\Operations;
 
 use App\Core\Http\Request;
 use App\Core\Http\Response;
@@ -29,7 +29,7 @@ final class EmailTemplatesPageController
         return $this->render('admin-email-templates-page.php', [
             'pageTitle' => 'E-Mail-Vorlagen - Getragen Begleiten',
             'adminUser' => $adminUser,
-            'logoutAction' => '/admin/logout',
+            'logoutAction' => '/logout',
             'csrfToken' => app(CsrfTokenManager::class)->token(),
             'templates' => $this->loadTemplates(),
             'placeholderGroups' => $this->placeholderGroups(),
@@ -46,7 +46,7 @@ final class EmailTemplatesPageController
         $id = (int) $request->attribute('id', 0);
         if ($id <= 0) {
             admin_flash('error', 'Vorlage konnte nicht gespeichert werden: ungueltige ID.');
-            return Response::redirect('/admin/email-templates');
+            return Response::redirect('/email-templates');
         }
 
         $subject = trim((string) $request->input('subject_template', ''));
@@ -55,7 +55,7 @@ final class EmailTemplatesPageController
 
         if ($subject === '' || $html === '') {
             admin_flash('error', 'Betreff und HTML-Inhalt sind Pflichtfelder.');
-            return Response::redirect('/admin/email-templates');
+            return Response::redirect('/email-templates');
         }
 
         $updated = db('email_templates')
@@ -72,7 +72,7 @@ final class EmailTemplatesPageController
             admin_flash('success', 'Vorlage wurde gespeichert.');
         }
 
-        return Response::redirect('/admin/email-templates');
+        return Response::redirect('/email-templates');
     }
 
     public function sendTest(Request $request): Response
@@ -85,7 +85,7 @@ final class EmailTemplatesPageController
         $id = (int) $request->attribute('id', 0);
         if ($id <= 0) {
             admin_flash('error', 'Testmail konnte nicht gesendet werden: ungueltige ID.');
-            return Response::redirect('/admin/email-templates');
+            return Response::redirect('/email-templates');
         }
 
         $row = db('email_templates')
@@ -95,7 +95,7 @@ final class EmailTemplatesPageController
 
         if (!is_array($row)) {
             admin_flash('error', 'Testmail konnte nicht gesendet werden: Vorlage nicht gefunden.');
-            return Response::redirect('/admin/email-templates');
+            return Response::redirect('/email-templates');
         }
 
         $subjectTemplate = trim((string) $request->input('subject_template', (string) ($row['subject_template'] ?? '')));
@@ -137,7 +137,7 @@ final class EmailTemplatesPageController
             );
         }
 
-        return Response::redirect('/admin/email-templates');
+        return Response::redirect('/email-templates');
     }
 
     public function preview(Request $request): Response

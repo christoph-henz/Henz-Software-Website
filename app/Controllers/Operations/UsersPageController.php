@@ -33,7 +33,7 @@ final class UsersPageController
         $manageSettingsBit = PermissionBits::resolve('manage_settings', self::MANAGE_SETTINGS_BIT);
         $manageAdminBit    = PermissionBits::resolve('manage_admin_settings', self::MANAGE_ADMIN_SETTINGS_BIT);
 
-        $config                               = require base_path('public/ui/_config/admin-users.php');
+        $config                               = require base_path('public/ui/_config/operations/admin-users.php');
         $config['can_manage']                 = $canManage;
         $config['current_user_id']            = (int) ($adminUser['id'] ?? 0);
         $config['current_role_mask']          = $roleMask;
@@ -44,7 +44,7 @@ final class UsersPageController
         return $this->render('admin-users-page.php', [
             'pageTitle'    => 'Benutzerverwaltung – Getragen Begleiten',
             'adminUser'    => $adminUser,
-            'logoutAction' => '/admin/logout',
+            'logoutAction' => '/logout',
             'csrfToken'    => app(CsrfTokenManager::class)->token(),
             'usersConfig'  => $config,
         ]);
@@ -95,7 +95,7 @@ final class UsersPageController
         extract($data, EXTR_SKIP);
 
         ob_start();
-        require base_path('public/ui/_templates/' . $template);
+        require base_path('public/ui/_templates/operations/' . $template);
         $html = (string) ob_get_clean();
 
         return new Response($html, $status, ['Content-Type' => 'text/html; charset=utf-8']);

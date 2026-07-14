@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Controllers\Admin;
+namespace App\Controllers\Operations;
 
 use App\Core\Http\Request;
 use App\Core\Http\Response;
@@ -17,7 +17,7 @@ final class AuthController
         $sessionKey = (string) config('admin.session_key', 'admin_user');
 
         if (is_array($session[$sessionKey] ?? null) && $session[$sessionKey] !== []) {
-            return Response::redirect((string) config('admin.dashboard_path', '/admin'));
+            return Response::redirect((string) config('admin.dashboard_path', '/dashboard'));
         }
 
         return $this->render('admin-login-page.php', [
@@ -86,7 +86,7 @@ final class AuthController
             'logged_in_at' => date(DATE_ATOM),
         ];
 
-        return Response::redirect($redirectTo !== '' ? $redirectTo : (string) config('admin.dashboard_path', '/admin'), 303)
+        return Response::redirect($redirectTo !== '' ? $redirectTo : (string) config('admin.dashboard_path', '/dashboard'), 303)
             ->withHeader('Set-Cookie', $this->buildAdminSeenCookie(false, $request));
     }
 
@@ -99,7 +99,7 @@ final class AuthController
         return $this->render('admin-dashboard-page.php', [
             'pageTitle' => 'Adminpanel – Getragen Begleiten',
             'adminUser' => $adminUser,
-            'logoutAction' => '/admin/logout',
+            'logoutAction' => '/logout',
             'csrfToken' => app(CsrfTokenManager::class)->token(),
         ]);
     }
@@ -196,7 +196,11 @@ final class AuthController
             return '';
         }
 
-        if (!str_starts_with($redirectTo, '/admin')) {
+        if (!str_starts_with($redirectTo, '/') || str_starts_with($redirectTo, '//')) {
+            return '';
+        }
+
+        if (in_array($redirectTo, ['/login', '/logout'], true)) {
             return '';
         }
 
@@ -206,12 +210,16 @@ final class AuthController
     /** @param array<string, mixed> $data */
     private function render(string $template, array $data = [], int $status = 200): Response
     {
+        $statusCode = $status;
+
         extract($data, EXTR_SKIP);
 
         ob_start();
-        require base_path('public/ui/_templates/' . $template);
+        require base_path('public/ui/_templates/operations/' . $template);
         $html = (string) ob_get_clean();
 
-        return new Response($html, $status, ['Content-Type' => 'text/html; charset=utf-8']);
+        return new Response($html, $statusCode, [
+            'Content-Type' => 'text/html; charset=utf-8',
+        ]);
     }
 }

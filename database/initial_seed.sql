@@ -3,20 +3,44 @@ USE henz_software_main;
 INSERT INTO users (first_name, last_name, email, password_hash, role_mask, is_active)
 VALUES ('System', 'Administrator', 'webmaster@henz-software.com', '$2y$10$placeholder', 8191, TRUE);
 
-INSERT INTO permissions (name, slug, bit_value, description) VALUES
+INSERT INTO henz_software_main.permissions (name, slug, bit_value, description) VALUES
 ('View Appointments', 'view_appointments', 1, 'Can view all appointment records'),
 ('Manage Appointments', 'manage_appointments', 2, 'Can create, update, and delete appointments'),
 ('Storno Appointment Status', 'storno_appointment', 4, 'Can storno appointment'),
-('View Clients', 'view_clients', 8, 'Can view client information'),
-('Manage Clients', 'manage_clients', 16, 'Can create and update client records'),
-('View Payments', 'view_payments', 32, 'Can view payment records'),
-('Manage Payments', 'manage_payments', 64, 'Can record and manage payments'),
-('View Analytics', 'view_analytics', 128, 'Can view dashboard analytics'),
-('Manage Users', 'manage_users', 256, 'Can manage admin users and roles'),
-('View Settings', 'view_settings', 512, 'Can view system settings'),
-('Manage Settings', 'manage_settings', 1024, 'Can edit operational settings'),
-('Manage Media', 'manage_media', 2048, 'Can upload and manage media assets and galleries'),
-('Manage Services', 'manage_services', 4096, 'Can manage services and service packages');
+('Delete Appointment', 'delete_appointment', 8, 'Can delete appointment'),
+('View Analytics', 'view_analytics', 16, 'Can view dashboard analytics'),
+
+('View Projects', 'view_projects', 32, 'Can view projects'),
+('Manage Projects', 'manage_projects', 64, 'Can manage projects'),
+('Delete Projects', 'delete_projects', 128, 'Can delete projects'),
+
+('Manage Openings', 'manage_openings', 256, 'Can manage opening hours and availability'),
+('Manage Holidays', 'manage_holidays', 512, 'Can manage holidays and special dates'),
+
+('View Services', 'view_services', 1024, 'Can view service records'),
+('Manage Services', 'manage_services', 2048, 'Can create and update service records'),
+('Delete Services', 'delete_services', 4096, 'Can delete service records'),
+
+('View Media', 'view_media', 8192, 'Can view media assets and galleries'),
+('Manage Media', 'manage_media', 16384, 'Can upload and manage media assets and galleries'),
+
+('View Clients', 'view_clients', 32768, 'Can view client information'),
+('Manage Clients', 'manage_clients', 65536, 'Can create and update client records'),
+('Delete Clients', 'delete_clients', 131072, 'Can delete client records'),
+
+('View Payments', 'view_payments', 262144, 'Can view payment records'),
+('Manage Payments', 'manage_payments', 524288, 'Can record and manage payments'),
+
+('View Users', 'view_users', 1048576, 'Can view users as workers'),
+('Manage Users', 'manage_users', 2097152, 'Can manage admin users and roles'),
+
+('View Finances', 'view_finances', 4194304, 'Can view financial records'),
+('Manage Finances', 'manage_finances', 8388608, 'Can manage financial records'),
+
+('View Settings', 'view_settings', 16777216, 'Can view system settings'),
+('Manage Settings', 'manage_settings', 33554432, 'Can edit operational settings');
+
+
 
 INSERT INTO settings (`key`, value, type, `group`, description, is_public) VALUES
 ('site_name', 'Henz Software', 'string', 'general', 'Displayed site name', TRUE),

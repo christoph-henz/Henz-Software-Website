@@ -87,6 +87,7 @@ $kernel->alias('throttle', App\Middleware\RateLimitMiddleware::class);
 RouterFacade::setRouter($router);
 
 require base_path('routes/web.php');
+require base_path('routes/admin.php');
 // API läuft auf eigener Subdomain mit eigenem Bootstrap (bootstrap/api.php).
 
 $errorHandler = new ErrorHandler((bool) config('app.debug', false), $container->get(Logger::class));

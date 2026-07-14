@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash VARCHAR(255) NOT NULL,
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
-    permissions INT NOT NULL DEFAULT 0,
+    role_mask INT NOT NULL DEFAULT 0,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     last_login_at DATETIME,
     is_deleted BOOLEAN NOT NULL DEFAULT FALSE,

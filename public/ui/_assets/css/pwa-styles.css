@@ -1,0 +1,12 @@
+/* Minimal PWA helpers for operations pages */
+
+@supports (padding: max(0px)) {
+  .admin-page {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  .admin-topbar {
+    padding-top: env(safe-area-inset-top);
+  }
+}

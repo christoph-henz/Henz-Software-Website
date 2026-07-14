@@ -105,7 +105,7 @@ final class InviteController
             ]);
 
         // Mark token as used
-        $pdo->prepare('UPDATE invite_tokens SET used_at = :ua WHERE id = :id')
+        $pdo->prepare('UPDATE password_resets SET used_at = :ua WHERE id = :id')
             ->execute([':ua' => $now, ':id' => (int) $row['id']]);
 
         return Response::redirect('/login', 303);
@@ -122,7 +122,7 @@ final class InviteController
 
         $pdo  = app(Database::class)->connection();
         $stmt = $pdo->prepare(
-            'SELECT id, user_id FROM invite_tokens
+            'SELECT id, user_id FROM password_resets
              WHERE token = :token AND used_at IS NULL AND expires_at > NOW()
              LIMIT 1'
         );
@@ -161,7 +161,7 @@ final class InviteController
         extract($data, EXTR_SKIP);
 
         ob_start();
-        require base_path('public/ui/_templates/' . $template);
+        require base_path('public/ui/_templates/operations/' . $template);
         $html = (string) ob_get_clean();
 
         return new Response($html, $status, ['Content-Type' => 'text/html; charset=utf-8']);

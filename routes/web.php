@@ -7,6 +7,7 @@ use App\Core\Http\Request;
 use App\Core\Routing\RouterFacade as Router;
 use App\Controllers\Api\V1\AvailabilityController;
 use App\Controllers\Api\V1\RequestController;
+use App\Core\Support\OperationHost;
 
 if (!function_exists('serveMediaFileFromStorage')) {
     /**
@@ -238,6 +239,20 @@ Router::get('/status', function (): Response {
  * @return Response HTML response for the home page.
  */
 Router::get('/', function (): Response {
+    $request = Request::capture();
+
+    if (OperationHost::isOperationHost($request)) {
+        $session = $request->session();
+        $sessionKey = (string) config('admin.session_key', 'admin_user');
+        $adminUser = $session[$sessionKey] ?? null;
+
+        $target = (is_array($adminUser) && $adminUser !== [])
+            ? (string) config('admin.dashboard_path', '/dashboard')
+            : (string) config('admin.login_path', '/login');
+
+        return Response::redirect($target, 302);
+    }
+
     ob_start();
     require base_path('public/ui/_templates/home-page.php');
     $html = (string) ob_get_clean();

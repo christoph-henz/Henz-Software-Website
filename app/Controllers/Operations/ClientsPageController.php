@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Controllers\Admin;
+namespace App\Controllers\Operations;
 
 use App\Core\Http\Request;
 use App\Core\Http\Response;
@@ -23,7 +23,7 @@ final class ClientsPageController
     {
         $id = (int) $request->attribute('id', 0);
         if ($id <= 0) {
-            return Response::redirect('/admin/clients', 302);
+            return Response::redirect('/clients', 302);
         }
 
         return $this->renderPage($request, $id, 'record');
@@ -68,7 +68,7 @@ final class ClientsPageController
         return $this->render('admin-clients-page.php', [
             'pageTitle' => 'Clientverwaltung - Getragen Begleiten',
             'adminUser' => $adminUser,
-            'logoutAction' => '/admin/logout',
+            'logoutAction' => '/logout',
             'csrfToken' => app(CsrfTokenManager::class)->token(),
             'clientsConfig' => $config,
         ]);
