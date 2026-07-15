@@ -42,8 +42,11 @@ final class UserAdminController extends BaseApiController
         }
 
         if ($search !== '') {
-            $where .= ' AND (u.first_name LIKE :q OR u.last_name LIKE :q OR u.email LIKE :q)';
-            $bindings[':q'] = '%' . $search . '%';
+            $where .= ' AND (u.first_name LIKE :q_first OR u.last_name LIKE :q_last OR u.email LIKE :q_email)';
+            $searchLike = '%' . $search . '%';
+            $bindings[':q_first'] = $searchLike;
+            $bindings[':q_last'] = $searchLike;
+            $bindings[':q_email'] = $searchLike;
         }
 
         $countStmt = $pdo->prepare("SELECT COUNT(*) FROM users u $where");

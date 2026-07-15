@@ -19,11 +19,11 @@ ob_start();
 ?>
 <div class="admin-page-header admin-users-header">
     <div>
-        <h1 class="admin-page-title">Benutzerverwaltung</h1>
-        <p class="admin-page-subtitle">Adminbenutzer anlegen, Rollen vergeben und Einladungen versenden.</p>
+        <h1 class="admin-page-title">Mitarbeiterverwaltung</h1>
+        <p class="admin-page-subtitle">Mitarbeiter anlegen, Rollen vergeben und Einladungen versenden.</p>
     </div>
     <button type="button" class="admin-users-create-btn" id="openCreateUser">
-        Benutzer anlegen
+        Mitarbeiter anlegen
     </button>
 </div>
 

@@ -139,7 +139,7 @@ return [
         'permission_bit' => 3, // view_media (1) | manage_media (2)
         'children' => [
             [
-                'label' => 'Benutzerverwaltung',
+                'label' => 'Mitarbeiterverwaltung',
                 'href' => '/users',
                 'exact' => false,
                 'icon' => 'users',

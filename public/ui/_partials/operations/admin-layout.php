@@ -78,7 +78,7 @@ $extraScripts = (string) ($extraScripts ?? '');
 <?php require __DIR__ . '/admin-modal.php'; ?>
 <?php endif; ?>
 
-<div id="adminToastContainer" class="admin-toast-container" aria-live="polite" aria-label="Benachrichtigungen"></div>
+<div id="adminToastContainer" class="admin-toast-container fixed right-4 bottom-4 z-80 flex w-[min(92vw,24rem)] flex-col gap-2 pointer-events-none" aria-live="polite" aria-label="Benachrichtigungen"></div>
 
 <script src="/ui/_assets/js/admin-ui.js" defer></script>
 <script src="/ui/_assets/js/pwa-register.js" defer></script>

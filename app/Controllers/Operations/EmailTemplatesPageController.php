@@ -1174,7 +1174,7 @@ final class EmailTemplatesPageController
         extract($data, EXTR_SKIP);
 
         ob_start();
-        require base_path('public/ui/_templates/' . $template);
+        require base_path('public/ui/_templates/operations/' . $template);
         $html = (string) ob_get_clean();
 
         return new Response($html, $status, ['Content-Type' => 'text/html; charset=utf-8']);

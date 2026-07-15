@@ -3,7 +3,7 @@
     'use strict';
 
     var cfg = window.__ADMIN_USERS_CONFIG || {};
-    var dataUrl = cfg.data_url || '/users/data';
+    var dataUrl = cfg.data_url || '/admin/users/data';
     var canManage = !!cfg.can_manage;
     var canManageAdminSettings = !!cfg.can_manage_admin_settings;
     var currentUserId = parseInt(cfg.current_user_id || 0, 10) || 0;
@@ -142,19 +142,8 @@
         var url = dataUrl + '?page=' + state.page + '&per_page=' + state.perPage;
         if (state.q) url += '&q=' + encodeURIComponent(state.q);
 
-        fetch(url, {
-            credentials: 'same-origin',
-            headers: { 'Accept': 'application/json' },
-        })
-            .then(function (r) {
-                var contentType = r.headers.get('content-type') || '';
-                if (contentType.indexOf('application/json') === -1) {
-                    return r.text().then(function (body) {
-                        throw new Error('Unerwartete Antwort vom Server (kein JSON). URL: ' + url + ', Status: ' + r.status + ', Body: ' + body.slice(0, 140));
-                    });
-                }
-                return r.json();
-            })
+        fetch(url, { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
             .then(function (json) {
                 if (!json.success) throw new Error(json.message || 'Fehler');
                 state.users = json.data.users || [];
@@ -256,23 +245,14 @@
                     var msg = json.message || 'Fehler beim Anlegen.';
                     if (json.errors && json.errors.email) msg = 'E-Mail bereits vergeben.';
                     if (alert) { alert.textContent = msg; alert.style.display = ''; }
-                    if (window.adminShowNotification) {
-                        window.adminShowNotification('error', msg);
-                    }
                     return;
                 }
                 adminCloseModal();
                 loadUsers();
-                if (window.adminShowNotification) {
-                    window.adminShowNotification('success', 'Benutzer wurde angelegt.');
-                }
                 showInviteLink(json.data.invite_link);
             })
             .catch(function () {
                 if (alert) { alert.textContent = 'Netzwerkfehler. Bitte erneut versuchen.'; alert.style.display = ''; }
-                if (window.adminShowNotification) {
-                    window.adminShowNotification('error', 'Netzwerkfehler. Bitte erneut versuchen.');
-                }
             });
     }
 
@@ -384,24 +364,14 @@
             .then(function (r) { return r.json(); })
             .then(function (json) {
                 if (!json.success) {
-                    var saveMsg = json.message || 'Fehler beim Speichern.';
-                    if (alert) { alert.textContent = saveMsg; alert.style.display = ''; }
-                    if (window.adminShowNotification) {
-                        window.adminShowNotification('error', saveMsg);
-                    }
+                    if (alert) { alert.textContent = json.message || 'Fehler beim Speichern.'; alert.style.display = ''; }
                     return;
                 }
                 adminCloseModal();
                 loadUsers();
-                if (window.adminShowNotification) {
-                    window.adminShowNotification('success', 'Benutzer wurde gespeichert.');
-                }
             })
             .catch(function () {
                 if (alert) { alert.textContent = 'Netzwerkfehler.'; alert.style.display = ''; }
-                if (window.adminShowNotification) {
-                    window.adminShowNotification('error', 'Netzwerkfehler.');
-                }
             });
     }
 
@@ -432,18 +402,11 @@
             .then(function (r) { return r.json(); })
             .then(function (json) {
                 if (!json.success) {
-                    var deleteMsg = json.message || 'Unbekannter Fehler';
-                    adminOpenModal('Fehler', '<p>' + escHtml(deleteMsg) + '</p>');
-                    if (window.adminShowNotification) {
-                        window.adminShowNotification('error', deleteMsg);
-                    }
+                    adminOpenModal('Fehler', '<p>' + escHtml(json.message || 'Unbekannter Fehler') + '</p>');
                     return;
                 }
                 adminCloseModal();
                 loadUsers();
-                if (window.adminShowNotification) {
-                    window.adminShowNotification('success', 'Benutzer wurde gelöscht.');
-                }
             });
     }
 
@@ -457,15 +420,8 @@
             .then(function (r) { return r.json(); })
             .then(function (json) {
                 if (!json.success) {
-                    var inviteMsg = json.message || 'Fehler';
-                    adminOpenModal('Fehler', '<p>' + escHtml(inviteMsg) + '</p>');
-                    if (window.adminShowNotification) {
-                        window.adminShowNotification('error', inviteMsg);
-                    }
+                    adminOpenModal('Fehler', '<p>' + escHtml(json.message || 'Fehler') + '</p>');
                     return;
-                }
-                if (window.adminShowNotification) {
-                    window.adminShowNotification('success', 'Einladungslink wurde neu erstellt.');
                 }
                 showInviteLink(json.data.invite_link);
             });

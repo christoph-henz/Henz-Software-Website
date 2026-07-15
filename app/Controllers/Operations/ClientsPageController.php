@@ -48,7 +48,7 @@ final class ClientsPageController
             return $this->renderError(403, 'Zugriff verweigert', 'Ihre Rolle berechtigt nicht zur Clientverwaltung.');
         }
 
-        $config = require base_path('public/ui/_config/admin-clients.php');
+        $config = require base_path('public/ui/_config/operations/admin-clients.php');
         $queryClientId = (int) $request->query('client_id', 0);
         $initialClientId = $pathClientId ?? ($queryClientId > 0 ? $queryClientId : null);
 
@@ -90,7 +90,7 @@ final class ClientsPageController
         extract($data, EXTR_SKIP);
 
         ob_start();
-        require base_path('public/ui/_templates/' . $template);
+        require base_path('public/ui/_templates/operations/' . $template);
         $html = (string) ob_get_clean();
 
         return new Response($html, $status, ['Content-Type' => 'text/html; charset=utf-8']);

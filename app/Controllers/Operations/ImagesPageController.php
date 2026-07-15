@@ -33,7 +33,7 @@ final class ImagesPageController
             ], 403);
         }
 
-        $config = require base_path('public/ui/_config/admin-images.php');
+        $config = require base_path('public/ui/_config/operations/admin-images.php');
         $config['can_manage_media'] = $canManage;
 
         $configuredMax = $this->readMediaMaxFileSizeBytes();
@@ -59,7 +59,7 @@ final class ImagesPageController
         extract($data, EXTR_SKIP);
 
         ob_start();
-        require base_path('public/ui/_templates/' . $template);
+        require base_path('public/ui/_templates/operations/' . $template);
         $html = (string) ob_get_clean();
 
         return new Response($html, $status, ['Content-Type' => 'text/html; charset=utf-8']);

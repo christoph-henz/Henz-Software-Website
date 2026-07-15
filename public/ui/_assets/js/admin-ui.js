@@ -113,16 +113,55 @@
   const bindToasts = () => {
     const container = document.getElementById('adminToastContainer');
 
+    const typeStyles = {
+      success: {
+        toast: 'border-emerald-400 bg-emerald-950/70',
+        iconWrap: 'bg-emerald-400/20 text-emerald-300 border-emerald-300/30',
+        icon: '✓',
+      },
+      error: {
+        toast: 'border-rose-400 bg-rose-950/70',
+        iconWrap: 'bg-rose-400/20 text-rose-300 border-rose-300/30',
+        icon: '!',
+      },
+      warning: {
+        toast: 'border-amber-400 bg-amber-950/70',
+        iconWrap: 'bg-amber-400/20 text-amber-300 border-amber-300/30',
+        icon: '!',
+      },
+      info: {
+        toast: 'border-sky-400 bg-sky-950/70',
+        iconWrap: 'bg-sky-400/20 text-sky-300 border-sky-300/30',
+        icon: 'i',
+      },
+    };
+
     window.adminShowNotification = (type, message) => {
       if (!container || typeof message !== 'string' || message.trim() === '') {
         return;
       }
 
       const safeType = ['success', 'error', 'warning', 'info'].includes(type) ? type : 'info';
+      const style = typeStyles[safeType] ?? typeStyles.info;
 
       const toast = document.createElement('div');
-      toast.className = `admin-toast admin-toast--${safeType}`;
-      toast.textContent = message;
+      toast.className = `pointer-events-auto w-full rounded-xl border px-4 py-3 text-sm text-slate-100 shadow-lg backdrop-blur transition-all duration-200 ${style.toast}`;
+      toast.setAttribute('role', 'status');
+
+      const row = document.createElement('div');
+      row.className = 'flex items-start gap-3';
+
+      const icon = document.createElement('span');
+      icon.className = `mt-0.5 inline-flex h-5 w-5 flex-none items-center justify-center rounded-full border text-xs font-bold leading-none ${style.iconWrap}`;
+      icon.textContent = style.icon;
+
+      const text = document.createElement('p');
+      text.className = 'm-0 leading-5';
+      text.textContent = message;
+
+      row.appendChild(icon);
+      row.appendChild(text);
+      toast.appendChild(row);
       container.appendChild(toast);
 
       window.setTimeout(() => {
