@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+use App\Core\Support\PermissionBits as Role;
 
 /**
  * Admin sidebar navigation config.
@@ -26,7 +27,7 @@ return [
         'href' => '/dashboard',
         'exact' => true,
         'icon' => 'home',
-        'permission_bit' => 0, // every logged-in admin
+        'permission_bit' => Role::resolve("view_appointments"), // every logged-in admin
         'match_patterns' => ['/dashboard', '/calender'],
     ],
     [
@@ -34,14 +35,14 @@ return [
         'href' => '/clients',
         'exact' => true,
         'icon' => 'users',
-        'permission_bit' => 0, // every logged-in admin
+        'permission_bit' => Role::resolve("view_clients"), // every logged-in admin
         'children' => [
             [
                 'label' => 'Clientverwaltung',
                 'href' => '/clients',
                 'exact' => false,
                 'icon' => 'users',
-                'permission_bit' => 24, // view_clients (8) | manage_clients (16)
+                'permission_bit' => Role::resolve("view_clients"), // view_clients (8) | manage_clients (16)
                 'match_patterns' => [],
             ],
             [
@@ -49,7 +50,7 @@ return [
                 'href' => '/calendar',
                 'exact' => false,
                 'icon' => 'calendar',
-                'permission_bit' => 0, // every logged-in admin
+                'permission_bit' => Role::resolve("view_appointments"), // every logged-in admin
                 'match_patterns' => [],
             ],
             [
@@ -57,7 +58,7 @@ return [
                 'href' => '/appointments',
                 'exact' => false,
                 'icon' => 'calendar',
-                'permission_bit' => 3, // view_bookings (1) | manage_bookings (2)
+                'permission_bit' => Role::resolve("view_appointments"), // view_bookings (1) | manage_bookings (2)
                 'match_patterns' => [],
             ],
         ],
@@ -68,14 +69,14 @@ return [
         'href' => '/media',
         'exact' => false,
         'icon' => 'inbox',
-        'permission_bit' => 3, // view_media (1) | manage_media (2)
+        'permission_bit' => Role::resolve("manage_projects"), // view_media (1) | manage_media (2)
         'children' => [
             [
                 'label' => 'Formulare',
                 'href' => '/session-templates',
                 'exact' => false,
                 'icon' => 'inbox',
-                'permission_bit' => 1, // manage_form_templates
+                'permission_bit' => Role::resolve("manage_projects"), // manage_form_templates
                 'match_patterns' => [],
             ],
             [
@@ -83,7 +84,7 @@ return [
                 'href' => '/images',
                 'exact' => false,
                 'icon' => 'images',
-                'permission_bit' => 4096, // manage_media
+                'permission_bit' => Role::resolve("view_media"), // manage_media
                 'match_patterns' => [],
             ],
             [
@@ -91,7 +92,7 @@ return [
                 'href' => '/email-templates',
                 'exact' => false,
                 'icon' => 'inbox',
-                'permission_bit' => 3072, // manage_settings (1024) | manage_admin_settings (2048)
+                'permission_bit' => Role::resolve("view_media"), // manage_settings (1024) | manage_admin_settings (2048)
                 'match_patterns' => [],
             ],
         ],
@@ -102,14 +103,14 @@ return [
         'href' => '/admin',
         'exact' => false,
         'icon' => 'factory',
-        'permission_bit' => 3, // view_media (1) | manage_media (2)
+        'permission_bit' => Role::resolve("view_projects"), // view_media (1) | manage_media (2)
         'children' => [
             [
                 'label' => 'Leistungen',
                 'href' => '/services',
                 'exact' => false,
                 'icon' => 'power',
-                'permission_bit' => 1, // manage_services
+                'permission_bit' => Role::resolve("view_services"), // manage_services
                 'match_patterns' => [],
             ],
             [
@@ -117,7 +118,7 @@ return [
                 'href' => '/finance',
                 'exact' => false,
                 'icon' => 'finance',
-                'permission_bit' => 1, // manage_finance
+                'permission_bit' => Role::resolve("view_finances"), // manage_finance
                 'match_patterns' => [],
             ],
             [
@@ -125,7 +126,7 @@ return [
                 'href' => '/projects',
                 'exact' => false,
                 'icon' => 'calendar',
-                'permission_bit' => 3, // view_bookings (1) | manage_bookings (2)
+                'permission_bit' => Role::resolve("view_projects"), // view_bookings (1) | manage_bookings (2)
                 'match_patterns' => [],
             ],
         ],
@@ -136,14 +137,14 @@ return [
         'href' => '/admin',
         'exact' => false,
         'icon' => 'users',
-        'permission_bit' => 3, // view_media (1) | manage_media (2)
+        'permission_bit' => Role::resolve("view_users"), // view_media (1) | manage_media (2)
         'children' => [
             [
-                'label' => 'Mitarbeiterverwaltung',
+                'label' => 'Benutzerverwaltung',
                 'href' => '/users',
                 'exact' => false,
                 'icon' => 'users',
-                'permission_bit' => 256, // manage_users
+                'permission_bit' => Role::resolve("view_users"), // manage_users
                 'match_patterns' => [],
             ],
             [
@@ -151,7 +152,7 @@ return [
                 'href' => '/settings',
                 'exact' => false,
                 'icon' => 'settings',
-                'permission_bit' => 3072, // manage_settings (1024) | manage_admin_settings (2048)
+                'permission_bit' => Role::resolve("view_settings"), // manage_settings (1024) | manage_admin_settings (2048)
                 'match_patterns' => [],
             ],
         ],

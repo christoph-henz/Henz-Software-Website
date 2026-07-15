@@ -7,14 +7,15 @@ namespace App\Controllers\Operations;
 use App\Core\Http\Request;
 use App\Core\Http\Response;
 use App\Core\Security\CsrfTokenManager;
-
+use App\Core\Support\PermissionBits;
+$view_settings = PermissionBits::resolve("view_settings");
 final class SettingsPageController
 {
     /**
      * manage_settings (1024) | manage_admin_settings (2048)
      * Either bit grants access to the settings page.
      */
-    private const ACCESS_BITS = 3072;
+    private const ACCESS_BITS = 16777216;
 
     /**
      * manage_admin_settings (2048)
@@ -27,7 +28,7 @@ final class SettingsPageController
         $adminUser = $this->adminUser($request);
         $roleMask  = (int) ($adminUser['role_mask'] ?? 0);
 
-        if (($roleMask & self::ACCESS_BITS) === 0) {
+        if (($roleMask & PermissionBits::resolve("view_settings")) === 0) {
             return $this->renderError(
                 403,
                 'Zugriff verweigert',
@@ -56,7 +57,7 @@ final class SettingsPageController
         $adminUser = $this->adminUser($request);
         $roleMask  = (int) ($adminUser['role_mask'] ?? 0);
 
-        if (($roleMask & self::ACCESS_BITS) === 0) {
+        if (($roleMask & PermissionBits::resolve("manage_settings")) === 0) {
             return $this->renderError(
                 403,
                 'Zugriff verweigert',

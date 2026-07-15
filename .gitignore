@@ -10,6 +10,7 @@
 /storage/logs/mail-fallback/*.eml
 /storage/sessions/*
 /prototypes/
+composer.lock
 
 .phpunit.result.cache
 
