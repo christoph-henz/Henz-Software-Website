@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-$pageTitle   = (string) ($pageTitle ?? 'Benutzerverwaltung – Getragen Begleiten');
+$pageTitle   = (string) ($pageTitle ?? 'Benutzerverwaltung – Henz Software');
 $adminUser   = is_array($adminUser ?? null) ? $adminUser : [];
 $logoutAction = (string) ($logoutAction ?? '/admin/logout');
 $csrfToken   = (string) ($csrfToken ?? '');

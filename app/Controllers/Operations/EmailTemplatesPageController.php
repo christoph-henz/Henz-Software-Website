@@ -27,7 +27,7 @@ final class EmailTemplatesPageController
         }
 
         return $this->render('admin-email-templates-page.php', [
-            'pageTitle' => 'E-Mail-Vorlagen - Getragen Begleiten',
+            'pageTitle' => 'E-Mail-Vorlagen - Henz Software',
             'adminUser' => $adminUser,
             'logoutAction' => '/logout',
             'csrfToken' => app(CsrfTokenManager::class)->token(),
@@ -397,7 +397,7 @@ final class EmailTemplatesPageController
             ],
             'payment' => $this->paymentTemplateData(20260001),
             'system' => [
-                'site_name' => (string) config('app.name', 'Getragen Begleiten'),
+                'site_name' => (string) config('app.name', 'Henz Software'),
                 'contact_email' => $this->contactMailAddress(),
                 'support_email' => $this->supportMailAddress(),
                 'profile_image_url' => $this->profileImageUrl(),
@@ -773,7 +773,7 @@ final class EmailTemplatesPageController
             $fromAddress = 'support@getragen-begleiten.com';
         }
 
-        $fromName = trim((string) config('mail.senders.support.name', 'Getragen Begleiten Support'));
+        $fromName = trim((string) config('mail.senders.support.name', 'Henz Software Support'));
         $subjectHeader = $subject;
         if (function_exists('mb_encode_mimeheader')) {
             $subjectHeader = mb_encode_mimeheader($subject, 'UTF-8', 'B', "\r\n");

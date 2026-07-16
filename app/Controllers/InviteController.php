@@ -32,7 +32,7 @@ final class InviteController
         }
 
         return $this->render('invite-accept-page.php', [
-            'pageTitle'    => 'Passwort festlegen – Getragen Begleiten',
+            'pageTitle'    => 'Passwort festlegen – Henz Software',
             'csrfToken'    => app(CsrfTokenManager::class)->token(),
             'inviteToken'  => $token,
             'email'        => (string) ($user['email'] ?? ''),
@@ -49,7 +49,7 @@ final class InviteController
 
         if (!$csrf->isValid((string) $request->input('_token', ''))) {
             return $this->render('invite-accept-page.php', [
-                'pageTitle'    => 'Passwort festlegen – Getragen Begleiten',
+                'pageTitle'    => 'Passwort festlegen – Henz Software',
                 'csrfToken'    => $csrf->token(),
                 'inviteToken'  => $token,
                 'email'        => '',
@@ -84,7 +84,7 @@ final class InviteController
 
         if ($errors !== []) {
             return $this->render('invite-accept-page.php', [
-                'pageTitle'    => 'Passwort festlegen – Getragen Begleiten',
+                'pageTitle'    => 'Passwort festlegen – Henz Software',
                 'csrfToken'    => $csrf->token(),
                 'inviteToken'  => $token,
                 'email'        => (string) ($user['email'] ?? ''),

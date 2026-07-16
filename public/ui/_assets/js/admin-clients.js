@@ -1749,7 +1749,7 @@
         if (state.templatesLoaded) return Promise.resolve();
 
         var params = new URLSearchParams({ active_only: '1', page: '1', per_page: '100' });
-        return fetch('/admin/session-templates/data?' + params.toString(), {
+        return fetch('/admin/form-templates/data?' + params.toString(), {
             credentials: 'include',
             headers: { Accept: 'application/json' },
         })
@@ -1768,7 +1768,7 @@
                     var templateId = parsePositiveInt(template.id, 0);
                     if (templateId <= 0) return null;
 
-                    return fetch('/admin/session-templates/data/' + templateId + '/versions', {
+                    return fetch('/admin/form-templates/data/' + templateId + '/versions', {
                         credentials: 'include',
                         headers: { Accept: 'application/json' },
                     })
@@ -1785,7 +1785,7 @@
                             }, null);
                             if (!latest || !latest.id) return null;
 
-                            return fetch('/admin/session-templates/data/' + templateId + '/versions/' + latest.id, {
+                            return fetch('/admin/form-templates/data/' + templateId + '/versions/' + latest.id, {
                                 credentials: 'include',
                                 headers: { Accept: 'application/json' },
                             })

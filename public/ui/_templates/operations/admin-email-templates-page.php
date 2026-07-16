@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-$pageTitle = (string) ($pageTitle ?? 'E-Mail-Vorlagen - Getragen Begleiten');
+$pageTitle = (string) ($pageTitle ?? 'E-Mail-Vorlagen - Henz Software');
 $adminUser = is_array($adminUser ?? null) ? $adminUser : [];
 $logoutAction = (string) ($logoutAction ?? '/logout');
 $csrfToken = (string) ($csrfToken ?? '');

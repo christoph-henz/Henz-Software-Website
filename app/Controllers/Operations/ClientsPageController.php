@@ -66,7 +66,7 @@ final class ClientsPageController
         $config['view_mode'] = $viewMode;
 
         return $this->render('admin-clients-page.php', [
-            'pageTitle' => 'Clientverwaltung - Getragen Begleiten',
+            'pageTitle' => 'Clientverwaltung - Henz Software',
             'adminUser' => $adminUser,
             'logoutAction' => '/logout',
             'csrfToken' => app(CsrfTokenManager::class)->token(),

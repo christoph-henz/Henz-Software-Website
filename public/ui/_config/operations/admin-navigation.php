@@ -27,7 +27,7 @@ return [
         'href' => '/dashboard',
         'exact' => true,
         'icon' => 'home',
-        'permission_bit' => Role::resolve("view_appointments"), // every logged-in admin
+        'permission_bit' => 0, // every logged-in admin
         'match_patterns' => ['/dashboard', '/calender'],
     ],
     [
@@ -73,7 +73,7 @@ return [
         'children' => [
             [
                 'label' => 'Formulare',
-                'href' => '/session-templates',
+                'href' => '/form-templates',
                 'exact' => false,
                 'icon' => 'inbox',
                 'permission_bit' => Role::resolve("manage_projects"), // manage_form_templates

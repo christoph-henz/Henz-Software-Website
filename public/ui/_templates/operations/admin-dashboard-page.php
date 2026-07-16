@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use App\Core\Support\PermissionBits;
 
-$pageTitle = (string) ($pageTitle ?? 'Adminpanel – Getragen Begleiten');
+$pageTitle = (string) ($pageTitle ?? 'Adminpanel – Henz Software');
 $adminUser = is_array($adminUser ?? null) ? $adminUser : [];
 $logoutAction = (string) ($logoutAction ?? '/logout');
 $csrfToken = (string) ($csrfToken ?? '');

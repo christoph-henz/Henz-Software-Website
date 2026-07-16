@@ -42,7 +42,7 @@ final class SettingsPageController
         $settingsByGroup = $this->loadSettings($roleMask, $hiddenKeys);
 
         return $this->render('admin-settings-page.php', [
-            'pageTitle'       => 'Einstellungen – Getragen Begleiten',
+            'pageTitle'       => 'Einstellungen – Henz Software',
             'adminUser'       => $adminUser,
             'logoutAction'    => '/logout',
             'csrfToken'       => app(CsrfTokenManager::class)->token(),

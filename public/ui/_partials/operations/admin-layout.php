@@ -23,7 +23,7 @@ declare(strict_types=1);
  *   $extraScripts (string, opt.)   – additional scripts before </body>
  */
 
-$pageTitle    = (string) ($pageTitle ?? 'Adminpanel – Getragen Begleiten');
+$pageTitle    = (string) ($pageTitle ?? 'Adminpanel – Henz Software');
 $adminUser    = is_array($adminUser ?? null) ? $adminUser : [];
 $csrfToken    = (string) ($csrfToken ?? '');
 $logoutAction = (string) ($logoutAction ?? '/logout');

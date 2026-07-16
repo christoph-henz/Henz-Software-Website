@@ -42,7 +42,7 @@ final class UsersPageController
         $config['permission_catalog']         = $this->loadPermissionCatalog();
 
         return $this->render('admin-users-page.php', [
-            'pageTitle'    => 'Benutzerverwaltung – Getragen Begleiten',
+            'pageTitle'    => 'Benutzerverwaltung – Henz Software',
             'adminUser'    => $adminUser,
             'logoutAction' => '/logout',
             'csrfToken'    => app(CsrfTokenManager::class)->token(),

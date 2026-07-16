@@ -43,7 +43,7 @@ final class ServicesPageController
         $config['initial_service_id'] = $pathServiceId;
 
         return $this->render('admin-services-page.php', [
-            'pageTitle' => 'Leistungen - Getragen Begleiten',
+            'pageTitle' => 'Leistungen - Henz Software',
             'adminUser' => $adminUser,
             'logoutAction' => '/logout',
             'csrfToken' => app(CsrfTokenManager::class)->token(),

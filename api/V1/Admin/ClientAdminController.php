@@ -11,7 +11,7 @@ use App\Core\Http\Response;
 use App\Services\ClientFieldEncryptionService;
 use App\Services\EmailLogPrivacyService;
 use App\Services\InvoicePdfService;
-use App\Support\PermissionBits;
+use App\Core\Support\PermissionBits;
 use DateTimeImmutable;
 
 final class ClientAdminController extends BaseApiController

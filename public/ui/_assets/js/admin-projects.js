@@ -2,11 +2,12 @@
 (function () {
     'use strict';
 
-    var cfg = window.__ADMIN_USERS_CONFIG || {};
-    var dataUrl = cfg.data_url || '/admin/users/data';
+    var cfg = window.__ADMIN_PROJECTS_CONFIG || {};
+    var dataUrl = cfg.data_url || '/admin/projects/data';
+    var clientsDataUrl = cfg.clients_data_url || '/clients/data';
     var canManage = !!cfg.can_manage;
     var canManageAdminSettings = !!cfg.can_manage_admin_settings;
-    var currentUserId = parseInt(cfg.current_user_id || 0, 10) || 0;
+    var currentProjectId = parseInt(cfg.current_project_id || 0, 10) || 0;
     var currentRoleMask = parseInt(cfg.current_role_mask || 0, 10) || 0;
     var permissionCatalog = Array.isArray(cfg.permission_catalog)
         ? cfg.permission_catalog
@@ -23,7 +24,7 @@
             .sort(function (a, b) { return a.bit_value - b.bit_value; })
         : [];
 
-    var root = document.getElementById('adminUsersRoot');
+    var root = document.getElementById('adminProjectsRoot');
     if (!root) return;
 
     // ── State ────────────────────────────────────────────────────────────────
@@ -33,7 +34,10 @@
         perPage: cfg.per_page || 20,
         totalPages: 1,
         q: '',
-        users: [],
+        projects: [],
+        clients: [],
+        clientsLoaded: false,
+        clientsLoading: false,
         loading: false,
     };
 
@@ -42,16 +46,16 @@
     function render() {
         root.innerHTML =
             '<div class="admin-users-toolbar">' +
-                '<input type="search" id="usersSearch" class="admin-users-search" ' +
-                    'placeholder="Suche nach Name oder E-Mail\u2026" value="' + escHtml(state.q) + '" />' +
+                '<input type="search" id="projectsSearch" class="admin-users-search" ' +
+                    'placeholder="Suche nach Projektname, Beschreibung oder Klientenname\u2026" value="' + escHtml(state.q) + '" />' +
             '</div>' +
-            '<div id="usersTableContainer"></div>' +
-            '<div class="admin-users-pagination" id="usersPagination"></div>';
+            '<div id="projectsTableContainer"></div>' +
+            '<div class="admin-users-pagination" id="projectsPagination"></div>';
 
-        document.getElementById('usersSearch').addEventListener('input', debounce(function (e) {
+        document.getElementById('projectsSearch').addEventListener('input', debounce(function (e) {
             state.q = e.target.value;
             state.page = 1;
-            loadUsers();
+            loadProjects();
         }, 350));
 
         renderTable();
@@ -59,45 +63,45 @@
     }
 
     function renderTable() {
-        var container = document.getElementById('usersTableContainer');
+        var container = document.getElementById('projectsTableContainer');
         if (!container) return;
 
         if (state.loading) {
-            container.innerHTML = '<p class="admin-users-loading">Benutzer werden geladen\u2026</p>';
+            container.innerHTML = '<p class="admin-projects-loading">Projekte werden geladen\u2026</p>';
             return;
         }
 
-        if (state.users.length === 0) {
-            container.innerHTML = '<p class="admin-users-empty">Keine Benutzer gefunden.</p>';
+        if (state.projects.length === 0) {
+            container.innerHTML = '<p class="admin-projects-empty">Keine Projekte gefunden.</p>';
             return;
         }
-
-        var rows = state.users.map(function (u) {
-            var badge = u.is_active
-                ? '<span class="admin-users-badge admin-users-badge--active">Aktiv</span>'
-                : '<span class="admin-users-badge admin-users-badge--inactive">Inaktiv</span>';
+        
+        var rows = state.projects.map(function (p) {
+            var badge = p.is_active
+                ? '<span class="admin-projects-badge admin-projects-badge--active">Aktiv</span>'
+                : '<span class="admin-projects-badge admin-projects-badge--inactive">Inaktiv</span>';
 
             var actions =
-                '<button class="admin-users-action-btn" data-action="edit" data-id="' + u.id + '">Bearbeiten</button>' +
-                '<button class="admin-users-action-btn" data-action="invite" data-id="' + u.id + '">Passwortlink senden</button>';
+                '<button class="admin-projects-action-btn" data-action="edit" data-id="' + p.id + '">Bearbeiten</button>';
 
             if (canManage) {
-                actions += '<button class="admin-users-action-btn admin-users-action-btn--danger" data-action="delete" data-id="' + u.id + '">Löschen</button>';
+                actions += '<button class="admin-projects-action-btn admin-projects-action-btn--danger" data-action="delete" data-id="' + p.id + '">Löschen</button>';
             }
 
             return '<tr>' +
-                '<td>' + escHtml(u.first_name + ' ' + u.last_name) + '</td>' +
-                '<td>' + escHtml(u.email) + '</td>' +
+                '<td><a href="/projects/' + p.id + '" class="admin-users-action-btn" style="display:inline-flex;padding:4px 8px;text-decoration:none">' + escHtml(p.name) + '</a></td>' +
+                '<td>' + escHtml(p.client_name) + '</td>' +
+                '<td>' + escHtml(p.description) + '</td>' +
                 '<td>' + badge + '</td>' +
-                '<td>' + (u.last_login_at ? escHtml(u.last_login_at.replace('T', ' ').substring(0, 16)) : '—') + '</td>' +
-                '<td><div class="admin-users-actions">' + actions + '</div></td>' +
+                '<td>' + escHtml(p.status) + '</td>' +
+                '<td><div class="admin-projects-actions">' + actions + '</div></td>' +
                 '</tr>';
         }).join('');
 
         container.innerHTML =
-            '<table class="admin-users-table">' +
+            '<table class="admin-projects-table">' +
                 '<thead><tr>' +
-                    '<th>Name</th><th>E-Mail</th><th>Status</th><th>Letzter Login</th><th>Aktionen</th>' +
+                    '<th>Name</th><th>Client</th><th>Beschreibung</th><th>Aktiv</th><th>Status</th><th>Aktionen</th>' +
                 '</tr></thead>' +
                 '<tbody>' + rows + '</tbody>' +
             '</table>';
@@ -107,35 +111,34 @@
                 var action = btn.getAttribute('data-action');
                 var id = parseInt(btn.getAttribute('data-id'), 10);
                 if (action === 'edit') openEditModal(id);
-                if (action === 'invite') regenerateInvite(id);
                 if (action === 'delete') confirmDelete(id);
             });
         });
     }
 
     function renderPagination() {
-        var pag = document.getElementById('usersPagination');
+        var pag = document.getElementById('projectsPagination');
         if (!pag) return;
         if (state.totalPages <= 1) { pag.innerHTML = ''; return; }
 
         var html = '';
         for (var i = 1; i <= state.totalPages; i++) {
-            html += '<button class="admin-users-page-btn' +
-                (i === state.page ? ' admin-users-page-btn--active' : '') +
+            html += '<button class="admin-projects-page-btn' +
+                (i === state.page ? ' admin-projects-page-btn--active' : '') +
                 '" data-page="' + i + '">' + i + '</button>';
         }
         pag.innerHTML = html;
         pag.querySelectorAll('[data-page]').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 state.page = parseInt(btn.getAttribute('data-page'), 10);
-                loadUsers();
+                loadProjects();
             });
         });
     }
 
     // ── Data loading ──────────────────────────────────────────────────────────
 
-    function loadUsers() {
+    function loadProjects() {
         state.loading = true;
         renderTable();
 
@@ -146,7 +149,7 @@
             .then(function (r) { return r.json(); })
             .then(function (json) {
                 if (!json.success) throw new Error(json.message || 'Fehler');
-                state.users = json.data.users || [];
+                state.projects = json.data.projects || [];
                 state.totalPages = json.data.meta.total_pages || 1;
                 state.loading = false;
                 renderTable();
@@ -154,9 +157,9 @@
             })
             .catch(function (err) {
                 state.loading = false;
-                var container = document.getElementById('usersTableContainer');
+                var container = document.getElementById('projectsTableContainer');
                 if (container) {
-                    container.innerHTML = '<p class="admin-users-empty">Fehler beim Laden: ' + escHtml(err.message) + '</p>';
+                    container.innerHTML = '<p class="admin-projects-empty">Fehler beim Laden: ' + escHtml(err.message) + '</p>';
                 }
             });
     }
@@ -164,75 +167,154 @@
     // ── Create modal ──────────────────────────────────────────────────────────
 
     function openCreateModal(draft) {
-        var createDraft = draft || { first_name: '', last_name: '', email: '', role_mask: 0 };
+        var createDraft = draft || {
+            name: '',
+            client_id: '',
+            description: '',
+            due_date: '',
+            status: 'pending',
+            is_active: 1,
+        };
+
+        var clientOptions = '<option value="">Bitte Klient auswaehlen</option>';
+        if (state.clientsLoaded && state.clients.length > 0) {
+            clientOptions += state.clients.map(function (client) {
+                var selected = String(client.id) === String(createDraft.client_id) ? ' selected' : '';
+                return '<option value="' + client.id + '"' + selected + '>' + escHtml(client.display_name) + '</option>';
+            }).join('');
+        }
+
+        var statusOptions = [
+            { value: 'pending', label: 'Pending' },
+            { value: 'backlog', label: 'Backlog' },
+            { value: 'in_progress', label: 'In Progress' },
+            { value: 'review', label: 'Review' },
+            { value: 'completed', label: 'Completed' },
+            { value: 'on_hold', label: 'On Hold' },
+            { value: 'cancelled', label: 'Cancelled' },
+        ].map(function (entry) {
+            var selected = entry.value === createDraft.status ? ' selected' : '';
+            return '<option value="' + entry.value + '"' + selected + '>' + entry.label + '</option>';
+        }).join('');
+
+        var clientHint = state.clientsLoading
+            ? '<small class="admin-users-permission-helper">Klienten werden geladen...</small>'
+            : (state.clientsLoaded && state.clients.length === 0
+                ? '<small class="admin-users-permission-helper">Keine Klienten verfuegbar.</small>'
+                : '');
 
         var body =
             '<div class="admin-users-field">' +
-                '<label class="admin-users-label" for="cuFn">Vorname *</label>' +
-                '<input type="text" id="cuFn" class="admin-users-input" value="' + escHtml(createDraft.first_name) + '" />' +
+                '<label class="admin-users-label" for="cpName">Projektname *</label>' +
+                '<input type="text" id="cpName" class="admin-users-input" value="' + escHtml(createDraft.name) + '" />' +
             '</div>' +
             '<div class="admin-users-field">' +
-                '<label class="admin-users-label" for="cuLn">Nachname *</label>' +
-                '<input type="text" id="cuLn" class="admin-users-input" value="' + escHtml(createDraft.last_name) + '" />' +
+                '<label class="admin-users-label" for="cpClientId">Klient *</label>' +
+                '<select id="cpClientId" class="admin-users-input"' + (state.clientsLoading ? ' disabled' : '') + '>' +
+                    clientOptions +
+                '</select>' +
+                clientHint +
             '</div>' +
             '<div class="admin-users-field">' +
-                '<label class="admin-users-label" for="cuEmail">E-Mail *</label>' +
-                '<input type="email" id="cuEmail" class="admin-users-input" value="' + escHtml(createDraft.email) + '" />' +
+                '<label class="admin-users-label" for="cpDescription">Beschreibung</label>' +
+                '<textarea id="cpDescription" class="admin-users-input">' + escHtml(createDraft.description) + '</textarea>' +
             '</div>' +
             '<div class="admin-users-field">' +
-                '<label class="admin-users-label">Berechtigungen</label>' +
-                '<button type="button" id="cuPermissionsBtn" class="admin-users-action-btn">Berechtigungen auswählen</button>' +
-                '<div id="cuPermSummary" class="admin-users-permission-summary">' + escHtml(permissionSummary(createDraft.role_mask)) + '</div>' +
+                '<label class="admin-users-label" for="cpDueDate">Faellig am</label>' +
+                '<input type="date" id="cpDueDate" class="admin-users-input" value="' + escHtml(createDraft.due_date) + '" />' +
             '</div>' +
-            '<div id="cuAlert" class="admin-users-alert" style="display:none"></div>';
+            '<div class="admin-users-field">' +
+                '<label class="admin-users-label" for="cpStatus">Status</label>' +
+                '<select id="cpStatus" class="admin-users-input">' +
+                    statusOptions +
+                '</select>' +
+            '</div>' +
+            '<div class="admin-users-field">' +
+                '<label class="admin-users-label admin-users-label--checkbox">' +
+                    '<input type="checkbox" id="cpActive"' + (createDraft.is_active ? ' checked' : '') + ' /> Projekt aktiv' +
+                '</label>' +
+            '</div>' +
+            '<div id="cpAlert" class="admin-users-alert" style="display:none"></div>';
 
-        adminOpenModal('Neuen Benutzer anlegen', body, {
+        adminOpenModal('Neues Projekt anlegen', body, {
             type: 'form',
             buttons: [
                 {
-                    label: 'Anlegen \u0026 Einladen',
+                    label: 'Projekt anlegen',
                     variant: 'primary',
-                    onClick: function () { submitCreate(createDraft.role_mask); },
+                    onClick: submitCreate,
                 },
                 { label: 'Abbrechen', variant: 'secondary', onClick: adminCloseModal },
             ],
         });
 
-        bindCreatePermissionButton(createDraft);
+        if (!state.clientsLoaded && !state.clientsLoading) {
+            loadClientsForCreate(createDraft);
+        }
     }
 
-    function bindCreatePermissionButton(createDraft) {
-        var btn = document.getElementById('cuPermissionsBtn');
-        if (!btn) return;
+    function loadClientsForCreate(createDraft) {
+        state.clientsLoading = true;
 
-        btn.addEventListener('click', function () {
-            createDraft.first_name = document.getElementById('cuFn') ? document.getElementById('cuFn').value.trim() : '';
-            createDraft.last_name = document.getElementById('cuLn') ? document.getElementById('cuLn').value.trim() : '';
-            createDraft.email = document.getElementById('cuEmail') ? document.getElementById('cuEmail').value.trim() : '';
+        fetch(clientsDataUrl + '?page=1&per_page=200&sort=last_name&direction=asc', {
+            credentials: 'same-origin',
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (json) {
+                if (!json.success) throw new Error(json.message || 'Klienten konnten nicht geladen werden.');
 
-            openPermissionModal({
-                title: 'Berechtigungen auswählen',
-                roleMask: createDraft.role_mask,
-                onApply: function (nextMask) {
-                    createDraft.role_mask = nextMask;
-                    openCreateModal(createDraft);
-                },
+                state.clients = (json.data && Array.isArray(json.data.clients) ? json.data.clients : [])
+                    .map(function (client) {
+                        var displayNameFromName = String(client.name || '').trim();
+                        var firstName = String(client.first_name || '').trim();
+                        var lastName = String(client.last_name || '').trim();
+                        var fullName = (firstName + ' ' + lastName).trim();
+                        var displayName = displayNameFromName !== '' ? displayNameFromName : fullName;
+                        return {
+                            id: parseInt(client.id, 10) || 0,
+                            display_name: displayName !== '' ? displayName : ('Klient #' + String(client.id || '')),
+                        };
+                    })
+                    .filter(function (client) { return client.id > 0; });
+
+                state.clientsLoaded = true;
+                state.clientsLoading = false;
+                openCreateModal(createDraft || {});
+            })
+            .catch(function () {
+                state.clientsLoading = false;
+                state.clientsLoaded = true;
+                state.clients = [];
+                openCreateModal(createDraft || {});
             });
-        });
     }
 
-    function submitCreate(roleMask) {
-        var fn    = document.getElementById('cuFn')    ? document.getElementById('cuFn').value.trim()    : '';
-        var ln    = document.getElementById('cuLn')    ? document.getElementById('cuLn').value.trim()    : '';
-        var email = document.getElementById('cuEmail') ? document.getElementById('cuEmail').value.trim() : '';
-        var alert = document.getElementById('cuAlert');
+    function submitCreate() {
+        var name = document.getElementById('cpName') ? document.getElementById('cpName').value.trim() : '';
+        var clientId = document.getElementById('cpClientId') ? parseInt(document.getElementById('cpClientId').value, 10) : 0;
+        var description = document.getElementById('cpDescription') ? document.getElementById('cpDescription').value.trim() : '';
+        var dueDate = document.getElementById('cpDueDate') ? document.getElementById('cpDueDate').value.trim() : '';
+        var status = document.getElementById('cpStatus') ? document.getElementById('cpStatus').value : 'pending';
+        var isActive = document.getElementById('cpActive') && document.getElementById('cpActive').checked ? 1 : 0;
+        var alert = document.getElementById('cpAlert');
 
-        if (!fn || !ln || !email) {
-            if (alert) { alert.textContent = 'Bitte alle Pflichtfelder ausfüllen.'; alert.style.display = ''; }
+        if (!name || !clientId) {
+            if (alert) {
+                alert.textContent = 'Bitte Projektname und Klient auswaehlen.';
+                alert.style.display = '';
+            }
             return;
         }
 
-        var body = new URLSearchParams({ first_name: fn, last_name: ln, email: email, role_mask: String(roleMask || 0) });
+        var body = new URLSearchParams({
+            name: name,
+            client_id: String(clientId),
+            description: description,
+            due_date: dueDate,
+            status: status,
+            is_active: String(isActive),
+        });
+
         fetch(dataUrl, {
             method: 'POST',
             credentials: 'same-origin',
@@ -242,72 +324,76 @@
             .then(function (r) { return r.json(); })
             .then(function (json) {
                 if (!json.success) {
-                    var msg = json.message || 'Fehler beim Anlegen.';
-                    if (json.errors && json.errors.email) msg = 'E-Mail bereits vergeben.';
-                    if (alert) { alert.textContent = msg; alert.style.display = ''; }
+                    if (alert) {
+                        alert.textContent = json.message || 'Fehler beim Anlegen.';
+                        alert.style.display = '';
+                    }
                     return;
                 }
+
                 adminCloseModal();
-                loadUsers();
-                showInviteLink(json.data.invite_link);
+                loadProjects();
             })
             .catch(function () {
-                if (alert) { alert.textContent = 'Netzwerkfehler. Bitte erneut versuchen.'; alert.style.display = ''; }
+                if (alert) {
+                    alert.textContent = 'Netzwerkfehler. Bitte erneut versuchen.';
+                    alert.style.display = '';
+                }
             });
     }
 
     // ── Edit modal ────────────────────────────────────────────────────────────
 
     function openEditModal(id) {
-        var user = state.users.find(function (u) { return u.id === id; });
-        if (!user) return;
+        var project = state.projects.find(function (u) { return u.id === id; });
+        if (!project) return;
 
         var editDraft = {
             id: id,
-            first_name: user.first_name,
-            last_name: user.last_name,
-            role_mask: parseInt(user.role_mask, 10) || 0,
-            is_active: !!user.is_active,
+            first_name: project.first_name,
+            last_name: project.last_name,
+            role_mask: parseInt(project.role_mask, 10) || 0,
+            is_active: !!project.is_active,
         };
 
         renderEditModal(editDraft);
     }
 
     function renderEditModal(editDraft) {
-        var isSelf = (editDraft.id === currentUserId);
+        var isSelf = (editDraft.id === currentProjectId);
         var isActiveChecked = editDraft.is_active ? ' checked' : '';
         var isActiveDisabled = isSelf ? ' disabled' : '';
         var selfActiveHint = isSelf
-            ? '<span class="admin-users-permission-locked">\uD83D\uDD12 Eigener Account kann nicht deaktiviert werden.</span>'
+            ? '<span class="admin-projects-permission-locked">\uD83D\uDD12 Eigener Account kann nicht deaktiviert werden.</span>'
             : '';
 
         var body =
-            '<div class="admin-users-field">' +
-                '<label class="admin-users-label" for="euFn">Vorname</label>' +
-                '<input type="text" id="euFn" class="admin-users-input" value="' + escHtml(editDraft.first_name) + '" />' +
+            '<div class="admin-projects-field">' +
+                '<label class="admin-projects-label" for="euFn">Vorname</label>' +
+                '<input type="text" id="euFn" class="admin-projects-input" value="' + escHtml(editDraft.first_name) + '" />' +
             '</div>' +
-            '<div class="admin-users-field">' +
-                '<label class="admin-users-label" for="euLn">Nachname</label>' +
-                '<input type="text" id="euLn" class="admin-users-input" value="' + escHtml(editDraft.last_name) + '" />' +
+            '<div class="admin-projects-field">' +
+                '<label class="admin-projects-label" for="euLn">Nachname</label>' +
+                '<input type="text" id="euLn" class="admin-projects-input" value="' + escHtml(editDraft.last_name) + '" />' +
             '</div>' +
             (function () {
-                var isSelf = (editDraft.id === currentUserId);
+                var isSelf = (editDraft.id === currentProjectId);
                 var permBtn = isSelf
-                    ? '<span class="admin-users-permission-locked">\uD83D\uDD12 Eigene Berechtigungen k\xF6nnen nicht bearbeitet werden.</span>'
-                    : '<button type="button" id="euPermissionsBtn" class="admin-users-action-btn">Berechtigungen bearbeiten</button>';
-                return '<div class="admin-users-field">' +
-                    '<label class="admin-users-label">Berechtigungen</label>' +
+                    ? '<span class="admin-projects-permission-locked">\uD83D\uDD12 Eigene Berechtigungen k\xF6nnen nicht bearbeitet werden.</span>'
+                    : '<button type="button" id="euPermissionsBtn" class="admin-projects-action-btn">Berechtigungen bearbeiten</button>';
+                return '<div class="admin-projects-field">' +
+                    '<label class="admin-projects-label">Berechtigungen</label>' +
                     permBtn +
-                    '<div id="euPermSummary" class="admin-users-permission-summary">' + escHtml(permissionSummary(editDraft.role_mask)) + '</div>' +
+                    '<div id="euPermSummary" class="admin-projects-permission-summary">' + escHtml(permissionSummary(editDraft.role_mask)) + '</div>' +
                     '</div>';
             }()) +
-            '<div class="admin-users-field">' +
-                '<label class="admin-users-label admin-users-label--checkbox">' +
+            '<div class="admin-projects-field">' +
+                '<label class="admin-projects-label admin-projects-label--checkbox">' +
                     '<input type="checkbox" id="euActive"' + isActiveChecked + isActiveDisabled + ' /> Benutzer aktiv' +
                 '</label>' +
                 selfActiveHint +
             '</div>' +
-            '<div id="euAlert" class="admin-users-alert" style="display:none"></div>';
+            '<div id="euAlert" class="admin-projects-alert" style="display:none"></div>';
 
         adminOpenModal('Benutzer bearbeiten', body, {
             type: 'form',
@@ -351,7 +437,7 @@
         var alert    = document.getElementById('euAlert');
 
         var payload = { first_name: fn, last_name: ln, is_active: isActive };
-        if (id !== currentUserId) {
+        if (id !== currentProjectId) {
             payload.role_mask = roleMask;
         }
 
@@ -368,7 +454,7 @@
                     return;
                 }
                 adminCloseModal();
-                loadUsers();
+                loadProjects();
             })
             .catch(function () {
                 if (alert) { alert.textContent = 'Netzwerkfehler.'; alert.style.display = ''; }
@@ -378,8 +464,8 @@
     // ── Delete ────────────────────────────────────────────────────────────────
 
     function confirmDelete(id) {
-        var user = state.users.find(function (u) { return u.id === id; });
-        var name = user ? user.first_name + ' ' + user.last_name : 'diesen Benutzer';
+        var project = state.projects.find(function (u) { return u.id === id; });
+        var name = project ? project.first_name + ' ' + project.last_name : 'diesen Benutzer';
 
         adminOpenModal('Benutzer löschen', '<p>Soll ' + escHtml(name) + ' wirklich gelöscht werden?</p>', {
             type: 'form',
@@ -406,7 +492,7 @@
                     return;
                 }
                 adminCloseModal();
-                loadUsers();
+                loadProjects();
             });
     }
 
@@ -433,7 +519,7 @@
             '<p style="font-size:0.88rem;color:var(--admin-muted);margin:0 0 0.5rem">' +
                 'Link kopieren und an den Benutzer senden. Gültig für 2 Stunden.' +
             '</p>' +
-            '<div class="admin-users-invite-link-box">' + escHtml(link) + '</div>',
+            '<div class="admin-projects-invite-link-box">' + escHtml(link) + '</div>',
             {
                 type: 'form',
                 buttons: [
@@ -462,11 +548,11 @@
             var checked = (roleMask & perm.bit_value) !== 0 ? ' checked' : '';
             var canEditThis = canManageAdminSettings || ((editableMask & perm.bit_value) !== 0);
             var disabled = canEditThis ? '' : ' disabled';
-            var desc = perm.description ? '<span class="admin-users-permission-desc">' + escHtml(perm.description) + '</span>' : '';
+            var desc = perm.description ? '<span class="admin-projects-permission-desc">' + escHtml(perm.description) + '</span>' : '';
 
-            return '<label class="admin-users-permission-item' + (canEditThis ? '' : ' admin-users-permission-item--locked') + '">' +
-                '<input type="checkbox" class="admin-users-permission-check" data-bit="' + perm.bit_value + '"' + checked + disabled + ' />' +
-                '<span class="admin-users-permission-label">' + escHtml(perm.name) + ' <span class="admin-users-permission-bit">(' + perm.bit_value + ')</span></span>' +
+            return '<label class="admin-projects-permission-item' + (canEditThis ? '' : ' admin-projects-permission-item--locked') + '">' +
+                '<input type="checkbox" class="admin-projects-permission-check" data-bit="' + perm.bit_value + '"' + checked + disabled + ' />' +
+                '<span class="admin-projects-permission-label">' + escHtml(perm.name) + ' <span class="admin-projects-permission-bit">(' + perm.bit_value + ')</span></span>' +
                 desc +
             '</label>';
         }).join('');
@@ -476,8 +562,8 @@
             : 'Du kannst nur Berechtigungen bearbeiten, die du selbst besitzt.';
 
         var body =
-            '<p class="admin-users-permission-helper">' + escHtml(helperText) + '</p>' +
-            '<div class="admin-users-permission-list">' + rows + '</div>';
+            '<p class="admin-projects-permission-helper">' + escHtml(helperText) + '</p>' +
+            '<div class="admin-projects-permission-list">' + rows + '</div>';
 
         adminOpenModal(options.title || 'Berechtigungen', body, {
             type: 'form',
@@ -507,7 +593,7 @@
 
     function collectPermissionMask(originalMask, editableMask) {
         var selectedEditableMask = 0;
-        document.querySelectorAll('.admin-users-permission-check').forEach(function (el) {
+        document.querySelectorAll('.admin-projects-permission-check').forEach(function (el) {
             var bit = parseInt(el.getAttribute('data-bit') || '0', 10) || 0;
             if (bit <= 0) return;
             if (!el.checked) return;
@@ -565,9 +651,9 @@
     // ── Boot ──────────────────────────────────────────────────────────────────
 
     render();
-    loadUsers();
+    loadProjects();
 
-    var createBtn = document.getElementById('openCreateUser');
+    var createBtn = document.getElementById('openCreateProject');
     if (createBtn) {
         createBtn.addEventListener('click', function () { openCreateModal(); });
     }

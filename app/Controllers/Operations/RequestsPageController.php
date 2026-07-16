@@ -52,7 +52,7 @@ final class RequestsPageController
         $config['services'] = $this->serviceMapping();
 
         return $this->render('admin-requests-page.php', [
-            'pageTitle' => 'Anfragen – Getragen Begleiten',
+            'pageTitle' => 'Anfragen – Henz Software',
             'adminUser' => $adminUser,
             'logoutAction' => '/logout',
             'csrfToken' => app(CsrfTokenManager::class)->token(),

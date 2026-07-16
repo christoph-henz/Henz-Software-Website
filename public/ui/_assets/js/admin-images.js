@@ -362,12 +362,12 @@
         }
 
         if (state.isLoading) {
-            grid.innerHTML = '<p class="admin-images-empty">Lade Assets...</p>';
+            grid.innerHTML = '<p class="col-span-full rounded-2xl border border-dashed border-slate-700 bg-slate-900/60 px-5 py-6 text-sm text-slate-400">Lade Assets...</p>';
             return;
         }
 
         if (state.assets.length === 0) {
-            grid.innerHTML = '<p class="admin-images-empty">Noch keine Assets vorhanden.</p>';
+            grid.innerHTML = '<p class="col-span-full rounded-2xl border border-dashed border-slate-700 bg-slate-900/60 px-5 py-6 text-sm text-slate-400">Noch keine Assets vorhanden.</p>';
             return;
         }
 
@@ -379,19 +379,22 @@
             var nextActive = isActive ? '0' : '1';
             var altText = trim(asset.alt_text) !== '' ? trim(asset.alt_text) : 'Ohne Alt-Text';
             var fileLabel = trim(asset.original_filename) !== '' ? trim(asset.original_filename) : trim(asset.filename);
+            var badgeClasses = isActive
+                ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300'
+                : 'border-slate-700 bg-slate-900/80 text-slate-300';
 
             return '' +
-                '<article class="admin-images-card' + selectedClass + '">' +
-                '  <button type="button" class="admin-images-thumb-wrap" data-select-id="' + id + '">' +
-                '    <img class="admin-images-thumb" src="' + escapeHtml(assetImageUrl(asset)) + '" alt="' + escapeHtml(altText) + '" loading="lazy" />' +
+                '<article class="overflow-hidden rounded-2xl border ' + (state.selectedId === id ? 'border-cyan-400/40 ring-2 ring-cyan-400/20' : 'border-slate-800') + ' bg-slate-950/70 shadow-[0_14px_30px_rgba(0,0,0,0.18)] transition hover:-translate-y-0.5 hover:border-cyan-400/30 hover:shadow-[0_18px_36px_rgba(0,0,0,0.24)]' + selectedClass + '">' +
+                '  <button type="button" class="group block w-full overflow-hidden bg-slate-900/80" data-select-id="' + id + '">' +
+                '    <img class="aspect-square w-full object-cover transition duration-300 group-hover:scale-[1.02]" src="' + escapeHtml(assetImageUrl(asset)) + '" alt="' + escapeHtml(altText) + '" loading="lazy" />' +
                 '  </button>' +
-                '  <div class="admin-images-card-body">' +
-                '    <p class="admin-images-card-title" title="' + escapeHtml(fileLabel) + '">' + escapeHtml(fileLabel) + '</p>' +
-                '    <p class="admin-images-meta" title="' + escapeHtml(altText) + '">' + escapeHtml(altText) + '</p>' +
-                '    <span class="admin-images-badge' + (isActive ? ' is-active' : '') + '">' + activeLabel + '</span>' +
-                '    <div class="admin-images-detail-actions">' +
-                '      <button type="button" class="admin-images-btn" data-select-id="' + id + '">Details</button>' +
-                '      <button type="button" class="admin-images-btn" data-toggle-id="' + id + '" data-next-active="' + nextActive + '">' + (isActive ? 'Deaktivieren' : 'Aktivieren') + '</button>' +
+                '  <div class="space-y-2.5 p-3.5">' +
+                '    <p class="truncate text-sm font-semibold text-slate-50" title="' + escapeHtml(fileLabel) + '">' + escapeHtml(fileLabel) + '</p>' +
+                '    <p class="line-clamp-2 min-h-[2.5rem] text-sm leading-6 text-slate-400" title="' + escapeHtml(altText) + '">' + escapeHtml(altText) + '</p>' +
+                '    <span class="inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ' + badgeClasses + '">' + activeLabel + '</span>' +
+                '    <div class="flex flex-wrap gap-2 pt-1">' +
+                '      <button type="button" class="inline-flex items-center justify-center rounded-xl border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs font-medium text-slate-200 transition hover:border-cyan-400/40 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-400/20" data-select-id="' + id + '">Details</button>' +
+                '      <button type="button" class="inline-flex items-center justify-center rounded-xl border border-slate-700 bg-slate-900/80 px-3 py-2 text-xs font-medium text-slate-200 transition hover:border-cyan-400/40 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-400/20" data-toggle-id="' + id + '" data-next-active="' + nextActive + '">' + (isActive ? 'Deaktivieren' : 'Aktivieren') + '</button>' +
                 '    </div>' +
                 '  </div>' +
                 '</article>';
@@ -429,7 +432,7 @@
         }
 
         if (!asset) {
-            detailContent.innerHTML = 'Wählen Sie ein Asset aus dem Grid.';
+            detailContent.innerHTML = '<div class="flex min-h-[420px] items-center justify-center rounded-2xl border border-dashed border-slate-700 bg-slate-900/60 p-8 text-sm text-slate-400">Wählen Sie ein Asset aus dem Grid.</div>';
             return;
         }
 
@@ -441,23 +444,27 @@
         var dim = (asset.width && asset.height) ? String(asset.width) + ' x ' + String(asset.height) : '-';
 
         detailContent.innerHTML = '' +
-            '<img class="admin-images-detail-preview" src="' + escapeHtml(assetImageUrl(asset)) + '" alt="' + escapeHtml(trim(asset.alt_text) || 'Vorschau') + '" />' +
-            '<p class="admin-images-detail-meta"><strong>Datei:</strong> ' + escapeHtml(fileLabel) + '</p>' +
-            '<p class="admin-images-detail-meta"><strong>Typ:</strong> ' + escapeHtml(mime) + '</p>' +
-            '<p class="admin-images-detail-meta"><strong>Grösse:</strong> ' + escapeHtml(sizeKb) + '</p>' +
-            '<p class="admin-images-detail-meta"><strong>Dimension:</strong> ' + escapeHtml(dim) + '</p>' +
-            '<form id="adminImagesDetailForm" class="admin-images-detail-form" data-asset-id="' + assetId + '">' +
-            '  <label class="admin-images-label">' +
-            '    <span>Alt-Text</span>' +
-            '    <input class="admin-images-input" type="text" name="alt_text" maxlength="255" value="' + escapeHtml(trim(asset.alt_text)) + '" />' +
-            '  </label>' +
-            '  <label class="admin-images-label">' +
-            '    <span><input type="checkbox" name="is_active" ' + (isActive ? 'checked' : '') + ' /> Aktiv</span>' +
-            '  </label>' +
-            '  <div class="admin-images-detail-actions">' +
-            '    <button type="submit" class="admin-images-btn admin-images-btn--primary">Speichern</button>' +
-            '    <button type="button" class="admin-images-btn" data-assign-id="' + assetId + '">Seite zuweisen</button>' +
-            '    <button type="button" class="admin-images-btn admin-images-btn--danger" data-delete-id="' + assetId + '">Löschen</button>' +
+            '<div class="space-y-5 rounded-2xl border border-slate-800 bg-slate-950/70 p-5 shadow-[0_18px_40px_rgba(0,0,0,0.22)]">' +
+            '  <img class="w-full rounded-2xl border border-slate-800 object-cover shadow-[0_18px_40px_rgba(0,0,0,0.22)]" src="' + escapeHtml(assetImageUrl(asset)) + '" alt="' + escapeHtml(trim(asset.alt_text) || 'Vorschau') + '" />' +
+            '  <div class="grid gap-2 text-sm text-slate-300">' +
+            '    <p><strong class="text-slate-100">Datei:</strong> ' + escapeHtml(fileLabel) + '</p>' +
+            '    <p><strong class="text-slate-100">Typ:</strong> ' + escapeHtml(mime) + '</p>' +
+            '    <p><strong class="text-slate-100">Grösse:</strong> ' + escapeHtml(sizeKb) + '</p>' +
+            '    <p><strong class="text-slate-100">Dimension:</strong> ' + escapeHtml(dim) + '</p>' +
+            '  </div>' +
+            '  <form id="adminImagesDetailForm" class="space-y-4" data-asset-id="' + assetId + '">' +
+            '    <label class="block space-y-2 text-sm font-medium text-slate-200">' +
+            '      <span>Alt-Text</span>' +
+            '      <input class="block w-full rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20" type="text" name="alt_text" maxlength="255" value="' + escapeHtml(trim(asset.alt_text)) + '" />' +
+            '    </label>' +
+            '    <label class="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3 text-sm text-slate-200">' +
+            '      <input class="h-4 w-4 rounded border-slate-600 bg-slate-900 text-cyan-400 focus:ring-cyan-400/30" type="checkbox" name="is_active" ' + (isActive ? 'checked' : '') + ' />' +
+            '      <span>Aktiv</span>' +
+            '    </label>' +
+            '    <div class="flex flex-wrap gap-2 pt-1">' +
+            '      <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-cyan-400 to-sky-300 px-4 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-cyan-500/20 transition hover:-translate-y-0.5 hover:shadow-cyan-500/30 focus:outline-none focus:ring-2 focus:ring-cyan-400/30">Speichern</button>' +
+            '      <button type="button" class="inline-flex items-center justify-center rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-3 text-sm font-medium text-slate-200 transition hover:border-cyan-400/40 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-400/20" data-assign-id="' + assetId + '">Seite zuweisen</button>' +
+            '      <button type="button" class="inline-flex items-center justify-center rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm font-medium text-rose-200 transition hover:bg-rose-500/20 focus:outline-none focus:ring-2 focus:ring-rose-400/20" data-delete-id="' + assetId + '">Löschen</button>' +
             '  </div>' +
             '</form>';
     }
@@ -510,8 +517,7 @@
             return;
         }
 
-        var html = assignTemplate.innerHTML;
-        window.adminOpenModal('Asset einer Seite zuweisen', html, {
+        window.adminOpenModal('Asset einer Seite zuweisen', assignTemplate.innerHTML, {
             type: 'form',
             buttons: [
                 {
@@ -530,11 +536,6 @@
                 }
             ]
         });
-
-        var form = document.getElementById('adminImagesAssignForm');
-        if (!form) {
-            return;
-        }
 
         var hiddenAssetId = document.getElementById('adminImagesAssignAssetId');
         if (hiddenAssetId) {

@@ -36,7 +36,7 @@ final class AvailabilityPageController
         $config['can_manage_availability'] = $canManage;
 
         return $this->render('admin-availability-page.php', [
-            'pageTitle' => 'Verfügbarkeit - Getragen Begleiten',
+            'pageTitle' => 'Verfügbarkeit - Henz Software',
             'adminUser' => $adminUser,
             'logoutAction' => '/logout',
             'csrfToken' => app(CsrfTokenManager::class)->token(),

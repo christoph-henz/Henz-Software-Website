@@ -21,7 +21,7 @@ final class AuthController
         }
 
         return $this->render('admin-login-page.php', [
-            'pageTitle' => 'Admin Login – Getragen Begleiten',
+            'pageTitle' => 'Admin Login – Henz Software',
             'csrfToken' => app(CsrfTokenManager::class)->token(),
             'redirectTo' => $this->sanitizeRedirect((string) $request->query('redirect', '')),
             'errorMessage' => '',
@@ -40,7 +40,7 @@ final class AuthController
 
         if (!$csrf->isValid((string) $request->input('_token', ''))) {
             return $this->render('admin-login-page.php', [
-                'pageTitle' => 'Admin Login – Getragen Begleiten',
+                'pageTitle' => 'Admin Login – Henz Software',
                 'csrfToken' => $csrf->token(),
                 'redirectTo' => $redirectTo,
                 'errorMessage' => 'Ungültige Sitzung. Bitte laden Sie die Seite neu.',
@@ -50,7 +50,7 @@ final class AuthController
 
         if ($email === '' || $password === '') {
             return $this->render('admin-login-page.php', [
-                'pageTitle' => 'Admin Login – Getragen Begleiten',
+                'pageTitle' => 'Admin Login – Henz Software',
                 'csrfToken' => $csrf->token(),
                 'redirectTo' => $redirectTo,
                 'errorMessage' => 'Bitte E-Mail und Passwort ausfüllen.',
@@ -66,7 +66,7 @@ final class AuthController
         $loginErrorMessage = $this->determineLoginErrorMessage($user, $password);
         if ($loginErrorMessage !== null) {
             return $this->render('admin-login-page.php', [
-                'pageTitle' => 'Admin Login – Getragen Begleiten',
+                'pageTitle' => 'Admin Login – Henz Software',
                 'csrfToken' => $csrf->token(),
                 'redirectTo' => $redirectTo,
                 'errorMessage' => $loginErrorMessage,
@@ -97,7 +97,7 @@ final class AuthController
         $adminUser = is_array($session[$sessionKey] ?? null) ? $session[$sessionKey] : [];
 
         return $this->render('admin-dashboard-page.php', [
-            'pageTitle' => 'Adminpanel – Getragen Begleiten',
+            'pageTitle' => 'Adminpanel – Henz Software',
             'adminUser' => $adminUser,
             'logoutAction' => '/logout',
             'csrfToken' => app(CsrfTokenManager::class)->token(),

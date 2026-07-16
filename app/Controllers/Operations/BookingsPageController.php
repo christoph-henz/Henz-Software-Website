@@ -53,7 +53,7 @@ final class BookingsPageController
         $config['initial_booking_id'] = $bookingId;
 
         return $this->render('admin-bookings-page.php', [
-            'pageTitle' => 'Buchungen – Getragen Begleiten',
+            'pageTitle' => 'Buchungen – Henz Software',
             'adminUser' => $adminUser,
             'logoutAction' => '/logout',
             'csrfToken' => app(CsrfTokenManager::class)->token(),

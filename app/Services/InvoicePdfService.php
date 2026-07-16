@@ -143,7 +143,7 @@ final class InvoicePdfService
             . '<body style="font-family: DejaVu Sans, sans-serif; color:#1f2937; font-size:12px; line-height:1.5;">'
             . '<div style="margin-bottom:20px;">'
             . '<h1 style="margin:0 0 8px; font-size:24px;">Rechnung #' . $invoiceNumber . '</h1>'
-            . '<div>Getragen Begleiten</div>'
+            . '<div>Henz Software</div>'
             . '<div>' . htmlspecialchars((string) config('mail.senders.communication.address', ''), ENT_QUOTES, 'UTF-8') . '</div>'
             . '</div>'
             . '<table width="100%" cellspacing="0" cellpadding="0" style="margin-bottom:16px;">'

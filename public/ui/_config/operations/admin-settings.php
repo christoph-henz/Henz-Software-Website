@@ -36,7 +36,7 @@ return [
         'site_name' => [
             'label'      => 'Website-Name',
             'input_type' => 'text',
-            'placeholder' => 'z.B. Getragen Begleiten',
+            'placeholder' => 'z.B. Henz Software',
         ],
         'contact_email' => [
             'label'      => 'Kontakt-E-Mail',
@@ -105,7 +105,7 @@ return [
         'bank_transfer_account_holder' => [
             'label'      => 'Kontoinhaber',
             'input_type' => 'text',
-            'placeholder' => 'z.B. Getragen Begleiten',
+            'placeholder' => 'z.B. Henz Software',
         ],
         'bank_transfer_iban' => [
             'label'      => 'IBAN',

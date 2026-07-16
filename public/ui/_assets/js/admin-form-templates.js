@@ -1,10 +1,10 @@
 /**
- * admin-session-templates.js
+ * admin-form-templates.js
  * Template management UI logic
  */
 
 class AdminSessionTemplatesUI {
-  static AUTO_CONTEXT_LINE_TEMPLATE = 'Klient: {{first_name}} {{last_name}} | Erstellt am: {{created_date}}';
+  static AUTO_CONTEXT_LINE_TEMPLATE = 'Klient: {{name}} | Erstellt am: {{created_date}}';
 
   constructor() {
     this.config = window.__ADMIN_TEMPLATES_CONFIG || {};
@@ -312,7 +312,7 @@ class AdminSessionTemplatesUI {
         ...(this.filters.sort && { sort: this.filters.sort })
       });
 
-      const response = await fetch(`/admin/session-templates/data?${params}`, {
+      const response = await fetch(`/form-templates/data?${params}`, {
         method: 'GET',
         headers: { Accept: 'application/json' }
       });
@@ -456,7 +456,7 @@ class AdminSessionTemplatesUI {
   async openDetailModal(templateId, initialTab = 'overview') {
     this.currentDetailTemplateId = templateId;
     try {
-      const response = await fetch(`/admin/session-templates/data/${templateId}`, {
+      const response = await fetch(`/form-templates/data/${templateId}`, {
         method: 'GET',
         headers: { Accept: 'application/json' }
       });
@@ -499,7 +499,7 @@ class AdminSessionTemplatesUI {
 
   async loadVersions(templateId) {
     try {
-      const response = await fetch(`/admin/session-templates/data/${templateId}/versions`, {
+      const response = await fetch(`/form-templates/data/${templateId}/versions`, {
         method: 'GET',
         headers: { Accept: 'application/json' }
       });
@@ -528,10 +528,10 @@ class AdminSessionTemplatesUI {
             <span>Erstellt von: User ${version.created_by_user_id}</span>
           </div>
           <div class="version-actions">
-            <a class="btn btn-secondary btn-sm" href="/admin/session-templates/${templateId}/editor/${encodeURIComponent(String(version.version_no))}">
+            <a class="btn btn-secondary btn-sm" href="/form-templates/${templateId}/editor/${encodeURIComponent(String(version.version_no))}">
               Im Editor öffnen
             </a>
-            <a class="btn btn-secondary btn-sm" href="/admin/session-templates/data/${templateId}/versions/${version.id}/pdf" target="_blank" rel="noopener">
+            <a class="btn btn-secondary btn-sm" href="/form-templates/data/${templateId}/versions/${version.id}/pdf" target="_blank" rel="noopener">
               PDF exportieren
             </a>
           </div>
@@ -551,7 +551,7 @@ class AdminSessionTemplatesUI {
     }
 
     try {
-      const response = await fetch(`/admin/session-templates/data/${this.currentDetailTemplateId}/versions/${versionId}`, {
+      const response = await fetch(`/form-templates/data/${this.currentDetailTemplateId}/versions/${versionId}`, {
         method: 'GET',
         headers: { Accept: 'application/json' }
       });
@@ -597,14 +597,14 @@ class AdminSessionTemplatesUI {
       return;
     }
 
-    window.location.href = `/admin/session-templates/${this.currentDetailTemplateId}/editor`;
+    window.location.href = `/form-templates/${this.currentDetailTemplateId}/editor`;
   }
 
   async openEditorForTemplate(templateId, versionNo = null) {
     this.currentDetailTemplateId = String(templateId);
 
     try {
-      const response = await fetch(`/admin/session-templates/data/${templateId}`, {
+      const response = await fetch(`/form-templates/data/${templateId}`, {
         method: 'GET',
         headers: { Accept: 'application/json' }
       });
@@ -636,7 +636,7 @@ class AdminSessionTemplatesUI {
   }
 
   async loadSchemaForVersion(versionId) {
-    const response = await fetch(`/admin/session-templates/data/${this.currentDetailTemplateId}/versions/${versionId}`, {
+    const response = await fetch(`/form-templates/data/${this.currentDetailTemplateId}/versions/${versionId}`, {
       method: 'GET',
       headers: { Accept: 'application/json' }
     });
@@ -663,8 +663,8 @@ class AdminSessionTemplatesUI {
     try {
       const method = isEdit ? 'PATCH' : 'POST';
       const url = isEdit
-        ? `/admin/session-templates/data/${isEdit}`
-        : '/admin/session-templates/data';
+        ? `/form-templates/data/${isEdit}`
+        : '/form-templates/data';
 
       const response = await fetch(url, {
         method,
@@ -703,7 +703,7 @@ class AdminSessionTemplatesUI {
     };
 
     try {
-      const response = await fetch(`/admin/session-templates/data/${this.currentDetailTemplateId}`, {
+      const response = await fetch(`/form-templates/data/${this.currentDetailTemplateId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -739,7 +739,7 @@ class AdminSessionTemplatesUI {
 
     try {
       const schema = JSON.parse(this.elements.schemaJsonInput.value);
-      const response = await fetch(`/admin/session-templates/data/${this.currentDetailTemplateId}/versions`, {
+      const response = await fetch(`/form-templates/data/${this.currentDetailTemplateId}/versions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -765,7 +765,7 @@ class AdminSessionTemplatesUI {
 
   async deleteTemplate(templateId) {
     try {
-      const response = await fetch(`/admin/session-templates/data/${templateId}`, {
+      const response = await fetch(`/form-templates/data/${templateId}`, {
         method: 'DELETE',
         headers: { Accept: 'application/json' }
       });
@@ -784,7 +784,7 @@ class AdminSessionTemplatesUI {
 
   async toggleTemplateActive(templateId, makeActive) {
     try {
-      const response = await fetch(`/admin/session-templates/data/${templateId}`, {
+      const response = await fetch(`/form-templates/data/${templateId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -866,8 +866,8 @@ class AdminSessionTemplatesUI {
 
     return {
       letterhead: {
-        practice_name: 'Getragen Begleiten',
-        form_title: 'Sitzungsdokumentation',
+        practice_name: 'Henz Software',
+        form_title: 'Formularname',
         subtitle: 'Der Briefkopf steht immer am Anfang und bleibt als feste Kopfzone erhalten.',
         context_line: AdminSessionTemplatesUI.AUTO_CONTEXT_LINE_TEMPLATE
       },
@@ -1645,18 +1645,18 @@ class AdminSessionTemplatesUI {
 
   getTemplateTabPath(templateId, tabName) {
     if (!templateId) {
-      return '/admin/session-templates';
+      return '/form-templates';
     }
 
     if (tabName === 'metadata') {
-      return `/admin/session-templates/${templateId}/settings`;
+      return `/form-templates/${templateId}/settings`;
     }
 
     if (tabName === 'versions') {
-      return `/admin/session-templates/${templateId}/versions`;
+      return `/form-templates/${templateId}/versions`;
     }
 
-    return `/admin/session-templates/${templateId}`;
+    return `/form-templates/${templateId}`;
   }
 
   openModal(modal) {
