@@ -65,7 +65,7 @@ ob_start();
                 <input id="phaseProgress" class="admin-users-input" type="number" min="0" max="100" value="0" />
             </div>
             <div>
-                <button type="submit" class="admin-users-create-btn admin-project-detail-submit">Phase hinzufuegen</button>
+                <button type="submit" class="admin-users-create-btn admin-project-detail-submit">Phase hinzufügen</button>
             </div>
         </form>
         <?php endif; ?>
@@ -95,7 +95,7 @@ ob_start();
                 </select>
             </div>
             <div>
-                <button type="submit" class="admin-users-create-btn admin-project-detail-submit">Mitglied hinzufuegen</button>
+                <button type="submit" class="admin-users-create-btn admin-project-detail-submit">Mitglied hinzufügen</button>
             </div>
         </form>
         <?php endif; ?>

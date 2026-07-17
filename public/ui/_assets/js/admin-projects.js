@@ -711,13 +711,13 @@
     function projectStatusLabel(value) {
         var raw = String(value || '').toLowerCase();
         var labels = {
-            pending: 'Pending',
+            pending: 'Ausstehend',
             backlog: 'Backlog',
-            in_progress: 'In Progress',
-            review: 'Review',
-            completed: 'Completed',
-            on_hold: 'On Hold',
-            cancelled: 'Cancelled',
+            in_progress: 'In Bearbeitung',
+            review: 'In Pruefung',
+            completed: 'Abgeschlossen',
+            on_hold: 'Pausiert',
+            cancelled: 'Abgebrochen',
         };
 
         return labels[raw] || (raw ? raw : '-');

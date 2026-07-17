@@ -9,6 +9,7 @@ use App\Core\Database\Database;
 use App\Core\Http\Request;
 use App\Core\Http\Response;
 use App\Core\Support\PermissionBits;
+use App\Services\ClientFieldEncryptionService;
 use DateTimeImmutable;
 use Throwable;
 
@@ -71,7 +72,7 @@ final class ProjectAdminController extends BaseApiController
         $total = (int) $countStmt->fetchColumn();
 
         $stmt = $pdo->prepare(
-            "SELECT p.id, p.name, p.description, p.client_id, c.name AS client_name, p.status, p.is_active, p.due_date, p.created_at
+            "SELECT p.id, p.name, p.description, p.client_id, c.name AS client_name, p.status, p.progress, p.is_active, p.due_date, p.created_at
              FROM projects p
              JOIN clients c ON p.client_id = c.id
              $where
@@ -176,7 +177,7 @@ final class ProjectAdminController extends BaseApiController
         $projectId = (int) $pdo->lastInsertId();
 
         $row = $pdo->prepare(
-            'SELECT p.id, p.name, p.description, p.client_id, c.name AS client_name, p.status, p.is_active, p.due_date, p.created_at
+            'SELECT p.id, p.name, p.description, p.client_id, c.name AS client_name, p.status, p.progress, p.is_active, p.due_date, p.created_at
              FROM projects p
              JOIN clients c ON p.client_id = c.id
              WHERE p.id = :id
@@ -221,7 +222,7 @@ final class ProjectAdminController extends BaseApiController
              ORDER BY name ASC
              LIMIT :limit OFFSET :offset'
         );
-
+        $clientCrypto = app(ClientFieldEncryptionService::class);
         foreach ($bindings as $key => $value) {
             $stmt->bindValue($key, $value);
         }
@@ -230,13 +231,12 @@ final class ProjectAdminController extends BaseApiController
         $stmt->execute();
 
         $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-        $clients = array_map(static function (array $row): array {
+        $clients = array_map(function (array $row) use ($clientCrypto): array {
             return [
                 'id' => (int) ($row['id'] ?? 0),
-                'name' => (string) ($row['name'] ?? ''),
+                'name' => $this->decryptClientName((string) ($row['name'] ?? ''), $clientCrypto),
             ];
         }, is_array($rows) ? $rows : []);
-
         return $this->ok([
             'clients' => $clients,
             'meta' => [
@@ -753,6 +753,8 @@ final class ProjectAdminController extends BaseApiController
             ':updated_at' => $now,
         ]);
 
+        $this->recalculateProjectProgress($projectId);
+
         $phaseId = (int) $pdo->lastInsertId();
         $phase = $this->findPhaseById($projectId, $phaseId);
 
@@ -820,6 +822,8 @@ final class ProjectAdminController extends BaseApiController
             ':project_id' => $projectId,
         ]);
 
+        $this->recalculateProjectProgress($projectId);
+
         $updated = $this->findPhaseById($projectId, $phaseId);
         return $this->ok([
             'phase' => $this->formatPhase(is_array($updated) ? $updated : []),
@@ -849,6 +853,8 @@ final class ProjectAdminController extends BaseApiController
             ':id' => $phaseId,
             ':project_id' => $projectId,
         ]);
+
+        $this->recalculateProjectProgress($projectId);
 
         return $this->ok(['deleted' => true, 'id' => $phaseId]);
     }
@@ -1044,7 +1050,10 @@ final class ProjectAdminController extends BaseApiController
             ->execute($bindings);
 
         $row = $pdo->prepare(
-            'SELECT id, name, description, client_id, status, is_active, created_at, updated_at FROM projects WHERE id = :id'
+            'SELECT p.id, p.name, p.description, p.client_id, c.name AS client_name, p.status, p.progress, p.is_active, p.due_date, p.created_at, p.updated_at
+             FROM projects p
+             LEFT JOIN clients c ON c.id = p.client_id
+             WHERE p.id = :id'
         );
         $row->execute([':id' => $id]);
         $projectData = $row->fetch(\PDO::FETCH_ASSOC);
@@ -1095,6 +1104,7 @@ final class ProjectAdminController extends BaseApiController
             'client_id'     => (int) ($row['client_id'] ?? 0),
             'client_name'   => (string) ($row['client_name'] ?? ''),
             'status'        => (string) ($row['status'] ?? 'pending'),
+            'progress'      => (int) ($row['progress'] ?? 0),
             'is_active'     => (bool) ($row['is_active'] ?? false),
             'due_date'      => $row['due_date'] ?? null,
             'created_at'    => (string) ($row['created_at'] ?? ''),
@@ -1304,7 +1314,7 @@ final class ProjectAdminController extends BaseApiController
     {
         $pdo = app(Database::class)->connection();
         $stmt = $pdo->prepare(
-            'SELECT p.id, p.name, p.description, p.client_id, c.name AS client_name, p.status, p.is_active, p.due_date, p.created_at
+            'SELECT p.id, p.name, p.description, p.client_id, c.name AS client_name, p.status, p.progress, p.is_active, p.due_date, p.created_at
              FROM projects p
              JOIN clients c ON p.client_id = c.id
              WHERE p.id = :id AND p.deleted_at IS NULL
@@ -1380,5 +1390,53 @@ final class ProjectAdminController extends BaseApiController
         $row = $stmt->fetch(\PDO::FETCH_ASSOC);
 
         return is_array($row) ? $row : null;
+    }
+
+    private function decryptClientName(string $value, ClientFieldEncryptionService $clientCrypto): string
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return 'Unbekannt';
+        }
+
+        $decrypted = $clientCrypto->decryptClientRow(['name' => $trimmed]);
+        $name = trim((string) ($decrypted['name'] ?? ''));
+
+        return $name !== '' ? $name : 'Unbekannt';
+    }
+
+    private function recalculateProjectProgress(int $projectId): void
+    {
+        if ($projectId <= 0) {
+            return;
+        }
+
+        $pdo = app(Database::class)->connection();
+
+        $avgStmt = $pdo->prepare(
+            "SELECT AVG(pp.progress)
+             FROM project_phase pp
+             WHERE pp.project_id = :project_id
+               AND pp.deleted_at IS NULL
+             AND LOWER(pp.status) <> 'cancelled'"
+        );
+        $avgStmt->execute([':project_id' => $projectId]);
+
+        $avg = $avgStmt->fetchColumn();
+        $progress = $avg !== false && $avg !== null
+            ? (int) max(0, min(100, (int) round((float) $avg)))
+            : 0;
+
+        $update = $pdo->prepare(
+            'UPDATE projects
+             SET progress = :progress,
+                 updated_at = :updated_at
+             WHERE id = :project_id AND deleted_at IS NULL'
+        );
+        $update->execute([
+            ':progress' => $progress,
+            ':updated_at' => date('Y-m-d H:i:s'),
+            ':project_id' => $projectId,
+        ]);
     }
 }

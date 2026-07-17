@@ -87,6 +87,8 @@
         var meta = document.getElementById('projectDetailMeta');
         if (!state.project) return;
 
+        var mappedStatus = projectStatusLabel(state.project.status);
+
         if (title) {
             title.textContent = state.project.name || ('Projekt #' + String(state.project.id || ''));
         }
@@ -99,7 +101,7 @@
                 '</article>' +
                 '<article class="admin-project-meta-card">' +
                     '<span class="admin-project-meta-label">Status</span>' +
-                    '<strong class="admin-project-meta-value"><span class="admin-project-status-pill">' + esc(state.project.status || '-') + '</span></strong>' +
+                    '<strong class="admin-project-meta-value"><span class="admin-project-status-pill">' + esc(mappedStatus) + '</span></strong>' +
                 '</article>' +
                 '<article class="admin-project-meta-card">' +
                     '<span class="admin-project-meta-label">Faellig</span>' +
@@ -124,7 +126,7 @@
         var rows = state.phases.map(function (phase) {
             var controls = canManage
                 ? '<button class="admin-users-action-btn" data-action="save-phase" data-id="' + phase.id + '">Speichern</button>' +
-                  '<button class="admin-users-action-btn admin-users-action-btn--danger" data-action="delete-phase" data-id="' + phase.id + '">Loeschen</button>'
+                  '<button class="admin-users-action-btn admin-users-action-btn--danger" data-action="delete-phase" data-id="' + phase.id + '">Löschen</button>'
                 : '';
 
             var testData = phase.test_data && typeof phase.test_data === 'object' ? phase.test_data : null;
@@ -689,6 +691,25 @@
             var sel = value === selected ? ' selected' : '';
             return '<option value="' + value + '"' + sel + '>' + value + '</option>';
         }).join('');
+    }
+
+    function projectStatusLabel(value) {
+        var key = String(value || '').trim().toLowerCase();
+        var labels = {
+            pending: 'Ausstehend',
+            backlog: 'Backlog',
+            in_progress: 'In Bearbeitung',
+            review: 'In Prüfung',
+            completed: 'Abgeschlossen',
+            on_hold: 'Pausiert',
+            cancelled: 'Abgebrochen',
+        };
+
+        if (key === '') {
+            return '-';
+        }
+
+        return labels[key] || key;
     }
 
     function savePhase(id) {

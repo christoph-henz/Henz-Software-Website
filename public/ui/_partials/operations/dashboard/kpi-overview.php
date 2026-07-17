@@ -20,12 +20,12 @@ $colorMap = [
         <article class="rounded-xl border border-[#00c8ff]/10 bg-[#0c1520] p-5">
             <div class="mb-4 flex items-center justify-between">
                 <p class="text-xs text-[#5a7494]"><?= htmlspecialchars((string) ($card['label'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></p>
-                <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg <?= $palette['bg']; ?> <?= $palette['icon']; ?>">
+                <a href="<?= htmlspecialchars((string) ($card['url'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" class="inline-flex h-8 w-8 items-center justify-center rounded-lg <?= $palette['bg']; ?> <?= $palette['icon']; ?>">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M4 12h16" />
                         <path d="M12 4v16" />
                     </svg>
-                </span>
+                </a>
             </div>
             <p class="text-2xl font-bold text-[#e8edf5]" style="font-family: 'JetBrains Mono', monospace;">
                 <?= htmlspecialchars((string) ($card['value'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>

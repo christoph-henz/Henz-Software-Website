@@ -1,4 +1,6 @@
 (() => {
+  const SIDEBAR_RIBBON_STORAGE_KEY = 'admin.sidebar.ribbon.state.v1';
+
   const onReady = (fn) => {
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', fn);
@@ -176,15 +178,63 @@
       return;
     }
 
-    toggles.forEach((toggle) => {
-      toggle.addEventListener('click', () => {
-        const group = toggle.closest('.admin-sidebar-nav-group');
-        if (!group) {
-          return;
+    const readRibbonState = () => {
+      try {
+        const raw = window.sessionStorage.getItem(SIDEBAR_RIBBON_STORAGE_KEY);
+        if (!raw) {
+          return {};
         }
 
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : {};
+      } catch (_err) {
+        return {};
+      }
+    };
+
+    const writeRibbonState = (state) => {
+      try {
+        window.sessionStorage.setItem(SIDEBAR_RIBBON_STORAGE_KEY, JSON.stringify(state || {}));
+      } catch (_err) {
+        // Ignore storage errors.
+      }
+    };
+
+    const groupKeyForToggle = (toggle, index) => {
+      const explicitKey = String(toggle.getAttribute('data-ribbon-key') || '').trim();
+      if (explicitKey !== '') {
+        return explicitKey;
+      }
+
+      const label = String(toggle.textContent || '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
+
+      return 'idx:' + index + '|label:' + label;
+    };
+
+    const ribbonState = readRibbonState();
+
+    toggles.forEach((toggle, index) => {
+      const key = groupKeyForToggle(toggle, index);
+      const group = toggle.closest('.admin-sidebar-nav-group');
+      if (!group) {
+        return;
+      }
+
+      if (Object.prototype.hasOwnProperty.call(ribbonState, key)) {
+        const shouldExpand = !!ribbonState[key];
+        group.classList.toggle('is-expanded', shouldExpand);
+        toggle.setAttribute('aria-expanded', shouldExpand ? 'true' : 'false');
+      }
+
+      toggle.addEventListener('click', () => {
         const isExpanded = group.classList.toggle('is-expanded');
         toggle.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
+
+        ribbonState[key] = isExpanded;
+        writeRibbonState(ribbonState);
       });
     });
   };
