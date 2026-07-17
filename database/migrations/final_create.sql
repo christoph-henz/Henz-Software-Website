@@ -75,9 +75,9 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 CREATE TABLE IF NOT EXISTS clients (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    email VARCHAR(100) NOT NULL UNIQUE,
-    phone VARCHAR(20),
+    name TEXT NOT NULL,
+    email VARCHAR(150) NOT NULL UNIQUE,
+    phone TEXT,
     address TEXT,
     created_by INT,
     FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL,
@@ -197,7 +197,7 @@ CREATE TABLE IF NOT EXISTS services (
 CREATE TABLE IF NOT EXISTS contracts (
     id INT AUTO_INCREMENT PRIMARY KEY,
     client_id INT NOT NULL,
-    service_id INT NOT NULL,
+    project_id INT NOT NULL,
     start_date DATE NOT NULL,
     end_date DATE,
     terms TEXT,
@@ -208,14 +208,15 @@ CREATE TABLE IF NOT EXISTS contracts (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE,
-    FOREIGN KEY (service_id) REFERENCES services (id) ON DELETE CASCADE
+    FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS invoices (
     id INT AUTO_INCREMENT PRIMARY KEY,
     invoice_number INT NOT NULL,
     client_id INT NOT NULL,
-    contract_id INT NOT NULL,
+    project_id INT NOT NULL,
+    contract_id INT NULL,
     currency_code CHAR(3) NOT NULL DEFAULT 'EUR',
     sub_total_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     discount_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
@@ -234,6 +235,7 @@ CREATE TABLE IF NOT EXISTS invoices (
     KEY idx_invoices_client_id (client_id),
     KEY idx_invoices_status (status),
     CONSTRAINT fk_invoices_client FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE RESTRICT,
+    CONSTRAINT fk_invoices_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE RESTRICT,
     CONSTRAINT fk_invoices_contract FOREIGN KEY (contract_id) REFERENCES contracts(id) ON DELETE RESTRICT,
     CONSTRAINT fk_invoices_created_by FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -587,4 +589,25 @@ CREATE TABLE IF NOT EXISTS consent_audit_log (
     INDEX idx_consent_id (consent_id),
     INDEX idx_action (action),
     INDEX idx_attempted_at (attempted_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS data_access_audit (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    actor_user_id INT NULL,
+    action ENUM('view', 'create', 'update', 'export', 'delete') NOT NULL,
+    resource_type VARCHAR(100) NOT NULL,
+    resource_id VARCHAR(100) NOT NULL,
+    field_scope VARCHAR(255) NULL,
+    purpose_code VARCHAR(100) NULL,
+    ip_address VARCHAR(45) NULL,
+    user_agent VARCHAR(500) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_data_access_audit_actor
+        FOREIGN KEY (actor_user_id) REFERENCES henz_software_main.users(id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    INDEX idx_data_access_audit_actor_user_id (actor_user_id),
+    INDEX idx_data_access_audit_action (action),
+    INDEX idx_data_access_audit_resource (resource_type, resource_id),
+    INDEX idx_data_access_audit_created_at (created_at),
+    INDEX idx_data_access_audit_purpose_code (purpose_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

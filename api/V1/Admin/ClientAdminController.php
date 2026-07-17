@@ -16,8 +16,8 @@ use DateTimeImmutable;
 
 final class ClientAdminController extends BaseApiController
 {
-    private const VIEW_CLIENTS_BIT = 8;
-    private const MANAGE_CLIENTS_BIT = 16;
+    private const VIEW_CLIENTS_BIT = 32768;
+    private const MANAGE_CLIENTS_BIT = 65536;
     private ?bool $invoicePdfColumnAvailable = null;
     private ?bool $clientTimezoneColumnAvailable = null;
     private ?bool $emailLogClientRefHashColumnAvailable = null;
@@ -37,35 +37,35 @@ final class ClientAdminController extends BaseApiController
         $perPage = min(100, max(1, (int) $request->query('per_page', 20)));
         $offset = ($page - 1) * $perPage;
 
-        $sort = strtolower(trim((string) $request->query('sort', 'last_name')));
+        $sort = strtolower(trim((string) $request->query('sort', 'name')));
         $direction = strtolower(trim((string) $request->query('direction', 'asc')));
         $direction = in_array($direction, ['asc', 'desc'], true) ? $direction : 'asc';
 
         $sortMap = [
-            'first_name',
-            'last_name',
-            'date_of_birth',
+            'name',
             'email',
+            'phone',
+            'address',
             'created_at',
         ];
         if (!in_array($sort, $sortMap, true)) {
-            $sort = 'last_name';
+            $sort = 'name';
         }
 
         $search = trim((string) $request->query('q', ''));
 
         $pdo = app(Database::class)->connection();
-        $stmt = $pdo->query('SELECT id, first_name, last_name, date_of_birth, email, created_at FROM clients');
+        $stmt = $pdo->query('SELECT id, name, email, phone, address, created_at FROM clients');
         $rows = $stmt !== false ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
         $rows = app(ClientFieldEncryptionService::class)->decryptClientRows(is_array($rows) ? $rows : []);
 
         if ($search !== '') {
             $needle = strtolower($search);
             $rows = array_values(array_filter($rows, static function (array $row) use ($needle): bool {
-                $name = strtolower(trim((string) (($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? ''))));
+                $name = strtolower(trim((string) ($row['name'] ?? '')));
                 $email = strtolower(trim((string) ($row['email'] ?? '')));
-
-                return str_contains($name, $needle) || str_contains($email, $needle);
+                $phone = strtolower(trim((string) ($row['phone'] ?? '')));
+                return str_contains($name, $needle) || str_contains($email, $needle) || str_contains($phone, $needle);
             }));
         }
 
@@ -85,7 +85,7 @@ final class ClientAdminController extends BaseApiController
 
         return $this->ok([
             'clients' => array_map(
-                fn (array $row): array => $this->formatClientListItem($row),
+                fn(array $row): array => $this->formatClientListItem($row),
                 is_array($rows) ? $rows : []
             ),
             'meta' => [
@@ -136,14 +136,9 @@ final class ClientAdminController extends BaseApiController
         $payload = $request->all();
         $errors = [];
 
-        $firstName = trim((string) ($payload['first_name'] ?? $payload['firstname'] ?? ''));
-        if ($firstName === '') {
-            $errors['first_name'][] = 'required';
-        }
-
-        $lastName = trim((string) ($payload['last_name'] ?? $payload['lastname'] ?? ''));
-        if ($lastName === '') {
-            $errors['last_name'][] = 'required';
+        $name = trim((string) ($payload['name'] ?? $payload['name'] ?? ''));
+        if ($name === '') {
+            $errors['name'][] = 'required';
         }
 
         $email = strtolower(trim((string) ($payload['email'] ?? '')));
@@ -155,70 +150,38 @@ final class ClientAdminController extends BaseApiController
             $errors['email'][] = 'already_exists';
         }
 
-        $dobRaw = trim((string) ($payload['date_of_birth'] ?? $payload['dob'] ?? ''));
-        $dateOfBirth = null;
-        if ($dobRaw !== '') {
-            $dateOfBirth = $this->normalizeDate($dobRaw);
-            if ($dateOfBirth === null) {
-                $errors['date_of_birth'][] = 'invalid_date';
-            }
-        }
-
-        $timezone = null;
-        if ($this->isClientTimezoneColumnAvailable()) {
-            $timezoneRaw = trim((string) ($payload['timezone'] ?? $payload['time_zone'] ?? ''));
-            if ($timezoneRaw !== '') {
-                $timezone = $this->normalizeTimezone($timezoneRaw);
-                if ($timezone === null) {
-                    $errors['timezone'][] = 'invalid_timezone';
-                }
-            }
-        }
-
         if ($errors !== []) {
             return $this->fail('Validation failed', 422, $errors);
         }
 
         $phone = trim((string) ($payload['phone'] ?? ''));
-        $notes = trim((string) ($payload['notes'] ?? ''));
+        $address = trim((string) ($payload['address'] ?? ''));
         $now = date('Y-m-d H:i:s');
 
         $columns = [
-            'first_name',
-            'last_name',
-            'date_of_birth',
+            'name',
             'email',
             'phone',
-            'medical_notes',
+            'address',
             'created_at',
             'updated_at',
         ];
         $placeholders = [
-            ':first_name',
-            ':last_name',
-            ':date_of_birth',
+            ':name',
             ':email',
             ':phone',
-            ':medical_notes',
+            ':address',
             ':created_at',
             ':updated_at',
         ];
         $bindings = [
-            ':first_name' => $firstName,
-            ':last_name' => $lastName,
-            ':date_of_birth' => $dateOfBirth,
+            ':name' => $name,
             ':email' => $email,
             ':phone' => $phone !== '' ? $phone : null,
-            ':medical_notes' => $notes !== '' ? $notes : null,
+            ':address' => $address !== '' ? $address : null,
             ':created_at' => $now,
             ':updated_at' => $now,
         ];
-
-        if ($this->isClientTimezoneColumnAvailable()) {
-            $columns[] = 'timezone';
-            $placeholders[] = ':timezone';
-            $bindings[':timezone'] = $timezone;
-        }
 
         $storagePayload = [];
         foreach ($bindings as $key => $value) {
@@ -237,29 +200,45 @@ final class ClientAdminController extends BaseApiController
             $pdo = app(Database::class)->connection();
             $insertSql = 'INSERT INTO clients (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $placeholders) . ')';
             $stmt = $pdo->prepare($insertSql);
+            var_dump($insertSql, $bindings); // Debugging line to check the SQL and bindings
             $stmt->execute($bindings);
 
             $newId = (int) $pdo->lastInsertId();
+
             if ($newId <= 0) {
-                return $this->fail('Fehler', 500);
+                return $this->fail('Client could not be created', 500, [
+                    'client' => ['creation_failed'],
+                ]);
             }
 
             $created = $this->fetchClient($newId);
+
             if ($created === null) {
-                return $this->fail('Fehler', 500);
+                return $this->fail('Client created but could not be loaded', 500, [
+                    'client' => ['reload_failed'],
+                ]);
             }
 
             return $this->ok([
                 'client' => $this->formatClientDetail($created),
             ]);
         } catch (\Throwable $e) {
+
             if ($this->isDuplicateEmailConstraintViolation($e)) {
                 return $this->fail('Validation failed', 422, [
                     'email' => ['already_exists'],
                 ]);
             }
 
-            return $this->fail('Fehler', 500);
+            if ($e instanceof \PDOException) {
+                return $this->fail('Database error', 500, [
+                    'database' => ['insert_failed'],
+                ]);
+            }
+
+            return $this->fail('Unexpected error', 500, [
+                'server' => ['unexpected_error'],
+            ]);
         }
     }
 
@@ -374,24 +353,6 @@ final class ClientAdminController extends BaseApiController
             $bindings[':medical_notes'] = $notes !== '' ? $notes : null;
         }
 
-        if (array_key_exists('timezone', $payload) || array_key_exists('time_zone', $payload)) {
-            if ($this->isClientTimezoneColumnAvailable()) {
-                $timezone = trim((string) ($payload['timezone'] ?? $payload['time_zone'] ?? ''));
-                if ($timezone === '') {
-                    $fields[] = 'timezone = :timezone';
-                    $bindings[':timezone'] = null;
-                } else {
-                    $normalizedTimezone = $this->normalizeTimezone($timezone);
-                    if ($normalizedTimezone === null) {
-                        $errors['timezone'][] = 'invalid_timezone';
-                    } else {
-                        $fields[] = 'timezone = :timezone';
-                        $bindings[':timezone'] = $normalizedTimezone;
-                    }
-                }
-            }
-        }
-
         if ($errors !== []) {
             return $this->fail('Validation failed', 422, $errors);
         }
@@ -437,72 +398,6 @@ final class ClientAdminController extends BaseApiController
         ]);
     }
 
-    public function packages(Request $request): Response
-    {
-        if (!$this->canViewClients($request)) {
-            return $this->fail('Forbidden', 403, [
-                'permission' => ['insufficient_role'],
-            ]);
-        }
-
-        $id = (int) $request->attribute('id', 0);
-        if ($id <= 0) {
-            return $this->fail('Validation failed', 422, [
-                'id' => ['required'],
-            ]);
-        }
-
-        $client = $this->fetchClient($id);
-        if ($client === null) {
-            return $this->fail('Client not found', 404);
-        }
-
-        $pdo = app(Database::class)->connection();
-        $stmt = $pdo->prepare(
-            'SELECT
-                pp.id,
-                pp.package_id,
-                pp.total_sessions,
-                pp.reserved_sessions,
-                pp.consumed_sessions,
-                pp.remaining_sessions,
-                pp.status,
-                pp.payment_status,
-                pp.purchased_at,
-                pp.expires_at,
-                pp.notes,
-                pp.package_name_snapshot,
-                pp.package_slug_snapshot,
-                pp.package_price_snapshot,
-                pp.service_name_snapshot,
-                pp.service_slug_snapshot,
-                pp.service_price_snapshot,
-                pp.package_session_count_snapshot,
-                sp.name AS package_name,
-                sp.slug AS package_slug,
-                s.name AS service_name
-             FROM package_purchases pp
-             LEFT JOIN service_packages sp ON sp.id = pp.package_id
-             LEFT JOIN services s ON s.id = pp.service_id
-             WHERE pp.client_id = :client_id
-               AND pp.status = :status
-             ORDER BY pp.purchased_at DESC, pp.id DESC'
-        );
-        $stmt->execute([
-            ':client_id' => $id,
-            ':status' => 'active',
-        ]);
-
-        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-
-        return $this->ok([
-            'packages' => array_map(
-                fn (array $row): array => $this->formatPackageRow($row),
-                is_array($rows) ? $rows : []
-            ),
-        ]);
-    }
-
     public function invoices(Request $request): Response
     {
         if (!$this->canViewClients($request)) {
@@ -531,32 +426,35 @@ final class ClientAdminController extends BaseApiController
 
         $stmt = $pdo->prepare(
             'SELECT
-                b.id AS booking_id,
-                b.scheduled_at AS booking_scheduled_at,
-                b.status AS booking_status,
-                b.payment_status AS booking_payment_status,
-                b.created_at AS booking_created_at,
-                inv.id AS invoice_id,
-                inv.invoice_number,
-                inv.status AS invoice_status,
-                inv.total_amount,
-                inv.currency_code,
-                inv.invoice_date,
-                inv.due_date,
-                     inv.sent_at,
-                     ' . $pdfSelect . '
-             FROM bookings b
-             LEFT JOIN invoices inv
-                ON inv.id = (
-                    SELECT i2.id
-                    FROM invoices i2
-                    WHERE i2.booking_id = b.id
-                    ORDER BY i2.id DESC
-                    LIMIT 1
-                )
-             WHERE b.client_id = :client_id
-             ORDER BY b.scheduled_at ASC, b.id ASC'
+        p.id AS project_id,
+        p.name AS project_name,
+        p.is_active AS project_is_active,
+        p.status AS project_status,
+        p.created_at AS project_created_at,
+
+        inv.id AS invoice_id,
+        inv.invoice_number,
+        inv.status AS invoice_status,
+        inv.total_amount,
+        inv.currency_code,
+        inv.invoice_date,
+        inv.due_date,
+        inv.sent_at,
+        ' . $pdfSelect . '
+
+        FROM projects p
+
+        LEFT JOIN invoices inv
+            ON inv.project_id = p.id
+
+        WHERE p.client_id = :client_id
+
+        ORDER BY
+            p.created_at DESC,
+            inv.invoice_date DESC,
+            inv.invoice_number DESC'
         );
+
         $stmt->execute([
             ':client_id' => $id,
         ]);
@@ -564,9 +462,9 @@ final class ClientAdminController extends BaseApiController
         $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
         return $this->ok([
-            'bookings' => array_map(
-                fn (array $row): array => $this->formatInvoiceBookingRow($row, $id),
-                is_array($rows) ? $rows : []
+            'projects' => $this->formatProjectsWithInvoices(
+                is_array($rows) ? $rows : [],
+                $id
             ),
         ]);
     }
@@ -599,64 +497,6 @@ final class ClientAdminController extends BaseApiController
 
         return $this->ok([
             'history' => $history,
-        ]);
-    }
-
-    public function consents(Request $request): Response
-    {
-        if (!$this->canViewClients($request)) {
-            return $this->fail('Forbidden', 403, [
-                'permission' => ['insufficient_role'],
-            ]);
-        }
-
-        $id = (int) $request->attribute('id', 0);
-        if ($id <= 0) {
-            return $this->fail('Validation failed', 422, [
-                'id' => ['required'],
-            ]);
-        }
-
-        $client = $this->fetchClient($id);
-        if ($client === null) {
-            return $this->fail('Client not found', 404);
-        }
-
-        $pdo = app(Database::class)->connection();
-        $stmt = $pdo->prepare(
-            'SELECT
-                c.id,
-                c.client_request_id,
-                c.booking_id,
-                c.consent_key,
-                c.accepted,
-                c.accepted_at,
-                c.consent_version,
-                c.consent_text_snapshot,
-                c.ip_address,
-                c.user_agent,
-                c.signature_hash,
-                b.scheduled_at AS booking_scheduled_at,
-                cr.status AS request_status,
-                cr.created_at AS request_created_at
-             FROM consents c
-             LEFT JOIN bookings b ON b.id = c.booking_id
-             LEFT JOIN client_requests cr ON cr.id = c.client_request_id
-             WHERE (b.client_id = :client_id_booking OR cr.client_id = :client_id_request)
-             ORDER BY c.accepted_at DESC, c.id DESC'
-        );
-        $stmt->execute([
-            ':client_id_booking' => $id,
-            ':client_id_request' => $id,
-        ]);
-
-        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-
-        return $this->ok([
-            'consents' => array_map(
-                fn (array $row): array => $this->formatConsentRow($row),
-                is_array($rows) ? $rows : []
-            ),
         ]);
     }
 
@@ -694,10 +534,10 @@ final class ClientAdminController extends BaseApiController
             return $this->fail('Invoice not found', 404);
         }
 
-            $relativePath = trim((string) ($invoice['pdf_path'] ?? ''));
-            $absolutePath = $this->resolveInvoicePdfAbsolutePath($relativePath);
+        $relativePath = trim((string) ($invoice['pdf_path'] ?? ''));
+        $absolutePath = $this->resolveInvoicePdfAbsolutePath($relativePath);
 
-            if ($relativePath === '' || !is_file($absolutePath)) {
+        if ($relativePath === '' || !is_file($absolutePath)) {
             try {
                 $pdfMeta = app(InvoicePdfService::class)->generateForInvoice($invoiceId);
                 $relativePath = (string) ($pdfMeta['relative_path'] ?? '');
@@ -717,7 +557,7 @@ final class ClientAdminController extends BaseApiController
                         'pdf_generated_at' => (string) ($pdfMeta['generated_at'] ?? date('Y-m-d H:i:s')),
                     ]);
 
-                    $absolutePath = $this->resolveInvoicePdfAbsolutePath($relativePath);
+                $absolutePath = $this->resolveInvoicePdfAbsolutePath($relativePath);
             } catch (\Throwable) {
                 return $this->fail('Invoice PDF not found', 404, [
                     'invoice' => ['pdf_missing_on_disk'],
@@ -745,27 +585,27 @@ final class ClientAdminController extends BaseApiController
         ]);
     }
 
-        private function resolveInvoicePdfAbsolutePath(string $relativePath): string
-        {
-            $relativePath = trim($relativePath);
-            if ($relativePath === '') {
-                return '';
-            }
-
-            $normalized = ltrim($relativePath, '/');
-            $candidates = [
-                base_path('storage/media/' . $normalized),
-                base_path('storage/media/invoices/' . $normalized),
-            ];
-
-            foreach ($candidates as $candidate) {
-                if (is_file($candidate)) {
-                    return $candidate;
-                }
-            }
-
-            return $candidates[0];
+    private function resolveInvoicePdfAbsolutePath(string $relativePath): string
+    {
+        $relativePath = trim($relativePath);
+        if ($relativePath === '') {
+            return '';
         }
+
+        $normalized = ltrim($relativePath, '/');
+        $candidates = [
+            base_path('storage/media/' . $normalized),
+            base_path('storage/media/invoices/' . $normalized),
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (is_file($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return $candidates[0];
+    }
     private function isInvoicePdfColumnAvailable(): bool
     {
         if ($this->invoicePdfColumnAvailable !== null) {
@@ -790,34 +630,6 @@ final class ClientAdminController extends BaseApiController
             return $this->invoicePdfColumnAvailable;
         } catch (\Throwable) {
             $this->invoicePdfColumnAvailable = false;
-            return false;
-        }
-    }
-
-    private function isClientTimezoneColumnAvailable(): bool
-    {
-        if ($this->clientTimezoneColumnAvailable !== null) {
-            return $this->clientTimezoneColumnAvailable;
-        }
-
-        try {
-            $pdo = app(Database::class)->connection();
-            $statement = $pdo->prepare(
-                'SELECT 1 FROM information_schema.columns
-                 WHERE table_schema = DATABASE()
-                   AND table_name = :table_name
-                   AND column_name = :column_name
-                 LIMIT 1'
-            );
-            $statement->execute([
-                'table_name' => 'clients',
-                'column_name' => 'timezone',
-            ]);
-
-            $this->clientTimezoneColumnAvailable = $statement->fetchColumn() !== false;
-            return $this->clientTimezoneColumnAvailable;
-        } catch (\Throwable) {
-            $this->clientTimezoneColumnAvailable = false;
             return false;
         }
     }
@@ -858,47 +670,6 @@ final class ClientAdminController extends BaseApiController
         }
 
         return $value;
-    }
-
-    private function normalizeTimezone(string $value): ?string
-    {
-        $value = trim($value);
-        if ($value === '') {
-            return null;
-        }
-
-        if (in_array($value, timezone_identifiers_list(), true)) {
-            return $value;
-        }
-
-        $normalizedInput = strtolower(str_replace(' ', '_', $value));
-
-        $aliases = [
-            'berlin' => 'Europe/Berlin',
-            'de' => 'Europe/Berlin',
-            'germany' => 'Europe/Berlin',
-            'cet' => 'Europe/Berlin',
-            'cest' => 'Europe/Berlin',
-        ];
-
-        if (isset($aliases[$normalizedInput])) {
-            return $aliases[$normalizedInput];
-        }
-
-        $candidate = 'Europe/' . ucfirst($normalizedInput);
-        if (in_array($candidate, timezone_identifiers_list(), true)) {
-            return $candidate;
-        }
-
-        static $lookup = null;
-        if (!is_array($lookup)) {
-            $lookup = [];
-            foreach (timezone_identifiers_list() as $identifier) {
-                $lookup[strtolower($identifier)] = $identifier;
-            }
-        }
-
-        return $lookup[$normalizedInput] ?? null;
     }
 
     private function isEmailAlreadyUsed(string $email, ?int $excludeId = null): bool
@@ -971,18 +742,13 @@ final class ClientAdminController extends BaseApiController
 
         $selectColumns = [
             'id',
-            'first_name',
-            'last_name',
-            'date_of_birth',
+            'name',
             'email',
             'phone',
-            'medical_notes',
+            'address',
             'created_at',
             'updated_at',
         ];
-        if ($this->isClientTimezoneColumnAvailable()) {
-            $selectColumns[] = 'timezone';
-        }
 
         $stmt = $pdo->prepare(
             'SELECT ' . implode(', ', $selectColumns) . '
@@ -1005,9 +771,9 @@ final class ClientAdminController extends BaseApiController
     {
         return [
             'id' => (int) ($row['id'] ?? 0),
-            'first_name' => (string) ($row['first_name'] ?? ''),
-            'last_name' => (string) ($row['last_name'] ?? ''),
-            'date_of_birth' => (string) ($row['date_of_birth'] ?? ''),
+            'name' => (string) ($row['name'] ?? ''),
+            'phone' => (string) ($row['phone'] ?? ''),
+            'address' => (string) ($row['address'] ?? ''),
             'email' => (string) ($row['email'] ?? ''),
             'created_at' => (string) ($row['created_at'] ?? ''),
         ];
@@ -1018,17 +784,22 @@ final class ClientAdminController extends BaseApiController
     {
         return [
             'id' => (int) ($row['id'] ?? 0),
-            'first_name' => (string) ($row['first_name'] ?? ''),
-            'last_name' => (string) ($row['last_name'] ?? ''),
-            'date_of_birth' => (string) ($row['date_of_birth'] ?? ''),
-            'email' => (string) ($row['email'] ?? ''),
+            'name' => (string) ($row['name'] ?? ''),
             'phone' => (string) ($row['phone'] ?? ''),
-            'timezone' => isset($row['timezone']) ? (string) $row['timezone'] : '',
-            'notes' => (string) ($row['medical_notes'] ?? ''),
+            'address' => (string) ($row['address'] ?? ''),
+            'email' => (string) ($row['email'] ?? ''),
             'created_at' => (string) ($row['created_at'] ?? ''),
             'updated_at' => (string) ($row['updated_at'] ?? ''),
         ];
     }
+
+    /**
+     * 
+     * +----------------------------------------------------------+     
+     * |         Contracts for a given client ID.                 |
+     * +----------------------------------------------------------+
+     * 
+     */
 
     /** @param array<string, mixed> $row */
     private function formatPackageRow(array $row): array
@@ -1061,36 +832,63 @@ final class ClientAdminController extends BaseApiController
         ];
     }
 
-    /** @param array<string, mixed> $row */
-    private function formatInvoiceBookingRow(array $row, int $clientId): array
-    {
-        $invoiceId = isset($row['invoice_id']) ? (int) $row['invoice_id'] : 0;
-        $totalAmount = isset($row['total_amount']) ? (float) $row['total_amount'] : null;
-        $pdfPath = trim((string) ($row['pdf_path'] ?? ''));
-        $pdfAvailable = $invoiceId > 0 && $pdfPath !== '';
+    /**
+     * 
+     * +----------------------------------------------------------+     
+     * | Contract        |
+     * +----------------------------------------------------------+
+     * 
+     */
 
-        return [
-            'booking_id' => (int) ($row['booking_id'] ?? 0),
-            'booking_scheduled_at' => (string) ($row['booking_scheduled_at'] ?? ''),
-            'booking_status' => (string) ($row['booking_status'] ?? 'pending'),
-            'booking_payment_status' => (string) ($row['booking_payment_status'] ?? 'pending'),
-            'booking_created_at' => (string) ($row['booking_created_at'] ?? ''),
-            'invoice' => $invoiceId > 0 ? [
-                'id' => $invoiceId,
-                'invoice_number' => isset($row['invoice_number']) ? (int) $row['invoice_number'] : 0,
-                'status' => (string) ($row['invoice_status'] ?? 'created'),
-                'total_amount' => $totalAmount,
-                'currency_code' => (string) ($row['currency_code'] ?? 'EUR'),
-                'invoice_date' => isset($row['invoice_date']) ? (string) $row['invoice_date'] : null,
-                'due_date' => isset($row['due_date']) ? (string) $row['due_date'] : null,
-                'sent_at' => isset($row['sent_at']) ? (string) $row['sent_at'] : null,
-                'pdf_available' => $pdfAvailable,
-                'pdf_generated_at' => isset($row['pdf_generated_at']) ? (string) $row['pdf_generated_at'] : null,
-                'pdf_url' => $pdfAvailable
-                    ? '/admin/clients/data/' . $clientId . '/invoices/' . $invoiceId . '/pdf'
-                    : null,
-            ] : null,
-        ];
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function formatProjectsWithInvoices(array $rows, int $clientId): array
+    {
+        $projects = [];
+
+        foreach ($rows as $row) {
+            $projectId = (int) ($row['project_id'] ?? 0);
+
+            if (!isset($projects[$projectId])) {
+                $projects[$projectId] = [
+                    'id' => $projectId,
+                    'name' => (string) ($row['project_name'] ?? ''),
+                    'is_active' => (int) ($row['project_is_active'] ?? 0) === 1,
+                    'status' => (string) ($row['project_status'] ?? ''),
+                    'created_at' => (string) ($row['project_created_at'] ?? ''),
+                    'invoices' => [],
+                ];
+            }
+
+            $invoiceId = (int) ($row['invoice_id'] ?? 0);
+
+            if ($invoiceId > 0) {
+                $pdfPath = trim((string) ($row['pdf_path'] ?? ''));
+                $pdfAvailable = $pdfPath !== '';
+
+                $projects[$projectId]['invoices'][] = [
+                    'id' => $invoiceId,
+                    'invoice_number' => (int) ($row['invoice_number'] ?? 0),
+                    'status' => (string) ($row['invoice_status'] ?? 'created'),
+                    'total_amount' => isset($row['total_amount'])
+                        ? (float) $row['total_amount']
+                        : null,
+                    'currency_code' => (string) ($row['currency_code'] ?? 'EUR'),
+                    'invoice_date' => $row['invoice_date'] ?? null,
+                    'due_date' => $row['due_date'] ?? null,
+                    'sent_at' => $row['sent_at'] ?? null,
+                    'pdf_available' => $pdfAvailable,
+                    'pdf_generated_at' => $row['pdf_generated_at'] ?? null,
+                    'pdf_url' => $pdfAvailable
+                        ? "/admin/clients/data/{$clientId}/invoices/{$invoiceId}/pdf"
+                        : null,
+                ];
+            }
+        }
+
+        return array_values($projects);
     }
 
     /** @param array<string, mixed> $row */
@@ -1118,6 +916,14 @@ final class ClientAdminController extends BaseApiController
             'request_created_at' => isset($row['request_created_at']) ? (string) $row['request_created_at'] : null,
         ];
     }
+
+    /**
+     * 
+     * +----------------------------------------------------------+     
+     * | Fetch History events for a given client ID.        |
+     * +----------------------------------------------------------+
+     * 
+     */
 
     /** @return array<int, array<string, mixed>> */
     private function fetchHistoryEvents(int $clientId): array
@@ -1271,6 +1077,16 @@ final class ClientAdminController extends BaseApiController
             return [];
         }
     }
+
+
+
+    /**
+     * 
+     * +----------------------------------------------------------+     
+     * | Fetch email history events for a given client ID.        |
+     * +----------------------------------------------------------+
+     * 
+     */
 
     /** @return array<int, array<string, mixed>> */
     private function fetchEmailHistoryEvents(int $clientId): array

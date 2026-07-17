@@ -184,7 +184,6 @@ Router::group('', function (): void {
     Router::patch('/clients/data/{id}', [ClientAdminController::class, 'update'])->name('admin.clients.data.update');
     Router::get('/clients/data/{id}/history', [ClientAdminController::class, 'history'])->name('admin.clients.data.history');
     Router::get('/clients/data/{id}/consents', [ClientAdminController::class, 'consents'])->name('admin.clients.data.consents');
-    Router::get('/clients/data/{id}/packages', [ClientAdminController::class, 'packages'])->name('admin.clients.data.packages');
     Router::get('/clients/data/{id}/invoices', [ClientAdminController::class, 'invoices'])->name('admin.clients.data.invoices');
     Router::get('/clients/data/{id}/invoices/{invoice_id}/pdf', [ClientAdminController::class, 'invoicePdf'])->name('admin.clients.data.invoices.pdf');
     Router::get('/clients', [ClientsPageController::class, 'index'])->name('admin.clients.index');
@@ -201,6 +200,9 @@ Router::group('', function (): void {
     Router::delete('/projects/data/{id}/phases/{phase_id}', [ProjectAdminController::class, 'destroyPhase'])->name('admin.projects.data.phases.destroy');
     Router::get('/projects/{id}/phase/{phase_id}/test-data', [ProjectAdminController::class, 'phaseTestData'])->name('admin.projects.phase.test_data');
     Router::post('/projects/{id}/phase/{phase_id}/tests', [ProjectAdminController::class, 'createPhaseTests'])->name('admin.projects.phase.tests.create');
+    Router::post('/projects/{id}/phase/{phase_id}/test-data', [ProjectAdminController::class, 'savePhaseTestData'])->name('admin.projects.phase.test_data.save');
+    Router::post('/projects/{id}/phase/{phase_id}/test-data/attachments', [ProjectAdminController::class, 'uploadPhaseTestAttachment'])->name('admin.projects.phase.test_data.attachments.upload');
+    Router::get('/projects/{id}/phase/{phase_id}/test-data/attachments/{attachment_id}/download', [ProjectAdminController::class, 'downloadPhaseTestAttachment'])->name('admin.projects.phase.test_data.attachments.download');
     Router::get('/projects/data/{id}/members', [ProjectAdminController::class, 'members'])->name('admin.projects.data.members.index');
     Router::post('/projects/data/{id}/members', [ProjectAdminController::class, 'storeMember'])->name('admin.projects.data.members.store');
     Router::delete('/projects/data/{id}/members/{member_id}', [ProjectAdminController::class, 'destroyMember'])->name('admin.projects.data.members.destroy');

@@ -7,6 +7,7 @@ $adminUser   = is_array($adminUser ?? null) ? $adminUser : [];
 $logoutAction = (string) ($logoutAction ?? '/admin/logout');
 $csrfToken   = (string) ($csrfToken ?? '');
 $projectDetailConfig = is_array($projectDetailConfig ?? null) ? $projectDetailConfig : [];
+$canManageProjects = (bool) ($projectDetailConfig['can_manage_projects'] ?? false);
 
 $extraHead = '';
 $extraScripts = '<script>window.__ADMIN_PROJECT_DETAIL_CONFIG = ' . json_encode(
@@ -38,6 +39,7 @@ ob_start();
     <div class="admin-project-detail-block admin-project-detail-block--phases">
         <h2 class="admin-project-detail-heading">Projektphasen</h2>
 
+        <?php if ($canManageProjects): ?>
         <form id="createPhaseForm" class="admin-users-field admin-project-detail-form admin-project-detail-form--phases">
             <div>
                 <label class="admin-users-label" for="phaseName">Phasenname *</label>
@@ -66,6 +68,7 @@ ob_start();
                 <button type="submit" class="admin-users-create-btn admin-project-detail-submit">Phase hinzufuegen</button>
             </div>
         </form>
+        <?php endif; ?>
         <div id="phaseAlert" class="admin-users-alert" style="display:none"></div>
         <div id="projectPhasesContainer" class="admin-project-detail-table-wrap">Keine Phasen vorhanden.</div>
     </div>
@@ -73,6 +76,7 @@ ob_start();
     <div class="admin-project-detail-block">
         <h2 class="admin-project-detail-heading">Projektmitglieder</h2>
 
+        <?php if ($canManageProjects): ?>
         <form id="createMemberForm" class="admin-users-field admin-project-detail-form admin-project-detail-form--members">
             <div>
                 <label class="admin-users-label" for="memberUserId">User *</label>
@@ -94,6 +98,7 @@ ob_start();
                 <button type="submit" class="admin-users-create-btn admin-project-detail-submit">Mitglied hinzufuegen</button>
             </div>
         </form>
+        <?php endif; ?>
         <div id="memberAlert" class="admin-users-alert" style="display:none"></div>
         <div id="projectMembersContainer" class="admin-project-detail-table-wrap">Keine Mitglieder vorhanden.</div>
     </div>

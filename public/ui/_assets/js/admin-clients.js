@@ -8,6 +8,7 @@
     var canView = !!cfg.can_view_clients;
     var canManage = !!cfg.can_manage_clients;
     var canUseFormTemplates = !!cfg.can_use_form_templates_for_clients;
+    var canViewProjects = !!cfg.can_view_projects;
     var viewMode = cfg.view_mode === 'record' ? 'record' : 'list';
 
     function allowedDetailTabs() {
@@ -37,6 +38,9 @@
         formRecords: [],
         bookings: [],
         invoiceBookings: [],
+        projects: [],
+        loadingProjects: false,
+        projectDetails: {},
         templates: [],
         templatesLoaded: false,
         selectedTemplateId: null,
@@ -61,7 +65,7 @@
         fetchList();
     } else {
         if (!state.selectedClientId) {
-            window.location.href = '/admin/clients';
+            window.location.href = '/clients';
             return;
         }
         loadRecordView();
@@ -73,7 +77,7 @@
             fetchList();
         } else {
             if (!state.selectedClientId) {
-                window.location.href = '/admin/clients';
+                window.location.href = '/clients';
                 return;
             }
             loadRecordView();
@@ -103,12 +107,12 @@
         }
 
         var infoSection = trim(qs.get('info_section'));
-        if (infoSection !== '' && inArray(infoSection, ['overview', 'invoices', 'packages', 'consents', 'history'])) {
+        if (infoSection !== '' && inArray(infoSection, ['overview', 'projects', 'invoices', 'packages', 'consents', 'history'])) {
             state.infoSubtab = infoSection;
         }
 
-        var path = window.location.pathname || '/admin/clients';
-        var detailMatch = path.match(/^\/admin\/clients\/(\d+)$/);
+        var path = window.location.pathname || '/clients';
+        var detailMatch = path.match(/^\/clients\/(\d+)$/);
         state.selectedClientId = detailMatch ? parseInt(detailMatch[1], 10) : null;
     }
 
@@ -127,7 +131,7 @@
         var qs = new URLSearchParams();
         if (state.detailTab !== 'info') qs.set('tab', state.detailTab);
         if (state.detailTab === 'info' && state.infoSubtab !== 'overview') qs.set('info_section', state.infoSubtab);
-        var nextUrl = '/admin/clients/' + state.selectedClientId + (qs.toString() ? ('?' + qs.toString()) : '');
+        var nextUrl = '/clients/' + state.selectedClientId + (qs.toString() ? ('?' + qs.toString()) : '');
         if (push) window.history.pushState(null, '', nextUrl);
         else window.history.replaceState(null, '', nextUrl);
     }
@@ -159,18 +163,17 @@
             rows = '<tr><td colspan="4" class="admin-clients-empty">Keine Clients gefunden.</td></tr>';
         } else {
             rows = state.clients.map(function (item) {
-                var birthDate = escapeHtml(formatDate(item.date_of_birth));
+                var address = escapeHtml(item.address || '-');
                 var phone = escapeHtml(item.phone || '-');
                 return '' +
                     '<tr class="admin-clients-row admin-clients-row--primary" data-row-id="' + item.id + '">' +
-                    '  <td>' + escapeHtml(item.first_name || '') + '</td>' +
-                    '  <td>' + escapeHtml(item.last_name || '') + '</td>' +
-                    '  <td class="admin-clients-desktop-only">' + birthDate + '</td>' +
-                    '  <td class="admin-clients-desktop-only">' + escapeHtml(item.email || '') + '</td>' +
+                    '  <td>' + escapeHtml(item.name || '') + '</td>' +
+                    '  <td>' + escapeHtml(item.email || '') + '</td>' +
+                    '  <td>' + escapeHtml(item.phone || '') + '</td>' +
+                    '  <td class="admin-clients-desktop-only">' + escapeHtml(item.address || '') + '</td>' +
                     '</tr>' +
                     '<tr class="admin-clients-row admin-clients-row--mobile-meta" data-row-id="' + item.id + '">' +
-                    '  <td>' + birthDate + '</td>' +
-                    '  <td>' + phone + '</td>' +
+                    '  <td>' + address + '</td>' +
                     '  <td class="admin-clients-desktop-only"></td>' +
                     '  <td class="admin-clients-desktop-only"></td>' +
                     '</tr>';
@@ -193,10 +196,10 @@
             '  <div class="admin-clients-table-wrap">' +
             '    <table class="admin-clients-table">' +
             '      <thead><tr>' +
-            '        <th><button type="button" class="admin-clients-sort" data-sort="first_name">Vorname ' + sortIndicator('first_name') + '</button></th>' +
-            '        <th><button type="button" class="admin-clients-sort" data-sort="last_name">Nachname ' + sortIndicator('last_name') + '</button></th>' +
-            '        <th><button type="button" class="admin-clients-sort" data-sort="date_of_birth">Geburtsdatum ' + sortIndicator('date_of_birth') + '</button></th>' +
+            '        <th><button type="button" class="admin-clients-sort" data-sort="name">Name ' + sortIndicator('name') + '</button></th>' +
             '        <th><button type="button" class="admin-clients-sort" data-sort="email">E-Mail ' + sortIndicator('email') + '</button></th>' +
+            '        <th><button type="button" class="admin-clients-sort" data-sort="phone">Telefon ' + sortIndicator('phone') + '</button></th>' +
+            '        <th><button type="button" class="admin-clients-sort" data-sort="address">Adresse ' + sortIndicator('address') + '</button></th>' +
             '      </tr></thead>' +
             '      <tbody>' + rows + '</tbody>' +
             '    </table>' +
@@ -224,8 +227,8 @@
         return '' +
             '<section class="admin-clients-pane admin-clients-pane--detail-only">' +
             '  <div class="admin-clients-pane-head admin-clients-pane-head--record">' +
-            '    <a class="admin-clients-back" href="/admin/clients">Zur Listenansicht</a>' +
-            '    <span>Klientenakte: ' + escapeHtml((c.first_name || '') + ' ' + (c.last_name || '')) + ' <span class="admin-clients-id">#' + escapeHtml(String(c.id || '')) + '</span></span>' +
+            '    <a class="admin-clients-back" href="/clients">Zur Listenansicht</a>' +
+            '    <span>Klientenakte: ' + escapeHtml(c.name || '') + ' <span class="admin-clients-id">#' + escapeHtml(String(c.id || '')) + '</span></span>' +
             '  </div>' +
             '  <div class="admin-clients-tabs" role="tablist">' +
             tabButton('info', 'Infos') +
@@ -253,21 +256,19 @@
             '<section class="admin-clients-card">' +
             '  <h3 class="admin-clients-card-title">Klienteninformationen</h3>' +
             '  <div class="admin-clients-detail-grid">' +
-            detailField('Vorname', '<input id="clientFirstName" class="admin-clients-input" type="text" value="' + escapeHtml(c.first_name || '') + '" ' + (canManage ? '' : 'disabled') + ' />') +
-            detailField('Nachname', '<input id="clientLastName" class="admin-clients-input" type="text" value="' + escapeHtml(c.last_name || '') + '" ' + (canManage ? '' : 'disabled') + ' />') +
-            detailField('Geburtsdatum', '<input id="clientDob" class="admin-clients-input" type="date" value="' + escapeHtml(c.date_of_birth || '') + '" ' + (canManage ? '' : 'disabled') + ' />') +
+            detailField('Name', '<input id="clientName" class="admin-clients-input" type="text" value="' + escapeHtml(c.name) + '" ' + (canManage ? '' : 'disabled') + ' />') +
             detailField('E-Mail', '<input id="clientEmail" class="admin-clients-input" type="email" value="' + escapeHtml(c.email || '') + '" ' + (canManage ? '' : 'disabled') + ' />') +
             detailField('Telefon', '<input id="clientPhone" class="admin-clients-input" type="text" value="' + escapeHtml(c.phone || '') + '" ' + (canManage ? '' : 'disabled') + ' />') +
-            detailField('Notiz', '<textarea id="clientNotes" class="admin-clients-textarea" ' + (canManage ? '' : 'disabled') + '>' + escapeHtml(c.notes || '') + '</textarea>') +
+            detailField('Adresse', '<textarea id="clientAddress" class="admin-clients-textarea" ' + (canManage ? '' : 'disabled') + '>' + escapeHtml(c.address || '') + '</textarea>') +
             '  </div>' +
             (canManage ? '  <div class="admin-clients-actions"><button type="button" class="admin-clients-page-btn" data-save-client>Speichern</button></div>' : '') +
             '</section>' +
             '<section class="admin-clients-card">' +
             '  <div class="admin-clients-subtabs" role="tablist" aria-label="Zusaetzliche Klienteninformationen">' +
-            infoTabButton('overview', 'Uebersicht') +
+            infoTabButton('overview', 'Übersicht') +
+            infoTabButton('projects', 'Projekte') +
             infoTabButton('history', 'Buchungshistorie') +
             infoTabButton('invoices', 'Rechnungen') +
-            infoTabButton('packages', 'Pakete') +
             infoTabButton('consents', 'Einwilligungen') +
             '  </div>' +
             '  <div class="admin-clients-subtab-content">' + renderInfoSubtab(c) + '</div>' +
@@ -275,9 +276,9 @@
     }
 
     function renderInfoSubtab(client) {
+        if (state.infoSubtab === 'projects') return renderProjectsSection();
         if (state.infoSubtab === 'history') return renderHistorySection();
         if (state.infoSubtab === 'invoices') return renderInvoicesSection();
-        if (state.infoSubtab === 'packages') return renderPackagesSection();
         if (state.infoSubtab === 'consents') return renderConsentsSection();
         return renderInfoOverviewSection(client);
     }
@@ -285,16 +286,119 @@
     function renderInfoOverviewSection(client) {
         return '' +
             '<div class="admin-clients-overview-grid">' +
+            overviewMetric('Projekte', String(state.projects.length), 'Alle Projekte des Clients inkl. Unterstruktur.') +
             overviewMetric('Buchungshistorie', String(state.historyItems.length), 'Alle zusammengefuehrten Ereignisse zur Klientenakte.') +
             overviewMetric('Rechnungen', String(countInvoices()), 'Buchungen mit Rechnungsbezug inklusive PDF-Status.') +
-            overviewMetric('Aktive Pakete', String(state.packages.length), 'Derzeit verfuegbare Paketkaeufe des Klienten.') +
-            overviewMetric('Einwilligungen', String(state.consents.length), 'Rechtlich dokumentierte Zustimmungen und Nachweise.') +
+            overviewMetric('Testprotokolle', String(countTestProtocols()), 'Abgeschlossene oder laufende Testprotokolle aus Projektphasen.') +
             '</div>' +
             '<div class="admin-clients-detail-grid admin-clients-detail-grid--compact">' +
             detailField('Zeitzone', escapeHtml(client.timezone || '-')) +
             detailField('Angelegt', escapeHtml(formatDateTime(client.created_at))) +
             detailField('Zuletzt aktualisiert', escapeHtml(formatDateTime(client.updated_at))) +
             '</div>';
+    }
+
+    function renderProjectsSection() {
+        if (state.loadingProjects) {
+            return '<div class="admin-clients-empty">Lade Projektstruktur...</div>';
+        }
+
+        if (!Array.isArray(state.projects) || state.projects.length === 0) {
+            return '<div class="admin-clients-empty">Keine Projekte vorhanden.</div>';
+        }
+
+        return '<div class="admin-clients-project-shell">' + state.projects.map(function (project) {
+            var projectId = parsePositiveInt(project && project.id, 0);
+            var details = projectId > 0 ? state.projectDetails[projectId] : null;
+            var phases = details && Array.isArray(details.phases) ? details.phases : [];
+            var members = details && Array.isArray(details.members) ? details.members : [];
+            var contracts = details && Array.isArray(details.contracts) ? details.contracts : [];
+            var testProtocols = details && Array.isArray(details.testProtocols) ? details.testProtocols : [];
+            var files = details && Array.isArray(details.files) ? details.files : [];
+            var notes = details && Array.isArray(details.notes) ? details.notes : [];
+            var invoices = Array.isArray(project && project.invoices) ? project.invoices : [];
+            var loadingHint = details && details.loading ? '<div class="admin-clients-project-empty">Projektdetails werden geladen...</div>' : '';
+
+            return '' +
+                '<article class="admin-clients-project-card">' +
+                '  <header class="admin-clients-project-head">' +
+                '    <h4 class="admin-clients-project-name">' + escapeHtml(String(project && project.name ? project.name : 'Projekt')) + '</h4>' +
+                '    <div class="admin-clients-inline-actions">' +
+                '      <span class="admin-clients-project-status">Status: ' + escapeHtml(String(project && project.status ? project.status : '-')) + '</span>' +
+                (canViewProjects && projectId > 0
+                    ? '      <a class="admin-clients-page-btn" href="/projects/' + projectId + '">Projekt ansehen</a>'
+                    : '') +
+                '    </div>' +
+                '  </header>' +
+                '  <div class="admin-clients-project-meta">' +
+                renderProjectBadge('Contracts', contracts.length) +
+                renderProjectBadge('Invoices', invoices.length) +
+                renderProjectBadge('Phases', phases.length) +
+                renderProjectBadge('TestProtocols', testProtocols.length) +
+                renderProjectBadge('Members', members.length) +
+                renderProjectBadge('Files', files.length) +
+                renderProjectBadge('Notes', notes.length) +
+                '  </div>' +
+                '  <div class="admin-clients-project-details">' +
+                renderProjectNode('Contracts', contracts.map(function (item) {
+                    return 'Typ: ' + String(item.type || '-') + ' · Referenz: ' + String(item.reference || '-');
+                })) +
+                renderProjectNode('Invoices', invoices.map(function (item) {
+                    var invoiceNo = item && item.invoice_number ? String(item.invoice_number) : String(item && item.id ? item.id : '-');
+                    return '#' + invoiceNo + ' · ' + String(item && item.status ? item.status : '-') + ' · ' + formatCurrency(item && item.total_amount, item && item.currency_code ? item.currency_code : 'EUR');
+                })) +
+                renderProjectNode('Phases', phases.map(function (item) {
+                    return String(item && item.phase_name ? item.phase_name : '-') + ' · ' + String(item && item.status ? item.status : '-') + ' · ' + String(item && item.progress ? item.progress : 0) + '%';
+                })) +
+                renderProjectNode('TestProtocols', testProtocols.map(function (item) {
+                    return String(item.template_name || item.template_key || 'Protokoll') + ' · ' + String(item.status || '-') + ' · Phase: ' + String(item.phase_name || '-');
+                })) +
+                renderProjectNode('Members', members.map(function (item) {
+                    var user = item && item.user ? item.user : {};
+                    var fullName = trim(String(user.first_name || '') + ' ' + String(user.last_name || ''));
+                    return (fullName !== '' ? fullName : String(user.email || '-')) + ' · Rolle: ' + String(item && item.role ? item.role : '-');
+                })) +
+                renderProjectNode('Files', files.map(function (item) {
+                    var base = String(item && item.original_filename ? item.original_filename : 'Anhang');
+                    if (item && item.download_url) {
+                        return '<a class="admin-clients-link" href="' + escapeHtml(String(item.download_url)) + '">' + escapeHtml(base) + '</a>';
+                    }
+                    return escapeHtml(base);
+                }), true) +
+                renderProjectNode('Notes', notes.map(function (item) {
+                    return String(item || '');
+                })) +
+                loadingHint +
+                '  </div>' +
+                '</article>';
+        }).join('') + '</div>';
+    }
+
+    function renderProjectBadge(key, value) {
+        return '' +
+            '<div class="admin-clients-project-badge">' +
+            '  <span class="admin-clients-project-badge-key">' + escapeHtml(String(key || '')) + '</span>' +
+            '  <span class="admin-clients-project-badge-value">' + escapeHtml(String(value || 0)) + '</span>' +
+            '</div>';
+    }
+
+    function renderProjectNode(label, values, alreadyEscaped) {
+        var items = Array.isArray(values) ? values : [];
+        var body = '';
+        if (items.length === 0) {
+            body = '<div class="admin-clients-project-empty">Keine Eintraege vorhanden.</div>';
+        } else {
+            body = '<ul class="admin-clients-project-list">' + items.map(function (value) {
+                var content = alreadyEscaped ? String(value || '') : escapeHtml(String(value || '-'));
+                return '<li class="admin-clients-project-item">' + content + '</li>';
+            }).join('') + '</ul>';
+        }
+
+        return '' +
+            '<details class="admin-clients-project-node">' +
+            '  <summary>' + escapeHtml(String(label || '')) + '</summary>' +
+            body +
+            '</details>';
     }
 
     function renderHistorySection() {
@@ -327,9 +431,7 @@
             return '<div class="admin-clients-empty">Lade Rechnungen...</div>';
         }
 
-        var rows = state.invoiceBookings.filter(function (item) {
-            return !!(item && item.invoice);
-        });
+        var rows = state.invoiceBookings;
 
         if (rows.length === 0) {
             return '<div class="admin-clients-empty">Keine Rechnungen vorhanden.</div>';
@@ -346,40 +448,12 @@
                     : '<span class="admin-clients-muted">Nicht verfuegbar</span>';
                 return '' +
                     '<tr>' +
-                    '  <td>#' + escapeHtml(String(invoice.invoice_number || invoice.id || '-')) + '</td>' +
+                    '  <td>#' + escapeHtml(String(invoice.invoice_number || invoice.id || '-')) + '<div class="admin-clients-table-meta">' + escapeHtml(String(item.project_name || '-')) + '</div></td>' +
                     '  <td>' + escapeHtml(formatDateTime(item.booking_scheduled_at)) + '</td>' +
                     '  <td>' + escapeHtml(String(invoice.status || '-')) + '</td>' +
                     '  <td>' + escapeHtml(formatCurrency(invoice.total_amount, invoice.currency_code || 'EUR')) + '</td>' +
                     '  <td>' + escapeHtml(formatDate(invoice.due_date)) + '</td>' +
                     '  <td>' + pdfHtml + '</td>' +
-                    '</tr>';
-            }).join('') + '</tbody>' +
-            '  </table>' +
-            '</div>';
-    }
-
-    function renderPackagesSection() {
-        if (state.loadingPackages) {
-            return '<div class="admin-clients-empty">Lade Pakete...</div>';
-        }
-
-        if (state.packages.length === 0) {
-            return '<div class="admin-clients-empty">Keine aktiven Pakete vorhanden.</div>';
-        }
-
-        return '' +
-            '<div class="admin-clients-table-wrap">' +
-            '  <table class="admin-clients-table">' +
-            '    <thead><tr><th>Paket</th><th>Service</th><th>Sitzungen</th><th>Preis</th><th>Bezahlt</th><th>Ablauf</th></tr></thead>' +
-            '    <tbody>' + state.packages.map(function (item) {
-                return '' +
-                    '<tr>' +
-                    '  <td><strong>' + escapeHtml(String(item.package_name || '-')) + '</strong><div class="admin-clients-table-meta">' + escapeHtml(String(item.package_slug || '')) + '</div></td>' +
-                    '  <td>' + escapeHtml(String(item.service_name || '-')) + '</td>' +
-                    '  <td>' + escapeHtml(String(item.used_sessions || 0)) + ' / ' + escapeHtml(String(item.total_sessions || item.session_count || 0)) + ' · offen ' + escapeHtml(String(item.remaining_sessions || 0)) + '</td>' +
-                    '  <td>' + escapeHtml(formatCurrency(item.package_price, 'EUR')) + '</td>' +
-                    '  <td>' + escapeHtml(String(item.payment_status || '-')) + '</td>' +
-                    '  <td>' + escapeHtml(formatDate(item.expires_at)) + '</td>' +
                     '</tr>';
             }).join('') + '</tbody>' +
             '  </table>' +
@@ -689,7 +763,7 @@
                 row.addEventListener('click', function () {
                     var id = parsePositiveInt(row.getAttribute('data-row-id'), 0);
                     if (id <= 0) return;
-                    window.location.href = '/admin/clients/' + id;
+                    window.location.href = '/clients/' + id;
                 });
             });
 
@@ -716,7 +790,7 @@
         root.querySelectorAll('[data-info-tab]').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 var tab = String(btn.getAttribute('data-info-tab') || 'overview');
-                if (!inArray(tab, ['overview', 'history', 'invoices', 'packages', 'consents'])) return;
+                if (!inArray(tab, ['overview', 'projects', 'history', 'invoices', 'packages', 'consents'])) return;
                 state.infoSubtab = tab;
                 writeRecordUrl(false);
                 render();
@@ -903,12 +977,12 @@
         var extraBlock = extraRows === ''
             ? ''
             : '' +
-                '<div class="admin-clients-table-wrap" style="margin-top:0.75rem;">' +
-                '  <table class="admin-clients-table">' +
-                '    <thead><tr><th>Weitere Felder</th><th>Wert</th></tr></thead>' +
-                '    <tbody>' + extraRows + '</tbody>' +
-                '  </table>' +
-                '</div>';
+            '<div class="admin-clients-table-wrap" style="margin-top:0.75rem;">' +
+            '  <table class="admin-clients-table">' +
+            '    <thead><tr><th>Weitere Felder</th><th>Wert</th></tr></thead>' +
+            '    <tbody>' + extraRows + '</tbody>' +
+            '  </table>' +
+            '</div>';
 
         return '' +
             '<section class="admin-clients-attachments">' +
@@ -988,9 +1062,7 @@
     }
 
     function resolveTemplateContextLine(client, createdAtValue) {
-        var firstName = trim(client && client.first_name ? client.first_name : '');
-        var lastName = trim(client && client.last_name ? client.last_name : '');
-        var fullName = trim((firstName + ' ' + lastName));
+        var fullName = trim(client && client.name ? client.name : '');
         if (fullName === '') {
             fullName = 'Unbekannt';
         }
@@ -1217,7 +1289,7 @@
                     ? (previewable
                         ? '<button type="button" class="admin-clients-page-btn" data-preview-attachment="' + escapeHtml(String(id)) + '" data-record-id="' + escapeHtml(String(recordId)) + '" data-file-name="' + escapeHtml(fileName) + '">Ansehen</button> '
                         : '') +
-                      '<button type="button" class="admin-clients-page-btn" data-download-attachment="' + escapeHtml(String(id)) + '" data-record-id="' + escapeHtml(String(recordId)) + '">Download</button>'
+                    '<button type="button" class="admin-clients-page-btn" data-download-attachment="' + escapeHtml(String(id)) + '" data-record-id="' + escapeHtml(String(recordId)) + '">Download</button>'
                     : '<span class="admin-clients-muted">-</span>') +
                 '  </td>' +
                 '</tr>';
@@ -1431,7 +1503,7 @@
                                     label: 'Download',
                                     variant: 'secondary',
                                     onClick: function () {
-                                        requestAttachmentDownload(recordId, attachmentId).catch(function () {});
+                                        requestAttachmentDownload(recordId, attachmentId).catch(function () { });
                                     }
                                 },
                                 {
@@ -1664,19 +1736,187 @@
                 if (result.status !== 200) {
                     state.bookings = [];
                     state.invoiceBookings = [];
+                    state.projects = [];
+                    state.projectDetails = {};
+                    state.loadingProjects = false;
                     state.loadingInvoices = false;
                     return;
                 }
-                var rows = result.json && result.json.data && result.json.data.bookings;
-                state.bookings = Array.isArray(rows) ? rows : [];
-                state.invoiceBookings = state.bookings.slice();
+                var rows = result.json && result.json.data && result.json.data.projects;
+                state.projects = (Array.isArray(rows) ? rows : []).filter(isProjectActive);
+                state.bookings = [];
+                state.invoiceBookings = flattenProjectInvoices(state.projects);
                 state.loadingInvoices = false;
+
+                state.loadingProjects = true;
+                return fetchProjectRelations(state.projects).finally(function () {
+                    state.loadingProjects = false;
+                });
             })
             .catch(function () {
                 state.bookings = [];
                 state.invoiceBookings = [];
+                state.projects = [];
+                state.projectDetails = {};
+                state.loadingProjects = false;
                 state.loadingInvoices = false;
             });
+    }
+
+    function fetchProjectRelations(projects) {
+        var items = Array.isArray(projects) ? projects : [];
+        if (items.length === 0) {
+            state.projectDetails = {};
+            return Promise.resolve();
+        }
+
+        var all = items.map(function (project) {
+            var projectId = parsePositiveInt(project && project.id, 0);
+            if (projectId <= 0) return Promise.resolve();
+
+            state.projectDetails[projectId] = {
+                loading: true,
+                phases: [],
+                members: [],
+                contracts: [],
+                testProtocols: [],
+                files: [],
+                notes: [],
+            };
+
+            return Promise.all([
+                fetch(apiUrl(cfg.api && cfg.api.project_detail, projectId), { credentials: 'include', headers: { Accept: 'application/json' } }).then(parseJsonResponse),
+                fetch(apiUrl(cfg.api && cfg.api.project_phases, projectId), { credentials: 'include', headers: { Accept: 'application/json' } }).then(parseJsonResponse),
+                fetch(apiUrl(cfg.api && cfg.api.project_members, projectId), { credentials: 'include', headers: { Accept: 'application/json' } }).then(parseJsonResponse),
+            ]).then(function (results) {
+                var detailRes = results[0];
+                var phasesRes = results[1];
+                var membersRes = results[2];
+
+                var projectMeta = detailRes && detailRes.status === 200 && detailRes.json && detailRes.json.data
+                    ? detailRes.json.data.project
+                    : {};
+                var phasesRaw = phasesRes && phasesRes.status === 200 && phasesRes.json && phasesRes.json.data && Array.isArray(phasesRes.json.data.phases)
+                    ? phasesRes.json.data.phases
+                    : [];
+                var phases = phasesRaw.filter(isPhaseActive);
+                var members = membersRes && membersRes.status === 200 && membersRes.json && membersRes.json.data && Array.isArray(membersRes.json.data.members)
+                    ? membersRes.json.data.members
+                    : [];
+
+                state.projectDetails[projectId] = {
+                    loading: false,
+                    phases: phases,
+                    members: members,
+                    contracts: [],
+                    testProtocols: flattenProjectTestProtocols(phases),
+                    files: flattenProjectFiles(projectId, phases),
+                    notes: trim(projectMeta && projectMeta.description ? String(projectMeta.description) : '') !== ''
+                        ? [String(projectMeta.description)]
+                        : [],
+                };
+            }).catch(function () {
+                state.projectDetails[projectId] = {
+                    loading: false,
+                    phases: [],
+                    members: [],
+                    contracts: [],
+                    testProtocols: [],
+                    files: [],
+                    notes: [],
+                };
+            });
+        });
+
+        return Promise.all(all);
+    }
+
+    function flattenProjectInvoices(projects) {
+        var result = [];
+        var items = Array.isArray(projects) ? projects : [];
+        for (var i = 0; i < items.length; i += 1) {
+            var project = items[i];
+            var invoices = Array.isArray(project && project.invoices) ? project.invoices : [];
+            for (var j = 0; j < invoices.length; j += 1) {
+                result.push({
+                    project_id: parsePositiveInt(project && project.id, 0),
+                    project_name: String(project && project.name ? project.name : ''),
+                    project_status: String(project && project.status ? project.status : ''),
+                    booking_scheduled_at: invoices[j] && invoices[j].invoice_date ? invoices[j].invoice_date : null,
+                    invoice: invoices[j],
+                });
+            }
+        }
+        return result;
+    }
+
+    function flattenProjectTestProtocols(phases) {
+        var result = [];
+        var items = Array.isArray(phases) ? phases : [];
+        for (var i = 0; i < items.length; i += 1) {
+            var phase = items[i] || {};
+            var testData = phase.test_data && typeof phase.test_data === 'object' ? phase.test_data : null;
+            var hasTemplate = !!(testData && parsePositiveInt(testData.template_id, 0) > 0);
+            if (!hasTemplate) continue;
+
+            result.push({
+                phase_name: String(phase.phase_name || ''),
+                template_name: String(testData.template_name || phase.test_template_name || ''),
+                template_key: String(testData.template_key || ''),
+                status: String(testData.status || (phase.integration_tests_finished ? 'completed' : 'draft')),
+                saved_at: String(testData.saved_at || phase.test_date || ''),
+            });
+        }
+        return result;
+    }
+
+    function flattenProjectFiles(projectId, phases) {
+        var result = [];
+        var items = Array.isArray(phases) ? phases : [];
+        for (var i = 0; i < items.length; i += 1) {
+            var phase = items[i] || {};
+            var testData = phase.test_data && typeof phase.test_data === 'object' ? phase.test_data : null;
+            var attachments = testData && Array.isArray(testData.attachments) ? testData.attachments : [];
+            for (var j = 0; j < attachments.length; j += 1) {
+                var attachment = attachments[j] || {};
+                var attachmentId = trim(String(attachment.id || ''));
+                result.push({
+                    id: attachmentId,
+                    phase_id: parsePositiveInt(phase.id, 0),
+                    phase_name: String(phase.phase_name || ''),
+                    original_filename: String(attachment.original_filename || 'Anhang'),
+                    mime_type: String(attachment.mime_type || ''),
+                    uploaded_at: String(attachment.uploaded_at || ''),
+                    download_url: attachmentId !== ''
+                        ? ('/projects/' + projectId + '/phase/' + parsePositiveInt(phase.id, 0) + '/test-data/attachments/' + encodeURIComponent(attachmentId) + '/download')
+                        : null,
+                });
+            }
+        }
+        return result;
+    }
+
+    function isProjectActive(project) {
+        var p = project && typeof project === 'object' ? project : {};
+        if (p.is_active !== undefined && p.is_active !== null) {
+            if (typeof p.is_active === 'boolean') return p.is_active;
+            if (typeof p.is_active === 'number') return p.is_active === 1;
+
+            var activeText = trim(String(p.is_active)).toLowerCase();
+            if (activeText === '1' || activeText === 'true' || activeText === 'yes') return true;
+            if (activeText === '0' || activeText === 'false' || activeText === 'no') return false;
+        }
+
+        var status = trim(String(p.status || '')).toLowerCase();
+        if (status === '') return true;
+        return status !== 'completed' && status !== 'cancelled' && status !== 'archived';
+    }
+
+    function isPhaseActive(phase) {
+        var p = phase && typeof phase === 'object' ? phase : {};
+        var status = trim(String(p.status || '')).toLowerCase();
+        if (status === '') return true;
+        return status !== 'completed' && status !== 'cancelled' && status !== 'archived';
     }
 
     function fetchClientHistory(id) {
@@ -1828,12 +2068,10 @@
         if (!canManage || !state.selectedClientId) return;
 
         var payload = {
-            first_name: getValue('clientFirstName'),
-            last_name: getValue('clientLastName'),
-            date_of_birth: getValue('clientDob'),
+            name: getValue('clientName'),
             email: getValue('clientEmail'),
             phone: getValue('clientPhone'),
-            notes: getValue('clientNotes'),
+            address: getValue('clientAddress'),
         };
 
         fetch(apiUrl(cfg.api && cfg.api.update, state.selectedClientId), {
@@ -2218,13 +2456,11 @@
 
         var body = '' +
             '<div class="admin-clients-detail-grid">' +
-            detailField('Vorname*', '<input id="createClientFirstName" class="admin-clients-input" type="text" value="" />') +
-            detailField('Nachname*', '<input id="createClientLastName" class="admin-clients-input" type="text" value="" />') +
-            detailField('Geburtsdatum', '<input id="createClientDob" class="admin-clients-input" type="date" value="" />') +
+            detailField('Name*', '<input id="createClientName" class="admin-clients-input" type="text" value="" />') +
             detailField('E-Mail*', '<input id="createClientEmail" class="admin-clients-input" type="email" value="" autocomplete="off" />' +
                 '<div id="createClientEmailValidation" class="admin-clients-validation-msg"></div>') +
             detailField('Telefon', '<input id="createClientPhone" class="admin-clients-input" type="text" value="" />') +
-            detailField('Notiz', '<textarea id="createClientNotes" class="admin-clients-textarea"></textarea>') +
+            detailField('Adresse', '<textarea id="createClientAddress" class="admin-clients-textarea"></textarea>') +
             '</div>';
 
         window.adminOpenModal && window.adminOpenModal('Client anlegen', body, {
@@ -2253,7 +2489,7 @@
                     return;
                 }
                 if (!isValidEmail(email)) {
-                    state.emailValidation = { value: email, status: 'invalid', message: 'Ungueltige E-Mail-Adresse.' };
+                    state.emailValidation = { value: email, status: 'invalid', message: 'Ungültige E-Mail-Adresse.' };
                     renderEmailValidation();
                     return;
                 }
@@ -2262,12 +2498,12 @@
                         state.emailValidation = {
                             value: email,
                             status: available ? 'valid' : 'invalid',
-                            message: available ? 'E-Mail ist verfuegbar.' : 'E-Mail ist bereits vergeben.',
+                            message: available ? 'E-Mail ist verfügbar.' : 'E-Mail ist bereits vergeben.',
                         };
                         renderEmailValidation();
                     })
                     .catch(function () {
-                        state.emailValidation = { value: email, status: 'invalid', message: 'E-Mail-Pruefung fehlgeschlagen.' };
+                        state.emailValidation = { value: email, status: 'invalid', message: 'E-Mail-Prüfung fehlgeschlagen.' };
                         renderEmailValidation();
                     });
             }, 250);
@@ -2293,15 +2529,13 @@
 
     function createClientFromModal() {
         var payload = {
-            first_name: getValue('createClientFirstName'),
-            last_name: getValue('createClientLastName'),
-            date_of_birth: getValue('createClientDob'),
+            name: getValue('createClientName'),
             email: trim(getValue('createClientEmail')).toLowerCase(),
             phone: getValue('createClientPhone'),
-            notes: getValue('createClientNotes'),
+            address: getValue('createClientAddress'),
         };
 
-        if (!payload.first_name || !payload.last_name || !payload.email) {
+        if (!payload.name || !payload.email) {
             notify('error', '{Pflichtfelder fehlen}');
             return;
         }
@@ -2323,7 +2557,7 @@
                 notify('success', 'Client wurde angelegt.');
 
                 if (viewMode === 'list') fetchList();
-                if (created && created.id) window.location.href = '/admin/clients/' + created.id;
+                if (created && created.id) window.location.href = '/clients/' + created.id;
             })
             .catch(function (err) {
                 notify('error', '{' + (err && err.message ? err.message : 'Fehler') + '}');
@@ -2418,6 +2652,17 @@
             if (state.invoiceBookings[i] && state.invoiceBookings[i].invoice) count += 1;
         }
         return count;
+    }
+
+    function countTestProtocols() {
+        var total = 0;
+        var keys = Object.keys(state.projectDetails || {});
+        for (var i = 0; i < keys.length; i += 1) {
+            var detail = state.projectDetails[keys[i]];
+            if (!detail || !Array.isArray(detail.testProtocols)) continue;
+            total += detail.testProtocols.length;
+        }
+        return total;
     }
 
     function findTemplateById(id) {

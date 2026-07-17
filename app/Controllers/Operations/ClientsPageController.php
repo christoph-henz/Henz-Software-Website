@@ -13,6 +13,7 @@ final class ClientsPageController
     private const VIEW_CLIENTS_BIT = 8;
     private const MANAGE_CLIENTS_BIT = 16;
     private const USE_FORM_TEMPLATES_FOR_CLIENTS_BIT = 32768;
+    private const VIEW_PROJECTS_BIT = 32;
 
     public function index(Request $request): Response
     {
@@ -39,10 +40,12 @@ final class ClientsPageController
         $viewBit = PermissionBits::resolve('view_clients', self::VIEW_CLIENTS_BIT);
         $manageBit = PermissionBits::resolve('manage_clients', self::MANAGE_CLIENTS_BIT);
         $useFormsBit = PermissionBits::resolve('use_form_templates_for_clients', self::USE_FORM_TEMPLATES_FOR_CLIENTS_BIT);
+        $viewProjectsBit = PermissionBits::resolve('view_projects', self::VIEW_PROJECTS_BIT);
 
         $canView = (($roleMask & $viewBit) !== 0) || (($roleMask & $manageBit) !== 0);
         $canManage = ($roleMask & $manageBit) !== 0;
         $canUseFormTemplates = ($roleMask & $useFormsBit) !== 0;
+        $canViewProjects = ($roleMask & $viewProjectsBit) !== 0;
 
         if (!$canView) {
             return $this->renderError(403, 'Zugriff verweigert', 'Ihre Rolle berechtigt nicht zur Clientverwaltung.');
@@ -60,6 +63,7 @@ final class ClientsPageController
         $config['can_view_clients'] = $canView;
         $config['can_manage_clients'] = $canManage;
         $config['can_use_form_templates_for_clients'] = $canUseFormTemplates;
+        $config['can_view_projects'] = $canViewProjects;
         $config['initial_client_id'] = $initialClientId;
         $config['initial_packages_open'] = $openPackages;
         $config['initial_invoices_open'] = $openInvoices;

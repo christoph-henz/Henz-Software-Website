@@ -8,6 +8,8 @@ use PDO;
 
 final class FormTemplateVersionRepository extends BaseRepository
 {
+    private const CREATOR_NAME_SQL = "NULLIF(TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))), '') AS created_by_name";
+
     protected function table(): string
     {
         return 'form_template_versions';
@@ -16,15 +18,27 @@ final class FormTemplateVersionRepository extends BaseRepository
     /** @return array<string, mixed>|null */
     public function findById(int $id): ?array
     {
-        return $this->run('form_template_versions.findById', fn (): ?array => $this->query()->where('id', $id)->first());
+        return $this->run('form_template_versions.findById', fn (): ?array => $this->query()
+            ->select([
+                'form_template_versions.*',
+                self::CREATOR_NAME_SQL,
+            ])
+            ->join('users u', 'u.id', '=', 'form_template_versions.created_by_user_id', 'LEFT')
+            ->where('form_template_versions.id', $id)
+            ->first());
     }
 
     /** @return array<int, array<string, mixed>> */
     public function listByTemplateId(int $templateId): array
     {
         return $this->run('form_template_versions.listByTemplateId', fn (): array => $this->query()
-            ->where('template_id', $templateId)
-            ->orderBy('version_no', 'DESC')
+            ->select([
+                'form_template_versions.*',
+                self::CREATOR_NAME_SQL,
+            ])
+            ->join('users u', 'u.id', '=', 'form_template_versions.created_by_user_id', 'LEFT')
+            ->where('form_template_versions.template_id', $templateId)
+            ->orderBy('form_template_versions.version_no', 'DESC')
             ->get());
     }
 
@@ -32,8 +46,13 @@ final class FormTemplateVersionRepository extends BaseRepository
     public function findByTemplateAndId(int $templateId, int $versionId): ?array
     {
         return $this->run('form_template_versions.findByTemplateAndId', fn (): ?array => $this->query()
-            ->where('template_id', $templateId)
-            ->where('id', $versionId)
+            ->select([
+                'form_template_versions.*',
+                self::CREATOR_NAME_SQL,
+            ])
+            ->join('users u', 'u.id', '=', 'form_template_versions.created_by_user_id', 'LEFT')
+            ->where('form_template_versions.template_id', $templateId)
+            ->where('form_template_versions.id', $versionId)
             ->first());
     }
 
@@ -41,8 +60,13 @@ final class FormTemplateVersionRepository extends BaseRepository
     public function findLatestByTemplateId(int $templateId): ?array
     {
         return $this->run('form_template_versions.findLatestByTemplateId', fn (): ?array => $this->query()
-            ->where('template_id', $templateId)
-            ->orderBy('version_no', 'DESC')
+            ->select([
+                'form_template_versions.*',
+                self::CREATOR_NAME_SQL,
+            ])
+            ->join('users u', 'u.id', '=', 'form_template_versions.created_by_user_id', 'LEFT')
+            ->where('form_template_versions.template_id', $templateId)
+            ->orderBy('form_template_versions.version_no', 'DESC')
             ->first());
     }
 

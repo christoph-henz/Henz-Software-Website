@@ -517,7 +517,13 @@ class AdminSessionTemplatesUI {
 
       this.currentVersions = versions;
 
-      const html = versions.map((version, idx) => `
+      const html = versions.map((version, idx) => {
+        const creatorName = String(version.created_by_name || '').trim();
+        const creatorText = creatorName !== ''
+          ? creatorName
+          : (version.created_by_user_id ? `User ${version.created_by_user_id}` : 'Unbekannt');
+
+        return `
         <div class="version-item ${idx === 0 ? 'is-current' : ''}">
           <div class="version-header">
             <span class="version-number">Version ${version.version_no}</span>
@@ -525,7 +531,7 @@ class AdminSessionTemplatesUI {
           </div>
           <div class="version-meta">
             <span>Veröffentlicht: ${this.formatDate(version.published_at)}</span>
-            <span>Erstellt von: User ${version.created_by_user_id}</span>
+            <span>Erstellt von: ${this.escapeHtml(creatorText)}</span>
           </div>
           <div class="version-actions">
             <a class="btn btn-secondary btn-sm" href="/form-templates/${templateId}/editor/${encodeURIComponent(String(version.version_no))}">
@@ -536,7 +542,8 @@ class AdminSessionTemplatesUI {
             </a>
           </div>
         </div>
-      `).join('');
+      `;
+      }).join('');
 
       this.elements.versionsList.innerHTML = html || '<div class="loading-state">Keine Versionen vorhanden.</div>';
     } catch (error) {

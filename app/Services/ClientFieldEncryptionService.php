@@ -11,9 +11,6 @@ final class ClientFieldEncryptionService
     /** @var array<int, string> */
     private const EXCLUDED_COLUMNS = [
         'id',
-        'timezone',
-        'contact_preference',
-        'language',
         'is_active',
         'created_at',
         'updated_at',
@@ -21,22 +18,10 @@ final class ClientFieldEncryptionService
 
     /** @var array<int, string> */
     private const ENCRYPTED_COLUMNS = [
-        'first_name',
-        'last_name',
+        'name',
         'email',
         'phone',
-        'date_of_birth',
-        'gender',
-        'title',
-        'street',
-        'postal_code',
-        'city',
-        'country',
-        'medical_notes',
-        'dementia_person_surname',
-        'dementia_person_name',
-        'dementia_person_date_of_birth',
-        'dementia_person_date_of_death',
+        'address',
     ];
 
     private ?bool $emailBlindIndexColumnAvailable = null;
@@ -81,15 +66,13 @@ final class ClientFieldEncryptionService
         if (
             $this->isIdentityBlindIndexColumnAvailable()
             && (
-                array_key_exists('first_name', $data)
-                || array_key_exists('last_name', $data)
-                || array_key_exists('date_of_birth', $data)
+                array_key_exists('name', $data)
+                || array_key_exists('email', $data)
             )
         ) {
             $result['identity_blind_index'] = $this->identityBlindIndex(
-                $data['first_name'] ?? null,
-                $data['last_name'] ?? null,
-                $data['date_of_birth'] ?? null
+                $data['name'] ?? null,
+                $data['email'] ?? null
             );
         }
 
@@ -136,17 +119,16 @@ final class ClientFieldEncryptionService
         return hash('sha256', 'email|' . $normalized . '|' . $this->blindIndexPepper());
     }
 
-    public function identityBlindIndex(mixed $firstName, mixed $lastName, mixed $dateOfBirth): ?string
+    public function identityBlindIndex(mixed $name, mixed $email): ?string
     {
-        $first = $this->normalizeIdentityPart($firstName);
-        $last = $this->normalizeIdentityPart($lastName);
-        $dob = trim((string) ($dateOfBirth ?? ''));
+        $nameNormalized = $this->normalizeIdentityPart($name);
+        $emailNormalized = strtolower(trim((string) ($email ?? '')));
 
-        if ($first === '' || $last === '' || $dob === '') {
+        if ($nameNormalized === '' || $emailNormalized === '') {
             return null;
         }
 
-        return hash('sha256', 'identity|' . $first . '|' . $last . '|' . $dob . '|' . $this->blindIndexPepper());
+        return hash('sha256', 'identity|' . $nameNormalized . '|' . $emailNormalized . '|' . $this->blindIndexPepper());
     }
 
     public function isEncryptedColumn(string $column): bool

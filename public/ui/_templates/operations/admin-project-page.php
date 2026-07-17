@@ -7,6 +7,7 @@ $adminUser   = is_array($adminUser ?? null) ? $adminUser : [];
 $logoutAction = (string) ($logoutAction ?? '/admin/logout');
 $csrfToken   = (string) ($csrfToken ?? '');
 $projectsConfig = is_array($projectsConfig ?? null) ? $projectsConfig : [];
+$canManageProjects = (bool) ($projectsConfig['can_manage_projects'] ?? false);
 
 $extraHead    = '';
 $extraScripts = '<script>window.__ADMIN_PROJECTS_CONFIG = ' . json_encode(
@@ -22,9 +23,11 @@ ob_start();
         <h1 class="admin-page-title">Projektverwaltung</h1>
         <p class="admin-page-subtitle">Projekte anlegen, verwalten, vergeben und abrechnen.</p>
     </div>
+    <?php if ($canManageProjects): ?>
     <button type="button" class="admin-projects-create-btn" id="openCreateProject">
         Projekt anlegen
     </button>
+    <?php endif; ?>
 </div>
 
 <?php require base_path('public/ui/_partials/operations/projects/table.php'); ?>

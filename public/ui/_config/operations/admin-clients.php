@@ -30,6 +30,7 @@ return [
     'can_view_clients' => false,
     'can_manage_clients' => false,
     'can_use_form_templates_for_clients' => false,
+    'can_view_projects' => false,
     'initial_client_id' => null,
     'initial_packages_open' => false,
     'initial_invoices_open' => false,
@@ -45,5 +46,8 @@ return [
         'consents' => '/clients/data/{id}/consents',
         'packages' => '/clients/data/{id}/packages',
         'invoices' => '/clients/data/{id}/invoices',
+        'project_detail' => '/projects/data/{id}',
+        'project_phases' => '/projects/data/{id}/phases',
+        'project_members' => '/projects/data/{id}/members',
     ],
 ];

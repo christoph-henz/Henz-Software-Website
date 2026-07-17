@@ -5,7 +5,7 @@
     var cfg = window.__ADMIN_PROJECTS_CONFIG || {};
     var dataUrl = cfg.data_url || '/admin/projects/data';
     var clientsDataUrl = cfg.clients_data_url || '/clients/data';
-    var canManage = !!cfg.can_manage;
+    var canManage = !!(cfg.can_manage_projects || cfg.can_manage);
     var canManageAdminSettings = !!cfg.can_manage_admin_settings;
     var currentProjectId = parseInt(cfg.current_project_id || 0, 10) || 0;
     var currentRoleMask = parseInt(cfg.current_role_mask || 0, 10) || 0;
@@ -45,8 +45,8 @@
 
     function render() {
         root.innerHTML =
-            '<div class="admin-users-toolbar">' +
-                '<input type="search" id="projectsSearch" class="admin-users-search" ' +
+            '<div class="admin-projects-toolbar">' +
+                '<input type="search" id="projectsSearch" class="admin-users-search admin-projects-search" ' +
                     'placeholder="Suche nach Projektname, Beschreibung oder Klientenname\u2026" value="' + escHtml(state.q) + '" />' +
             '</div>' +
             '<div id="projectsTableContainer"></div>' +
@@ -76,35 +76,46 @@
             return;
         }
         
-        var rows = state.projects.map(function (p) {
+        var cards = state.projects.map(function (p) {
+            var statusText = projectStatusLabel(p.status);
+            var dueText = formatProjectDate(p.due_date);
             var badge = p.is_active
                 ? '<span class="admin-projects-badge admin-projects-badge--active">Aktiv</span>'
                 : '<span class="admin-projects-badge admin-projects-badge--inactive">Inaktiv</span>';
 
-            var actions =
-                '<button class="admin-projects-action-btn" data-action="edit" data-id="' + p.id + '">Bearbeiten</button>';
+            var statusBadge = '<span class="admin-projects-badge admin-projects-badge--status">' + escHtml(statusText) + '</span>';
 
+            var actions = '';
             if (canManage) {
-                actions += '<button class="admin-projects-action-btn admin-projects-action-btn--danger" data-action="delete" data-id="' + p.id + '">Löschen</button>';
+                actions =
+                    '<button class="admin-projects-action-btn" data-action="edit" data-id="' + p.id + '">Bearbeiten</button>' +
+                    '<button class="admin-projects-action-btn admin-projects-action-btn--danger" data-action="delete" data-id="' + p.id + '">Löschen</button>';
             }
 
-            return '<tr>' +
-                '<td><a href="/projects/' + p.id + '" class="admin-users-action-btn" style="display:inline-flex;padding:4px 8px;text-decoration:none">' + escHtml(p.name) + '</a></td>' +
-                '<td>' + escHtml(p.client_name) + '</td>' +
-                '<td>' + escHtml(p.description) + '</td>' +
-                '<td>' + badge + '</td>' +
-                '<td>' + escHtml(p.status) + '</td>' +
-                '<td><div class="admin-projects-actions">' + actions + '</div></td>' +
-                '</tr>';
+            var actionsFooter = actions
+                ? '<footer class="admin-projects-actions">' + actions + '</footer>'
+                : '';
+
+            return '' +
+                '<article class="admin-projects-entry" data-project-id="' + p.id + '">' +
+                '  <header class="admin-projects-entry-head">' +
+                '    <div class="admin-projects-entry-title-wrap">' +
+                '      <a href="/projects/' + p.id + '" class="admin-projects-entry-title">' + escHtml(p.name) + '</a>' +
+                '      <span class="admin-projects-entry-id">#' + escHtml(String(p.id)) + '</span>' +
+                '    </div>' +
+                '    <div class="admin-projects-entry-badges">' + badge + statusBadge + '</div>' +
+                '  </header>' +
+                '  <div class="admin-projects-entry-meta">' +
+                '    <span class="admin-projects-entry-meta-item"><strong>Klient:</strong> ' + escHtml(p.client_name || '-') + '</span>' +
+                '    <span class="admin-projects-entry-meta-item"><strong>Faellig:</strong> ' + escHtml(dueText) + '</span>' +
+                '  </div>' +
+                '  <p class="admin-projects-entry-description">' + escHtml((p.description || '').trim() || 'Keine Beschreibung hinterlegt.') + '</p>' +
+                actionsFooter +
+                '</article>';
         }).join('');
 
         container.innerHTML =
-            '<table class="admin-projects-table">' +
-                '<thead><tr>' +
-                    '<th>Name</th><th>Client</th><th>Beschreibung</th><th>Aktiv</th><th>Status</th><th>Aktionen</th>' +
-                '</tr></thead>' +
-                '<tbody>' + rows + '</tbody>' +
-            '</table>';
+            '<div class="admin-projects-list">' + cards + '</div>';
 
         container.querySelectorAll('[data-action]').forEach(function (btn) {
             btn.addEventListener('click', function () {
@@ -345,14 +356,16 @@
     // ── Edit modal ────────────────────────────────────────────────────────────
 
     function openEditModal(id) {
-        var project = state.projects.find(function (u) { return u.id === id; });
+        var project = state.projects.find(function (p) { return p.id === id; });
         if (!project) return;
 
         var editDraft = {
             id: id,
-            first_name: project.first_name,
-            last_name: project.last_name,
-            role_mask: parseInt(project.role_mask, 10) || 0,
+            name: String(project.name || ''),
+            client_id: String(project.client_id || ''),
+            description: String(project.description || ''),
+            due_date: normalizeDateInput(project.due_date),
+            status: String(project.status || 'pending'),
             is_active: !!project.is_active,
         };
 
@@ -360,86 +373,146 @@
     }
 
     function renderEditModal(editDraft) {
-        var isSelf = (editDraft.id === currentProjectId);
         var isActiveChecked = editDraft.is_active ? ' checked' : '';
-        var isActiveDisabled = isSelf ? ' disabled' : '';
-        var selfActiveHint = isSelf
-            ? '<span class="admin-projects-permission-locked">\uD83D\uDD12 Eigener Account kann nicht deaktiviert werden.</span>'
-            : '';
+
+        var clientOptions = '<option value="">Bitte Klient auswaehlen</option>';
+        if (state.clientsLoaded && state.clients.length > 0) {
+            clientOptions += state.clients.map(function (client) {
+                var selected = String(client.id) === String(editDraft.client_id) ? ' selected' : '';
+                return '<option value="' + client.id + '"' + selected + '>' + escHtml(client.display_name) + '</option>';
+            }).join('');
+        }
+
+        var statusOptions = [
+            { value: 'pending', label: 'Pending' },
+            { value: 'backlog', label: 'Backlog' },
+            { value: 'in_progress', label: 'In Progress' },
+            { value: 'review', label: 'Review' },
+            { value: 'completed', label: 'Completed' },
+            { value: 'on_hold', label: 'On Hold' },
+            { value: 'cancelled', label: 'Cancelled' },
+        ].map(function (entry) {
+            var selected = entry.value === editDraft.status ? ' selected' : '';
+            return '<option value="' + entry.value + '"' + selected + '>' + entry.label + '</option>';
+        }).join('');
+
+        var clientHint = state.clientsLoading
+            ? '<small class="admin-users-permission-helper">Klienten werden geladen...</small>'
+            : (state.clientsLoaded && state.clients.length === 0
+                ? '<small class="admin-users-permission-helper">Keine Klienten verfuegbar.</small>'
+                : '');
 
         var body =
-            '<div class="admin-projects-field">' +
-                '<label class="admin-projects-label" for="euFn">Vorname</label>' +
-                '<input type="text" id="euFn" class="admin-projects-input" value="' + escHtml(editDraft.first_name) + '" />' +
+            '<div class="admin-users-field">' +
+                '<label class="admin-users-label" for="epName">Projektname *</label>' +
+                '<input type="text" id="epName" class="admin-users-input" value="' + escHtml(editDraft.name) + '" />' +
             '</div>' +
-            '<div class="admin-projects-field">' +
-                '<label class="admin-projects-label" for="euLn">Nachname</label>' +
-                '<input type="text" id="euLn" class="admin-projects-input" value="' + escHtml(editDraft.last_name) + '" />' +
+            '<div class="admin-users-field">' +
+                '<label class="admin-users-label" for="epClientId">Klient *</label>' +
+                '<select id="epClientId" class="admin-users-input"' + (state.clientsLoading ? ' disabled' : '') + '>' +
+                    clientOptions +
+                '</select>' +
+                clientHint +
             '</div>' +
-            (function () {
-                var isSelf = (editDraft.id === currentProjectId);
-                var permBtn = isSelf
-                    ? '<span class="admin-projects-permission-locked">\uD83D\uDD12 Eigene Berechtigungen k\xF6nnen nicht bearbeitet werden.</span>'
-                    : '<button type="button" id="euPermissionsBtn" class="admin-projects-action-btn">Berechtigungen bearbeiten</button>';
-                return '<div class="admin-projects-field">' +
-                    '<label class="admin-projects-label">Berechtigungen</label>' +
-                    permBtn +
-                    '<div id="euPermSummary" class="admin-projects-permission-summary">' + escHtml(permissionSummary(editDraft.role_mask)) + '</div>' +
-                    '</div>';
-            }()) +
-            '<div class="admin-projects-field">' +
-                '<label class="admin-projects-label admin-projects-label--checkbox">' +
-                    '<input type="checkbox" id="euActive"' + isActiveChecked + isActiveDisabled + ' /> Benutzer aktiv' +
+            '<div class="admin-users-field">' +
+                '<label class="admin-users-label" for="epDescription">Beschreibung</label>' +
+                '<textarea id="epDescription" class="admin-users-input">' + escHtml(editDraft.description) + '</textarea>' +
+            '</div>' +
+            '<div class="admin-users-field">' +
+                '<label class="admin-users-label" for="epDueDate">Faellig am</label>' +
+                '<input type="date" id="epDueDate" class="admin-users-input" value="' + escHtml(editDraft.due_date) + '" />' +
+            '</div>' +
+            '<div class="admin-users-field">' +
+                '<label class="admin-users-label" for="epStatus">Status</label>' +
+                '<select id="epStatus" class="admin-users-input">' +
+                    statusOptions +
+                '</select>' +
+            '</div>' +
+            '<div class="admin-users-field">' +
+                '<label class="admin-users-label admin-users-label--checkbox">' +
+                    '<input type="checkbox" id="epActive"' + isActiveChecked + ' /> Projekt aktiv' +
                 '</label>' +
-                selfActiveHint +
             '</div>' +
-            '<div id="euAlert" class="admin-projects-alert" style="display:none"></div>';
+            '<div id="epAlert" class="admin-users-alert" style="display:none"></div>';
 
-        adminOpenModal('Benutzer bearbeiten', body, {
+        adminOpenModal('Projekt bearbeiten', body, {
             type: 'form',
             buttons: [
                 {
                     label: 'Speichern',
                     variant: 'primary',
-                    onClick: function () { submitEdit(editDraft.id, editDraft.role_mask); },
+                    onClick: function () { submitEdit(editDraft.id); },
                 },
                 { label: 'Abbrechen', variant: 'secondary', onClick: adminCloseModal },
             ],
         });
 
-        bindEditPermissionButton(editDraft);
-    }
-
-    function bindEditPermissionButton(editDraft) {
-        var btn = document.getElementById('euPermissionsBtn');
-        if (!btn) return;
-
-        btn.addEventListener('click', function () {
-            editDraft.first_name = document.getElementById('euFn') ? document.getElementById('euFn').value.trim() : '';
-            editDraft.last_name = document.getElementById('euLn') ? document.getElementById('euLn').value.trim() : '';
-            editDraft.is_active = document.getElementById('euActive') ? !!document.getElementById('euActive').checked : editDraft.is_active;
-
-            openPermissionModal({
-                title: 'Berechtigungen bearbeiten',
-                roleMask: editDraft.role_mask,
-                onApply: function (nextMask) {
-                    editDraft.role_mask = nextMask;
-                    renderEditModal(editDraft);
-                },
-            });
-        });
-    }
-
-    function submitEdit(id, roleMask) {
-        var fn       = document.getElementById('euFn')    ? document.getElementById('euFn').value.trim()    : '';
-        var ln       = document.getElementById('euLn')    ? document.getElementById('euLn').value.trim()    : '';
-        var isActive = document.getElementById('euActive') ? (document.getElementById('euActive').checked ? 1 : 0) : 1;
-        var alert    = document.getElementById('euAlert');
-
-        var payload = { first_name: fn, last_name: ln, is_active: isActive };
-        if (id !== currentProjectId) {
-            payload.role_mask = roleMask;
+        if (!state.clientsLoaded && !state.clientsLoading) {
+            loadClientsForEdit(editDraft);
         }
+    }
+
+    function loadClientsForEdit(editDraft) {
+        state.clientsLoading = true;
+
+        fetch(clientsDataUrl + '?page=1&per_page=200&sort=last_name&direction=asc', {
+            credentials: 'same-origin',
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (json) {
+                if (!json.success) throw new Error(json.message || 'Klienten konnten nicht geladen werden.');
+
+                state.clients = (json.data && Array.isArray(json.data.clients) ? json.data.clients : [])
+                    .map(function (client) {
+                        var displayNameFromName = String(client.name || '').trim();
+                        var firstName = String(client.first_name || '').trim();
+                        var lastName = String(client.last_name || '').trim();
+                        var fullName = (firstName + ' ' + lastName).trim();
+                        var displayName = displayNameFromName !== '' ? displayNameFromName : fullName;
+                        return {
+                            id: parseInt(client.id, 10) || 0,
+                            display_name: displayName !== '' ? displayName : ('Klient #' + String(client.id || '')),
+                        };
+                    })
+                    .filter(function (client) { return client.id > 0; });
+
+                state.clientsLoaded = true;
+                state.clientsLoading = false;
+                renderEditModal(editDraft || {});
+            })
+            .catch(function () {
+                state.clientsLoading = false;
+                state.clientsLoaded = true;
+                state.clients = [];
+                renderEditModal(editDraft || {});
+            });
+    }
+
+    function submitEdit(id) {
+        var name = document.getElementById('epName') ? document.getElementById('epName').value.trim() : '';
+        var clientId = document.getElementById('epClientId') ? parseInt(document.getElementById('epClientId').value, 10) : 0;
+        var description = document.getElementById('epDescription') ? document.getElementById('epDescription').value.trim() : '';
+        var dueDate = document.getElementById('epDueDate') ? document.getElementById('epDueDate').value.trim() : '';
+        var status = document.getElementById('epStatus') ? document.getElementById('epStatus').value : 'pending';
+        var isActive = document.getElementById('epActive') ? (document.getElementById('epActive').checked ? 1 : 0) : 1;
+        var alert = document.getElementById('epAlert');
+
+        if (!name || !clientId) {
+            if (alert) {
+                alert.textContent = 'Bitte Projektname und Klient auswaehlen.';
+                alert.style.display = '';
+            }
+            return;
+        }
+
+        var payload = {
+            name: name,
+            client_id: clientId,
+            description: description,
+            due_date: dueDate,
+            status: status,
+            is_active: isActive,
+        };
 
         fetch(dataUrl + '/' + id, {
             method: 'PATCH',
@@ -450,24 +523,30 @@
             .then(function (r) { return r.json(); })
             .then(function (json) {
                 if (!json.success) {
-                    if (alert) { alert.textContent = json.message || 'Fehler beim Speichern.'; alert.style.display = ''; }
+                    if (alert) {
+                        alert.textContent = json.message || 'Fehler beim Speichern.';
+                        alert.style.display = '';
+                    }
                     return;
                 }
                 adminCloseModal();
                 loadProjects();
             })
             .catch(function () {
-                if (alert) { alert.textContent = 'Netzwerkfehler.'; alert.style.display = ''; }
+                if (alert) {
+                    alert.textContent = 'Netzwerkfehler.';
+                    alert.style.display = '';
+                }
             });
     }
 
     // ── Delete ────────────────────────────────────────────────────────────────
 
     function confirmDelete(id) {
-        var project = state.projects.find(function (u) { return u.id === id; });
-        var name = project ? project.first_name + ' ' + project.last_name : 'diesen Benutzer';
+        var project = state.projects.find(function (p) { return p.id === id; });
+        var name = project ? String(project.name || ('Projekt #' + id)) : 'dieses Projekt';
 
-        adminOpenModal('Benutzer löschen', '<p>Soll ' + escHtml(name) + ' wirklich gelöscht werden?</p>', {
+        adminOpenModal('Projekt löschen', '<p>Soll ' + escHtml(name) + ' wirklich gelöscht werden?</p>', {
             type: 'form',
             buttons: [
                 {
@@ -627,6 +706,45 @@
         }
 
         return names.join(', ');
+    }
+
+    function projectStatusLabel(value) {
+        var raw = String(value || '').toLowerCase();
+        var labels = {
+            pending: 'Pending',
+            backlog: 'Backlog',
+            in_progress: 'In Progress',
+            review: 'Review',
+            completed: 'Completed',
+            on_hold: 'On Hold',
+            cancelled: 'Cancelled',
+        };
+
+        return labels[raw] || (raw ? raw : '-');
+    }
+
+    function formatProjectDate(value) {
+        var text = String(value || '').trim();
+        if (!text) return '-';
+
+        var date = new Date(text);
+        if (Number.isNaN(date.getTime())) {
+            return text;
+        }
+
+        return date.toLocaleDateString('de-DE', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+        });
+    }
+
+    function normalizeDateInput(value) {
+        var text = String(value || '').trim();
+        if (!text) return '';
+
+        var match = text.match(/^(\d{4}-\d{2}-\d{2})/);
+        return match ? match[1] : text;
     }
 
     // ── Utilities ─────────────────────────────────────────────────────────────

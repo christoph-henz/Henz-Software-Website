@@ -14,6 +14,7 @@ final readonly class FormTemplateVersionDto
         public array $schema,
         public ?string $publishedAt,
         public ?int $createdByUserId,
+        public ?string $createdByName,
         public ?string $createdAt,
     ) {
     }
@@ -28,6 +29,7 @@ final readonly class FormTemplateVersionDto
             self::decodeJsonField($row['schema_json'] ?? null),
             isset($row['published_at']) ? (string) $row['published_at'] : null,
             isset($row['created_by_user_id']) ? (int) $row['created_by_user_id'] : null,
+            isset($row['created_by_name']) ? (string) $row['created_by_name'] : null,
             isset($row['created_at']) ? (string) $row['created_at'] : null,
         );
     }
@@ -42,6 +44,7 @@ final readonly class FormTemplateVersionDto
             'schema_json' => $this->schema,
             'published_at' => $this->publishedAt,
             'created_by_user_id' => $this->createdByUserId,
+            'created_by_name' => $this->createdByName,
             'created_at' => $this->createdAt,
         ];
     }
