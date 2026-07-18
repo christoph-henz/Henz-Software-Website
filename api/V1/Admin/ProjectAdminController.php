@@ -35,6 +35,11 @@ final class ProjectAdminController extends BaseApiController
         'application/vnd.openxmlformats-officedocument.presentationml.presentation' => 'pptx',
     ];
 
+    public function __construct(
+        private readonly ClientFieldEncryptionService $clientCrypto,
+    ) {
+    }
+
     // ── List ─────────────────────────────────────────────────────────────────
 
     public function index(Request $request): Response
@@ -72,7 +77,7 @@ final class ProjectAdminController extends BaseApiController
         $total = (int) $countStmt->fetchColumn();
 
         $stmt = $pdo->prepare(
-            "SELECT p.id, p.name, p.description, p.client_id, c.name AS client_name, p.status, p.progress, p.is_active, p.due_date, p.created_at
+            "SELECT p.id, p.name AS project_name, p.description, p.client_id, c.name AS client_name, c.email, p.status, p.progress, p.is_active, p.due_date, p.created_at
              FROM projects p
              JOIN clients c ON p.client_id = c.id
              $where
@@ -177,7 +182,7 @@ final class ProjectAdminController extends BaseApiController
         $projectId = (int) $pdo->lastInsertId();
 
         $row = $pdo->prepare(
-            'SELECT p.id, p.name, p.description, p.client_id, c.name AS client_name, p.status, p.progress, p.is_active, p.due_date, p.created_at
+            'SELECT p.id, p.name AS project_name, p.description, p.client_id, c.name AS client_name, c.email, p.status, p.progress, p.is_active, p.due_date, p.created_at
              FROM projects p
              JOIN clients c ON p.client_id = c.id
              WHERE p.id = :id
@@ -1050,7 +1055,7 @@ final class ProjectAdminController extends BaseApiController
             ->execute($bindings);
 
         $row = $pdo->prepare(
-            'SELECT p.id, p.name, p.description, p.client_id, c.name AS client_name, p.status, p.progress, p.is_active, p.due_date, p.created_at, p.updated_at
+            'SELECT p.id, p.name AS project_name, p.description, p.client_id, c.name AS client_name, c.email, p.status, p.progress, p.is_active, p.due_date, p.created_at, p.updated_at
              FROM projects p
              LEFT JOIN clients c ON c.id = p.client_id
              WHERE p.id = :id'
@@ -1097,12 +1102,25 @@ final class ProjectAdminController extends BaseApiController
     /** @param array<string, mixed> $row */
     private function formatProject(array $row): array
     {
+        $decryptedClient = $this->clientCrypto->decryptClientRow([
+            'name' => $row['client_name'] ?? null,
+            'email' => $row['email'] ?? null,
+        ]);
+
+        $clientName = trim((string) ($decryptedClient['name'] ?? ''));
+        if ($clientName === '') {
+            $clientName = trim((string) ($decryptedClient['email'] ?? ''));
+        }
+        if ($clientName === '') {
+            $clientName = 'Unbekannt';
+        }
+
         return [
             'id'            => (int) ($row['id'] ?? 0),
-            'name'          => (string) ($row['name'] ?? ''),
+            'name'          => (string) ($row['project_name'] ?? ''),
             'description'   => (string) ($row['description'] ?? ''),
             'client_id'     => (int) ($row['client_id'] ?? 0),
-            'client_name'   => (string) ($row['client_name'] ?? ''),
+            'client_name'   => $clientName,
             'status'        => (string) ($row['status'] ?? 'pending'),
             'progress'      => (int) ($row['progress'] ?? 0),
             'is_active'     => (bool) ($row['is_active'] ?? false),
@@ -1314,7 +1332,7 @@ final class ProjectAdminController extends BaseApiController
     {
         $pdo = app(Database::class)->connection();
         $stmt = $pdo->prepare(
-            'SELECT p.id, p.name, p.description, p.client_id, c.name AS client_name, p.status, p.progress, p.is_active, p.due_date, p.created_at
+            'SELECT p.id, p.name AS project_name, p.description, p.client_id, c.name AS client_name, c.email, p.status, p.progress, p.is_active, p.due_date, p.created_at
              FROM projects p
              JOIN clients c ON p.client_id = c.id
              WHERE p.id = :id AND p.deleted_at IS NULL

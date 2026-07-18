@@ -569,7 +569,8 @@ body.admin-page {
   gap: 8px;
 }
 
-.admin-week-days-head {
+.admin-week-days-head,
+.admin-week-days {
   display: grid;
   gap: 8px;
 }
