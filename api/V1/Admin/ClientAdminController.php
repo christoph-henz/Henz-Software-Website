@@ -8,6 +8,7 @@ use App\Controllers\Api\BaseApiController;
 use App\Core\Database\Database;
 use App\Core\Http\Request;
 use App\Core\Http\Response;
+use App\Core\Logging\Logger;
 use App\Services\ClientFieldEncryptionService;
 use App\Services\EmailLogPrivacyService;
 use App\Services\InvoicePdfService;
@@ -24,6 +25,9 @@ final class ClientAdminController extends BaseApiController
     private ?bool $emailLogRecipientEncryptedColumnAvailable = null;
     private ?bool $emailLogSenderColumnAvailable = null;
     private ?bool $emailLogSenderEncryptedColumnAvailable = null;
+    private ?bool $invoiceTableAvailable = null;
+    /** @var array<string, true>|null */
+    private ?array $invoiceColumnSet = null;
 
     public function index(Request $request): Response
     {
@@ -461,12 +465,225 @@ final class ClientAdminController extends BaseApiController
 
         $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
+        $contractsStmt = $pdo->prepare(
+            'SELECT c.id, c.project_id, c.start_date, c.end_date
+             FROM contracts c
+             INNER JOIN projects p ON p.id = c.project_id
+             WHERE p.client_id = :client_id
+             ORDER BY c.id DESC'
+        );
+        $contractsStmt->execute([':client_id' => $id]);
+        $contractRows = $contractsStmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $pdfBasePath = str_starts_with($request->path(), '/v1/')
+            ? '/v1/admin/clients'
+            : '/clients/data';
+
         return $this->ok([
             'projects' => $this->formatProjectsWithInvoices(
                 is_array($rows) ? $rows : [],
-                $id
+                $id,
+                is_array($contractRows) ? $contractRows : [],
+                $pdfBasePath
             ),
         ]);
+    }
+
+    public function createInvoice(Request $request): Response
+    {
+        if (!$this->canManageClients($request)) {
+            return $this->fail('Forbidden', 403, [
+                'permission' => ['insufficient_role'],
+            ]);
+        }
+
+        if (!$this->isInvoiceTableAvailable()) {
+            return $this->fail('Invoice feature not available', 503, [
+                'invoice' => ['migration_required'],
+            ]);
+        }
+
+        $clientId = (int) $request->attribute('id', 0);
+        if ($clientId <= 0) {
+            return $this->fail('Validation failed', 422, [
+                'id' => ['required'],
+            ]);
+        }
+
+        $client = $this->fetchClient($clientId);
+        if ($client === null) {
+            return $this->fail('Client not found', 404);
+        }
+
+        $payload = $request->all();
+        $projectId = (int) ($payload['project_id'] ?? 0);
+        $contractId = isset($payload['contract_id']) && $payload['contract_id'] !== '' ? (int) $payload['contract_id'] : null;
+        $invoiceDateRaw = trim((string) ($payload['invoice_date'] ?? ''));
+        $dueDateRaw = trim((string) ($payload['due_date'] ?? ''));
+        $discountAmount = isset($payload['discount_amount']) && is_numeric($payload['discount_amount'])
+            ? abs((float) $payload['discount_amount'])
+            : 0.0;
+
+        $errors = [];
+        if ($projectId <= 0) {
+            $errors['project_id'][] = 'required';
+        }
+
+        $invoiceDate = DateTimeImmutable::createFromFormat('Y-m-d', $invoiceDateRaw) ?: null;
+        if ($invoiceDateRaw === '' || !$invoiceDate instanceof DateTimeImmutable) {
+            $errors['invoice_date'][] = 'invalid_date';
+        }
+
+        $dueDate = null;
+        if ($dueDateRaw !== '') {
+            $dueDate = DateTimeImmutable::createFromFormat('Y-m-d', $dueDateRaw) ?: null;
+            if (!$dueDate instanceof DateTimeImmutable) {
+                $errors['due_date'][] = 'invalid_date';
+            }
+        }
+
+        $items = $this->normalizeManualInvoiceItems($payload['items'] ?? []);
+        if ($items === []) {
+            $errors['items'][] = 'at_least_one_item_required';
+        }
+
+        $projectRow = $projectId > 0 ? $this->fetchProjectForClient($clientId, $projectId) : null;
+        if ($projectId > 0 && $projectRow === null) {
+            $errors['project_id'][] = 'not_found';
+        }
+
+        $contractRow = null;
+        if ($contractId !== null && $contractId > 0) {
+            $contractRow = $this->fetchContractForProject($contractId, $projectId);
+            if ($contractRow === null) {
+                $errors['contract_id'][] = 'invalid_for_project';
+            }
+        }
+
+        if ($errors !== []) {
+            return $this->fail('Validation failed', 422, $errors);
+        }
+
+        $baseAmount = 0.0;
+        foreach ($items as $item) {
+            $baseAmount += ((float) $item['quantity']) * ((float) $item['unit_price']);
+        }
+        $baseAmount = round($baseAmount, 2);
+        $discountAmount = round(min($discountAmount, $baseAmount), 2);
+        $subTotal = round($baseAmount - $discountAmount, 2);
+
+        if ($subTotal <= 0.0) {
+            return $this->fail('Validation failed', 422, [
+                'total_amount' => ['must_be_positive'],
+            ]);
+        }
+
+        $currency = strtoupper(trim((string) config('mail.payment.currency', 'EUR')));
+        if ($currency === '') {
+            $currency = 'EUR';
+        }
+
+        $invoiceId = (int) app(Database::class)->transaction(function () use ($clientId, $projectId, $contractId, $invoiceDate, $dueDate, $currency, $baseAmount, $discountAmount, $subTotal, $items, $request): int {
+            $columns = $this->invoiceColumnSet();
+            $nextInvoiceNumber = $this->reserveNextInvoiceNumber();
+
+            $data = [
+                'invoice_number' => $nextInvoiceNumber,
+                'client_id' => $clientId,
+                'currency_code' => $currency,
+                'sub_total_amount' => $baseAmount,
+                'discount_amount' => $discountAmount,
+                'total_amount' => $subTotal,
+                'status' => 'created',
+                'invoice_date' => $invoiceDate instanceof DateTimeImmutable ? $invoiceDate->format('Y-m-d') : date('Y-m-d'),
+                'due_date' => $dueDate instanceof DateTimeImmutable ? $dueDate->format('Y-m-d') : ($invoiceDate instanceof DateTimeImmutable ? $invoiceDate->format('Y-m-d') : date('Y-m-d')),
+                'created_by_user_id' => $this->actorId($request),
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ];
+
+            if (isset($columns['project_id'])) {
+                $data['project_id'] = $projectId;
+            }
+            if (isset($columns['contract_id'])) {
+                $data['contract_id'] = $contractId;
+            }
+
+            $insertData = [];
+            foreach ($data as $column => $value) {
+                if (isset($columns[$column])) {
+                    $insertData[$column] = $value;
+                }
+            }
+
+            $invoiceId = (int) db('invoices')->insert($insertData);
+
+            $sortOrder = 0;
+            foreach ($items as $item) {
+                $sortOrder++;
+                $quantity = (float) $item['quantity'];
+                $unitPrice = (float) $item['unit_price'];
+                db('invoice_items')->insert([
+                    'invoice_id' => $invoiceId,
+                    'item_type' => 'additional',
+                    'description' => (string) $item['description'],
+                    'quantity' => $quantity,
+                    'unit_price' => $unitPrice,
+                    'line_total' => round($quantity * $unitPrice, 2),
+                    'sort_order' => $sortOrder,
+                ]);
+            }
+
+            if ($discountAmount > 0) {
+                db('invoice_items')->insert([
+                    'invoice_id' => $invoiceId,
+                    'item_type' => 'discount',
+                    'description' => 'Rabatt',
+                    'quantity' => 1,
+                    'unit_price' => -$discountAmount,
+                    'line_total' => -$discountAmount,
+                    'sort_order' => $sortOrder + 1,
+                ]);
+            }
+
+            return $invoiceId;
+        });
+
+        $pdfMeta = null;
+        try {
+            $pdfMeta = app(InvoicePdfService::class)->generateForInvoice($invoiceId);
+            if ($this->isInvoicePdfColumnAvailable()) {
+                db('invoices')
+                    ->where('id', $invoiceId)
+                    ->update([
+                        'pdf_path' => (string) ($pdfMeta['relative_path'] ?? ''),
+                        'pdf_mime_type' => (string) ($pdfMeta['mime_type'] ?? 'application/pdf'),
+                        'pdf_file_size' => (int) ($pdfMeta['file_size'] ?? 0),
+                        'pdf_sha256' => (string) ($pdfMeta['sha256'] ?? ''),
+                        'pdf_generated_at' => (string) ($pdfMeta['generated_at'] ?? date('Y-m-d H:i:s')),
+                    ]);
+            }
+        } catch (\Throwable $e) {
+            $logger = app(Logger::class);
+            if ($logger instanceof Logger) {
+                $logger->warning('invoice.pdf_generation_failed_on_create', [
+                    'invoice_id' => $invoiceId,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+
+            // Invoice creation should remain successful even if PDF generation fails.
+        }
+
+        $invoice = db('invoices')->where('id', $invoiceId)->first();
+
+        return $this->ok([
+            'invoice' => is_array($invoice) ? $invoice : ['id' => $invoiceId],
+            'pdf_export' => [
+                'generated' => is_array($pdfMeta),
+                'relative_path' => is_array($pdfMeta) ? (string) ($pdfMeta['relative_path'] ?? '') : null,
+            ],
+        ], 201);
     }
 
     public function history(Request $request): Response
@@ -508,12 +725,6 @@ final class ClientAdminController extends BaseApiController
             ]);
         }
 
-        if (!$this->isInvoicePdfColumnAvailable()) {
-            return $this->fail('Invoice PDF not found', 404, [
-                'invoice' => ['pdf_not_available'],
-            ]);
-        }
-
         $clientId = (int) $request->attribute('id', 0);
         $invoiceId = (int) $request->attribute('invoice_id', 0);
 
@@ -524,10 +735,11 @@ final class ClientAdminController extends BaseApiController
             ]);
         }
 
+        $pdfColumnsAvailable = $this->isInvoicePdfColumnAvailable();
+
         $invoice = db('invoices')
             ->where('id', $invoiceId)
             ->where('client_id', $clientId)
-            ->select(['id', 'invoice_number', 'pdf_path', 'pdf_mime_type'])
             ->first();
 
         if (!is_array($invoice)) {
@@ -547,15 +759,17 @@ final class ClientAdminController extends BaseApiController
                     ]);
                 }
 
-                db('invoices')
-                    ->where('id', $invoiceId)
-                    ->update([
-                        'pdf_path' => $relativePath,
-                        'pdf_mime_type' => (string) ($pdfMeta['mime_type'] ?? 'application/pdf'),
-                        'pdf_file_size' => (int) ($pdfMeta['file_size'] ?? 0),
-                        'pdf_sha256' => (string) ($pdfMeta['sha256'] ?? ''),
-                        'pdf_generated_at' => (string) ($pdfMeta['generated_at'] ?? date('Y-m-d H:i:s')),
-                    ]);
+                if ($pdfColumnsAvailable) {
+                    db('invoices')
+                        ->where('id', $invoiceId)
+                        ->update([
+                            'pdf_path' => $relativePath,
+                            'pdf_mime_type' => (string) ($pdfMeta['mime_type'] ?? 'application/pdf'),
+                            'pdf_file_size' => (int) ($pdfMeta['file_size'] ?? 0),
+                            'pdf_sha256' => (string) ($pdfMeta['sha256'] ?? ''),
+                            'pdf_generated_at' => (string) ($pdfMeta['generated_at'] ?? date('Y-m-d H:i:s')),
+                        ]);
+                }
 
                 $absolutePath = $this->resolveInvoicePdfAbsolutePath($relativePath);
             } catch (\Throwable) {
@@ -573,13 +787,15 @@ final class ClientAdminController extends BaseApiController
         $invoiceNumber = (int) ($invoice['invoice_number'] ?? $invoiceId);
         $fileName = 'rechnung-' . $invoiceNumber . '.pdf';
         $mimeType = trim((string) ($invoice['pdf_mime_type'] ?? 'application/pdf'));
+        $disposition = strtolower(trim((string) $request->query('disposition', 'inline')));
+        $dispositionType = in_array($disposition, ['attachment', 'download'], true) ? 'attachment' : 'inline';
         if ($mimeType === '') {
             $mimeType = 'application/pdf';
         }
 
         return new Response((string) $body, 200, [
             'Content-Type' => $mimeType,
-            'Content-Disposition' => 'inline; filename="' . $fileName . '"',
+            'Content-Disposition' => $dispositionType . '; filename="' . $fileName . '"',
             'Content-Length' => (string) filesize($absolutePath),
             'Cache-Control' => 'private, no-store',
         ]);
@@ -842,9 +1058,10 @@ final class ClientAdminController extends BaseApiController
 
     /**
      * @param array<int, array<string, mixed>> $rows
+     * @param array<int, array<string, mixed>> $contracts
      * @return array<int, array<string, mixed>>
      */
-    private function formatProjectsWithInvoices(array $rows, int $clientId): array
+    private function formatProjectsWithInvoices(array $rows, int $clientId, array $contracts = [], string $pdfBasePath = '/clients/data'): array
     {
         $projects = [];
 
@@ -858,6 +1075,7 @@ final class ClientAdminController extends BaseApiController
                     'is_active' => (int) ($row['project_is_active'] ?? 0) === 1,
                     'status' => (string) ($row['project_status'] ?? ''),
                     'created_at' => (string) ($row['project_created_at'] ?? ''),
+                    'contracts' => [],
                     'invoices' => [],
                 ];
             }
@@ -867,6 +1085,8 @@ final class ClientAdminController extends BaseApiController
             if ($invoiceId > 0) {
                 $pdfPath = trim((string) ($row['pdf_path'] ?? ''));
                 $pdfAvailable = $pdfPath !== '';
+                $pdfUrlBase = rtrim($pdfBasePath, '/');
+                $pdfViewUrl = $pdfUrlBase . '/' . $clientId . '/invoices/' . $invoiceId . '/pdf';
 
                 $projects[$projectId]['invoices'][] = [
                     'id' => $invoiceId,
@@ -881,14 +1101,168 @@ final class ClientAdminController extends BaseApiController
                     'sent_at' => $row['sent_at'] ?? null,
                     'pdf_available' => $pdfAvailable,
                     'pdf_generated_at' => $row['pdf_generated_at'] ?? null,
-                    'pdf_url' => $pdfAvailable
-                        ? "/admin/clients/data/{$clientId}/invoices/{$invoiceId}/pdf"
-                        : null,
+                    'pdf_url' => $pdfViewUrl,
+                    'pdf_download_url' => $pdfViewUrl . '?disposition=attachment',
                 ];
             }
         }
 
+        foreach ($contracts as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $projectId = (int) ($row['project_id'] ?? 0);
+            if ($projectId <= 0 || !isset($projects[$projectId])) {
+                continue;
+            }
+
+            $projects[$projectId]['contracts'][] = [
+                'id' => (int) ($row['id'] ?? 0),
+                'start_date' => isset($row['start_date']) ? (string) $row['start_date'] : null,
+                'end_date' => isset($row['end_date']) ? (string) $row['end_date'] : null,
+            ];
+        }
+
         return array_values($projects);
+    }
+
+    /** @return array<string, true> */
+    private function invoiceColumnSet(): array
+    {
+        if (is_array($this->invoiceColumnSet)) {
+            return $this->invoiceColumnSet;
+        }
+
+        $pdo = app(Database::class)->connection();
+        $stmt = $pdo->query('SHOW COLUMNS FROM invoices');
+        $rows = $stmt !== false ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
+
+        $this->invoiceColumnSet = [];
+        foreach ($rows as $row) {
+            $field = (string) ($row['Field'] ?? '');
+            if ($field !== '') {
+                $this->invoiceColumnSet[$field] = true;
+            }
+        }
+
+        return $this->invoiceColumnSet;
+    }
+
+    private function isInvoiceTableAvailable(): bool
+    {
+        if ($this->invoiceTableAvailable !== null) {
+            return $this->invoiceTableAvailable;
+        }
+
+        try {
+            $pdo = app(Database::class)->connection();
+            $statement = $pdo->prepare(
+                'SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = :table_name LIMIT 1'
+            );
+            $statement->execute(['table_name' => 'invoices']);
+            $this->invoiceTableAvailable = $statement->fetchColumn() !== false;
+            return $this->invoiceTableAvailable;
+        } catch (\Throwable) {
+            $this->invoiceTableAvailable = false;
+            return false;
+        }
+    }
+
+    private function reserveNextInvoiceNumber(): int
+    {
+        $pdo = app(Database::class)->connection();
+        $statement = $pdo->query('SELECT next_invoice_number FROM invoice_number_sequences WHERE id = 1 FOR UPDATE');
+        $nextInvoiceNumber = (int) ($statement !== false ? $statement->fetchColumn() : 0);
+
+        if ($nextInvoiceNumber <= 0) {
+            $bootstrapStatement = $pdo->query('SELECT COALESCE(MAX(invoice_number), 20260000) + 1 FROM invoices');
+            $nextInvoiceNumber = (int) ($bootstrapStatement !== false ? $bootstrapStatement->fetchColumn() : 20260001);
+            if ($nextInvoiceNumber <= 0) {
+                $nextInvoiceNumber = 20260001;
+            }
+
+            db('invoice_number_sequences')->insert([
+                'id' => 1,
+                'next_invoice_number' => $nextInvoiceNumber + 1,
+            ]);
+
+            return $nextInvoiceNumber;
+        }
+
+        db('invoice_number_sequences')
+            ->where('id', 1)
+            ->update([
+                'next_invoice_number' => $nextInvoiceNumber + 1,
+            ]);
+
+        return $nextInvoiceNumber;
+    }
+
+    private function actorId(Request $request): ?int
+    {
+        $sessionKey = (string) config('admin.session_key', 'admin_user');
+        $adminUser = $request->session()[$sessionKey] ?? [];
+
+        if (!is_array($adminUser)) {
+            return null;
+        }
+
+        $id = $adminUser['id'] ?? null;
+        return $id !== null ? (int) $id : null;
+    }
+
+    /** @return array<int, array{description: string, quantity: float, unit_price: float}> */
+    private function normalizeManualInvoiceItems(mixed $rawItems): array
+    {
+        if (!is_array($rawItems)) {
+            return [];
+        }
+
+        $items = [];
+        foreach ($rawItems as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $description = trim((string) ($item['description'] ?? ''));
+            $quantity = isset($item['quantity']) && is_numeric($item['quantity']) ? (float) $item['quantity'] : 0.0;
+            $unitPrice = isset($item['unit_price']) && is_numeric($item['unit_price']) ? (float) $item['unit_price'] : 0.0;
+
+            if ($description === '' || $quantity <= 0.0) {
+                continue;
+            }
+
+            $items[] = [
+                'description' => $description,
+                'quantity' => round($quantity, 2),
+                'unit_price' => round($unitPrice, 2),
+            ];
+        }
+
+        return $items;
+    }
+
+    /** @return array<string, mixed>|null */
+    private function fetchProjectForClient(int $clientId, int $projectId): ?array
+    {
+        $row = db('projects')
+            ->where('id', $projectId)
+            ->where('client_id', $clientId)
+            ->first();
+
+        return is_array($row) ? $row : null;
+    }
+
+    /** @return array<string, mixed>|null */
+    private function fetchContractForProject(int $contractId, int $projectId): ?array
+    {
+        $row = db('contracts')
+            ->where('id', $contractId)
+            ->where('project_id', $projectId)
+            ->first();
+
+        return is_array($row) ? $row : null;
     }
 
     /** @param array<string, mixed> $row */

@@ -128,10 +128,10 @@ Router::group('', function (): void {
     Router::put('/availability/data/recurring', [AvailabilityAdminController::class, 'replaceRecurring'])->name('admin.availability.data.recurring.replace');
     Router::post('/availability/data/blocked', [AvailabilityAdminController::class, 'createBlockedTime'])->name('admin.availability.data.blocked.store');
     Router::delete('/availability/data/blocked/{id}', [AvailabilityAdminController::class, 'deleteBlockedTime'])->name('admin.availability.data.blocked.delete');
-    Router::get('/packages/data', [ServiceAdminController::class, 'packages'])->name('admin.packages.data.index');
-    Router::post('/packages/data', [ServiceAdminController::class, 'storePackage'])->name('admin.packages.data.store');
-    Router::get('/packages/data/{id}', [ServiceAdminController::class, 'showPackage'])->name('admin.packages.data.show');
-    Router::patch('/packages/data/{id}', [ServiceAdminController::class, 'updatePackage'])->name('admin.packages.data.update');
+    Router::get('/referenced-projects/data', [ServiceAdminController::class, 'referencedProjects'])->name('admin.referenced_projects.data.index');
+    Router::post('/referenced-projects/data', [ServiceAdminController::class, 'storeReferencedProject'])->name('admin.referenced_projects.data.store');
+    Router::get('/referenced-projects/data/{id}', [ServiceAdminController::class, 'showReferencedProject'])->name('admin.referenced_projects.data.show');
+    Router::patch('/referenced-projects/data/{id}', [ServiceAdminController::class, 'updateReferencedProject'])->name('admin.referenced_projects.data.update');
     Router::get('/services', [ServicesPageController::class, 'index'])->name('admin.services.index');
     Router::get('/services/{id}', [ServicesPageController::class, 'show'])->name('admin.services.show');
     Router::get('/availability', [AvailabilityPageController::class, 'index'])->name('admin.availability.index');
@@ -185,6 +185,7 @@ Router::group('', function (): void {
     Router::get('/clients/data/{id}/history', [ClientAdminController::class, 'history'])->name('admin.clients.data.history');
     Router::get('/clients/data/{id}/consents', [ClientAdminController::class, 'consents'])->name('admin.clients.data.consents');
     Router::get('/clients/data/{id}/invoices', [ClientAdminController::class, 'invoices'])->name('admin.clients.data.invoices');
+    Router::post('/clients/data/{id}/invoices', [ClientAdminController::class, 'createInvoice'])->name('admin.clients.data.invoices.create');
     Router::get('/clients/data/{id}/invoices/{invoice_id}/pdf', [ClientAdminController::class, 'invoicePdf'])->name('admin.clients.data.invoices.pdf');
     Router::get('/clients', [ClientsPageController::class, 'index'])->name('admin.clients.index');
     Router::get('/clients/{id}', [ClientsPageController::class, 'show'])->name('admin.clients.show');

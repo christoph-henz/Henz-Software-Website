@@ -12,11 +12,11 @@ return [
             'create' => '/services/data',
             'update' => '/services/data/{id}',
         ],
-        'packages' => [
-            'list' => '/packages/data',
-            'detail' => '/packages/data/{id}',
-            'create' => '/packages/data',
-            'update' => '/packages/data/{id}',
+        'referenced_projects' => [
+            'list' => '/referenced-projects/data',
+            'detail' => '/referenced-projects/data/{id}',
+            'create' => '/referenced-projects/data',
+            'update' => '/referenced-projects/data/{id}',
         ],
     ],
 ];

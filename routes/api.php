@@ -202,6 +202,7 @@ Router::group('/v1', function (RouterInstance $router): void {
         Router::get('/{id}/consents', [ClientAdminController::class, 'consents'])->name('api.v1.admin.clients.consents');
         Router::get('/{id}/packages', [ClientAdminController::class, 'packages'])->name('api.v1.admin.clients.packages');
         Router::get('/{id}/invoices', [ClientAdminController::class, 'invoices'])->name('api.v1.admin.clients.invoices');
+        Router::post('/{id}/invoices', [ClientAdminController::class, 'createInvoice'])->name('api.v1.admin.clients.invoices.create');
         Router::get('/{id}/invoices/{invoice_id}/pdf', [ClientAdminController::class, 'invoicePdf'])->name('api.v1.admin.clients.invoices.pdf');
     }, ['admin_session']);
 
@@ -220,11 +221,11 @@ Router::group('/v1', function (RouterInstance $router): void {
         Router::delete('/blocked/{id}', [AvailabilityAdminController::class, 'deleteBlockedTime'])->name('api.v1.admin.availability.blocked.delete');
     }, ['admin_session']);
 
-    Router::group('/admin/packages', function (RouterInstance $router): void {
-        Router::get('/', [ServiceAdminController::class, 'packages'])->name('api.v1.admin.packages.index');
-        Router::post('/', [ServiceAdminController::class, 'storePackage'])->name('api.v1.admin.packages.store');
-        Router::get('/{id}', [ServiceAdminController::class, 'showPackage'])->name('api.v1.admin.packages.show');
-        Router::patch('/{id}', [ServiceAdminController::class, 'updatePackage'])->name('api.v1.admin.packages.update');
+    Router::group('/admin/referenced-projects', function (RouterInstance $router): void {
+        Router::get('/', [ServiceAdminController::class, 'referencedProjects'])->name('api.v1.admin.referenced_projects.index');
+        Router::post('/', [ServiceAdminController::class, 'storeReferencedProject'])->name('api.v1.admin.referenced_projects.store');
+        Router::get('/{id}', [ServiceAdminController::class, 'showReferencedProject'])->name('api.v1.admin.referenced_projects.show');
+        Router::patch('/{id}', [ServiceAdminController::class, 'updateReferencedProject'])->name('api.v1.admin.referenced_projects.update');
     }, ['admin_session']);
 
     Router::group('/admin/media', function (RouterInstance $router): void {

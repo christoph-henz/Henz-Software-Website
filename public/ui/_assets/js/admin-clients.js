@@ -48,8 +48,8 @@
         infoSubtab: cfg.initial_packages_open ? 'packages' : (cfg.initial_invoices_open ? 'invoices' : 'overview'),
         loadingHistory: false,
         historyItems: [],
-        loadingConsents: false,
-        consents: [],
+        loadingContracts: false,
+        contracts: [],
         loadingPackages: false,
         packages: [],
         loadingInvoices: false,
@@ -107,7 +107,7 @@
         }
 
         var infoSection = trim(qs.get('info_section'));
-        if (infoSection !== '' && inArray(infoSection, ['overview', 'projects', 'invoices', 'packages', 'consents', 'history'])) {
+        if (infoSection !== '' && inArray(infoSection, ['overview', 'projects', 'invoices', 'packages', 'contracts', 'history'])) {
             state.infoSubtab = infoSection;
         }
 
@@ -269,7 +269,7 @@
             infoTabButton('projects', 'Projekte') +
             infoTabButton('history', 'Buchungshistorie') +
             infoTabButton('invoices', 'Rechnungen') +
-            infoTabButton('consents', 'Einwilligungen') +
+            infoTabButton('contracts', 'Verträge') +
             '  </div>' +
             '  <div class="admin-clients-subtab-content">' + renderInfoSubtab(c) + '</div>' +
             '</section>';
@@ -279,7 +279,7 @@
         if (state.infoSubtab === 'projects') return renderProjectsSection();
         if (state.infoSubtab === 'history') return renderHistorySection();
         if (state.infoSubtab === 'invoices') return renderInvoicesSection();
-        if (state.infoSubtab === 'consents') return renderConsentsSection();
+        if (state.infoSubtab === 'contracts') return renderContractsSection();
         return renderInfoOverviewSection(client);
     }
 
@@ -432,19 +432,24 @@
         }
 
         var rows = state.invoiceBookings;
+        var createButton = canManage
+            ? '<div class="admin-clients-actions" style="margin-bottom:0.75rem;"><button type="button" class="admin-clients-page-btn" data-create-invoice>Rechnung erstellen</button></div>'
+            : '';
 
         if (rows.length === 0) {
-            return '<div class="admin-clients-empty">Keine Rechnungen vorhanden.</div>';
+            return createButton + '<div class="admin-clients-empty">Keine Rechnungen vorhanden.</div>';
         }
 
-        return '' +
+        return createButton +
             '<div class="admin-clients-table-wrap">' +
             '  <table class="admin-clients-table">' +
             '    <thead><tr><th>Rechnung</th><th>Termin</th><th>Status</th><th>Betrag</th><th>Fällig</th><th>PDF</th></tr></thead>' +
             '    <tbody>' + rows.map(function (item) {
-                var invoice = item.invoice || {};
-                var pdfHtml = invoice.pdf_url
-                    ? '<a class="admin-clients-link" href="' + escapeHtml(String(invoice.pdf_url)) + '" target="_blank" rel="noopener">PDF oeffnen</a>'
+                    var invoice = item.invoice || {};
+                    var pdfViewUrl = invoice.pdf_url || '';
+                    var pdfDownloadUrl = invoice.pdf_download_url || invoice.pdf_url || '';
+                    var pdfHtml = pdfViewUrl
+                        ? '<button type="button" class="admin-clients-page-btn" data-open-invoice-pdf="1" data-pdf-url="' + escapeHtml(String(pdfViewUrl)) + '" data-pdf-download-url="' + escapeHtml(String(pdfDownloadUrl)) + '" data-invoice-label="' + escapeHtml(String(invoice.invoice_number || invoice.id || '-')) + '">PDF ansehen</button>'
                     : '<span class="admin-clients-muted">Nicht verfuegbar</span>';
                 return '' +
                     '<tr>' +
@@ -460,29 +465,29 @@
             '</div>';
     }
 
-    function renderConsentsSection() {
-        if (state.loadingConsents) {
-            return '<div class="admin-clients-empty">Lade Einwilligungen...</div>';
+    function renderContractsSection() {
+        if (state.loadingContracts) {
+            return '<div class="admin-clients-empty">Lade Verträge...</div>';
         }
 
-        if (state.consents.length === 0) {
-            return '<div class="admin-clients-empty">Keine Einwilligungen vorhanden.</div>';
+        if (state.contracts.length === 0) {
+            return '<div class="admin-clients-empty">Keine Verträge vorhanden.</div>';
         }
 
-        return '<div class="admin-clients-stack">' + state.consents.map(function (item) {
+        return '<div class="admin-clients-stack">' + state.contracts.map(function (item) {
             return '' +
                 '<article class="admin-clients-entry-card">' +
                 '  <div class="admin-clients-entry-head">' +
-                '    <strong>' + escapeHtml(String(item.consent_key || 'Einwilligung')) + '</strong>' +
+                '    <strong>' + escapeHtml(String(item.contract_key || 'Einwilligung')) + '</strong>' +
                 '    <span class="admin-clients-entry-time">' + escapeHtml(formatDateTime(item.accepted_at)) + '</span>' +
                 '  </div>' +
                 '  <div class="admin-clients-meta-grid">' +
                 metaPill('Status', item.accepted ? 'akzeptiert' : 'abgelehnt') +
-                metaPill('Version', String(item.consent_version || '-')) +
+                metaPill('Version', String(item.contract_version || '-')) +
                 metaPill('Kontext', String(item.context_type || '-') + ' #' + String(item.context_id || '-')) +
                 metaPill('Signatur', abbreviateHash(item.signature_hash)) +
                 '  </div>' +
-                (item.consent_text_snapshot ? '<p class="admin-clients-entry-copy">' + escapeHtml(String(item.consent_text_snapshot)) + '</p>' : '') +
+                (item.contract_text_snapshot ? '<p class="admin-clients-entry-copy">' + escapeHtml(String(item.contract_text_snapshot)) + '</p>' : '') +
                 '</article>';
         }).join('') + '</div>';
     }
@@ -790,7 +795,7 @@
         root.querySelectorAll('[data-info-tab]').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 var tab = String(btn.getAttribute('data-info-tab') || 'overview');
-                if (!inArray(tab, ['overview', 'projects', 'history', 'invoices', 'packages', 'consents'])) return;
+                if (!inArray(tab, ['overview', 'projects', 'history', 'invoices', 'packages', 'contracts'])) return;
                 state.infoSubtab = tab;
                 writeRecordUrl(false);
                 render();
@@ -799,6 +804,9 @@
 
         var saveBtn = root.querySelector('[data-save-client]');
         if (saveBtn) saveBtn.addEventListener('click', saveClient);
+
+        var createInvoiceBtn = root.querySelector('[data-create-invoice]');
+        if (createInvoiceBtn) createInvoiceBtn.addEventListener('click', openCreateInvoiceModal);
 
         var createRecordBtn = root.querySelector('[data-create-record]');
         if (createRecordBtn) createRecordBtn.addEventListener('click', createFormRecord);
@@ -839,6 +847,129 @@
                 openAttachmentsModal(id);
             });
         });
+
+        root.querySelectorAll('[data-open-invoice-pdf]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var viewUrl = String(btn.getAttribute('data-pdf-url') || '');
+                var downloadUrl = String(btn.getAttribute('data-pdf-download-url') || viewUrl);
+                var invoiceLabel = String(btn.getAttribute('data-invoice-label') || '-');
+                if (trim(viewUrl) === '') {
+                    notify('error', 'PDF ist nicht verfuegbar.');
+                    return;
+                }
+                openInvoicePdfModal(viewUrl, downloadUrl, invoiceLabel);
+            });
+        });
+    }
+
+    function openInvoicePdfModal(viewUrl, downloadUrl, invoiceLabel) {
+        var safeViewUrl = trim(String(viewUrl || ''));
+        var safeDownloadUrl = trim(String(downloadUrl || ''));
+        var label = trim(String(invoiceLabel || '-'));
+
+        if (safeViewUrl === '') {
+            notify('error', 'PDF ist nicht verfuegbar.');
+            return;
+        }
+
+        var body = '' +
+            '<section class="admin-clients-attachments" data-invoice-preview>' +
+            '  <div class="admin-clients-help">Rechnung #' + escapeHtml(label) + '</div>' +
+            '  <div style="height:min(80vh,900px); border:1px solid #ddd; border-radius:8px; overflow:hidden; background:#fff;">' +
+            '    <iframe src="' + escapeHtml(safeViewUrl) + '" title="Rechnungs-PDF" style="width:100%; height:100%; border:0; background:#fff;"></iframe>' +
+            '  </div>' +
+            '</section>';
+
+        window.adminOpenModal && window.adminOpenModal('Rechnung ansehen', body, {
+            type: 'form',
+            modalClass: 'admin-modal--preview',
+            buttons: [
+                {
+                    label: 'Download',
+                    variant: 'secondary',
+                    onClick: function () {
+                        if (safeDownloadUrl !== '') {
+                            downloadInvoicePdf(safeDownloadUrl, 'rechnung-' + label + '.pdf')
+                                .then(function () {
+                                    goToClientInvoicesSection();
+                                })
+                                .catch(function (err) {
+                                    notify('error', err && err.message ? err.message : 'PDF konnte nicht heruntergeladen werden.');
+                                });
+                        }
+                    }
+                },
+                {
+                    label: 'Schliessen',
+                    variant: 'primary',
+                    onClick: function () {
+                        window.adminCloseModal && window.adminCloseModal();
+                    }
+                },
+            ],
+        });
+    }
+
+    function downloadInvoicePdf(downloadUrl, fallbackFileName) {
+        var url = trim(String(downloadUrl || ''));
+        if (url === '') {
+            return Promise.reject(new Error('Download-URL fehlt.'));
+        }
+
+        return fetch(url, {
+            method: 'GET',
+            credentials: 'include',
+            headers: { Accept: 'application/pdf' },
+        })
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error('Download fehlgeschlagen.');
+                }
+
+                var disposition = String(response.headers.get('Content-Disposition') || '');
+                var fileName = extractDownloadFileName(disposition, fallbackFileName || 'rechnung.pdf');
+
+                return response.blob().then(function (blob) {
+                    var objectUrl = URL.createObjectURL(blob);
+                    var anchor = document.createElement('a');
+                    anchor.href = objectUrl;
+                    anchor.download = fileName;
+                    anchor.style.display = 'none';
+                    document.body.appendChild(anchor);
+                    anchor.click();
+                    document.body.removeChild(anchor);
+                    window.setTimeout(function () {
+                        URL.revokeObjectURL(objectUrl);
+                    }, 1000);
+                });
+            });
+    }
+
+    function extractDownloadFileName(disposition, fallbackFileName) {
+        var raw = String(disposition || '');
+        var fallback = trim(String(fallbackFileName || 'rechnung.pdf')) || 'rechnung.pdf';
+
+        var utf8Match = raw.match(/filename\*=UTF-8''([^;]+)/i);
+        if (utf8Match && utf8Match[1]) {
+            try {
+                return decodeURIComponent(utf8Match[1]);
+            } catch (_err) {
+                return utf8Match[1];
+            }
+        }
+
+        var simpleMatch = raw.match(/filename="?([^";]+)"?/i);
+        if (simpleMatch && simpleMatch[1]) {
+            return simpleMatch[1];
+        }
+
+        return fallback;
+    }
+
+    function goToClientInvoicesSection() {
+        if (!state.selectedClientId) return;
+        state.infoSubtab = 'invoices';
+        window.location.href = '/clients/' + state.selectedClientId + '?info_section=invoices';
     }
 
     function openAttachmentsModal(recordId) {
@@ -2091,6 +2222,258 @@
             .catch(function (err) {
                 notify('error', '{' + (err && err.message ? err.message : 'Fehler') + '}');
             });
+    }
+
+    function openCreateInvoiceModal() {
+        if (!state.selectedClientId) return;
+
+        var projects = Array.isArray(state.projects) ? state.projects : [];
+        if (projects.length === 0) {
+            notify('warning', 'Es sind keine Projekte fuer diesen Client vorhanden.');
+            return;
+        }
+
+        var projectOptions = projects.map(function (project) {
+            var projectId = parsePositiveInt(project && project.id, 0);
+            return '<option value="' + projectId + '">' + escapeHtml(String(project && project.name ? project.name : ('Projekt #' + projectId))) + '</option>';
+        }).join('');
+
+        var today = new Date();
+        var invoiceDateDefault = today.toISOString().slice(0, 10);
+        var dueDateDefault = invoiceDateDefault;
+
+        var body = '' +
+            '<section class="admin-clients-attachments">' +
+            '  <p class="admin-clients-help">Projekt und optional Vertrag waehlen, Positionen erfassen und Rabatt setzen.</p>' +
+            '  <div class="admin-clients-form-grid">' +
+            '    <div><label class="admin-clients-label" for="clientInvoiceProjectId">Projekt</label><select id="clientInvoiceProjectId" class="admin-clients-input">' + projectOptions + '</select></div>' +
+            '    <div><label class="admin-clients-label" for="clientInvoiceContractId">Vertrag (optional)</label><select id="clientInvoiceContractId" class="admin-clients-input"></select></div>' +
+            '    <div><label class="admin-clients-label" for="clientInvoiceDate">Rechnungsdatum</label><input id="clientInvoiceDate" class="admin-clients-input" type="date" value="' + invoiceDateDefault + '" /></div>' +
+            '    <div><label class="admin-clients-label" for="clientInvoiceDueDate">Faelligkeitsdatum</label><input id="clientInvoiceDueDate" class="admin-clients-input" type="date" value="' + dueDateDefault + '" /></div>' +
+            '    <div><label class="admin-clients-label" for="clientInvoiceDiscount">Rabatt (EUR)</label><input id="clientInvoiceDiscount" class="admin-clients-input" type="number" min="0" step="0.01" value="0" /></div>' +
+            '  </div>' +
+            '  <div style="margin-top:0.85rem;">' +
+            '    <div class="admin-clients-inline-actions" style="margin-bottom:0.55rem;">' +
+            '      <strong>Positionen</strong>' +
+            '      <button type="button" class="admin-clients-page-btn" id="clientInvoiceAddItem">Position hinzufuegen</button>' +
+            '    </div>' +
+            '    <div id="clientInvoiceItems"></div>' +
+            '  </div>' +
+            '  <div class="admin-clients-meta" id="clientInvoiceTotals" style="margin-top:0.75rem;"></div>' +
+            '</section>';
+
+        window.adminOpenModal && window.adminOpenModal('Rechnung erstellen', body, {
+            type: 'form',
+            modalClass: 'admin-modal--preview',
+            buttons: [
+                { label: 'Erstellen', variant: 'primary', onClick: createClientInvoice },
+                { label: 'Abbrechen', variant: 'secondary', onClick: function () { window.adminCloseModal && window.adminCloseModal(); } },
+            ],
+        });
+
+        renderInvoiceItemRows([{ description: '', quantity: '1', unit_price: '' }]);
+        refreshInvoiceContractOptions();
+        updateInvoiceTotals();
+
+        var projectSelect = document.getElementById('clientInvoiceProjectId');
+        if (projectSelect) {
+            projectSelect.addEventListener('change', function () {
+                refreshInvoiceContractOptions();
+            });
+        }
+
+        var addItemBtn = document.getElementById('clientInvoiceAddItem');
+        if (addItemBtn) {
+            addItemBtn.addEventListener('click', function () {
+                var items = collectInvoiceItemsFromDom();
+                items.push({ description: '', quantity: '1', unit_price: '' });
+                renderInvoiceItemRows(items);
+                updateInvoiceTotals();
+            });
+        }
+
+        var itemsHost = document.getElementById('clientInvoiceItems');
+        if (itemsHost) {
+            itemsHost.addEventListener('click', function (event) {
+                var target = event.target;
+                var removeBtn = target && target.closest ? target.closest('[data-remove-item]') : null;
+                if (!removeBtn) return;
+
+                var index = parsePositiveInt(removeBtn.getAttribute('data-remove-item'), 0) - 1;
+                var items = collectInvoiceItemsFromDom();
+                if (index >= 0 && index < items.length) {
+                    items.splice(index, 1);
+                }
+                if (items.length === 0) {
+                    items.push({ description: '', quantity: '1', unit_price: '' });
+                }
+                renderInvoiceItemRows(items);
+                updateInvoiceTotals();
+            });
+
+            itemsHost.addEventListener('input', function () {
+                updateInvoiceTotals();
+            });
+        }
+
+        var discountInput = document.getElementById('clientInvoiceDiscount');
+        if (discountInput) {
+            discountInput.addEventListener('input', function () {
+                updateInvoiceTotals();
+            });
+        }
+    }
+
+    function refreshInvoiceContractOptions() {
+        var projectId = parsePositiveInt(getValue('clientInvoiceProjectId'), 0);
+        var contractSelect = document.getElementById('clientInvoiceContractId');
+        if (!contractSelect) return;
+
+        var project = findProjectById(projectId);
+        var contracts = project && Array.isArray(project.contracts) ? project.contracts : [];
+
+        var options = '<option value="">Kein Vertrag</option>';
+        options += contracts.map(function (contract) {
+            var start = contract && contract.start_date ? String(contract.start_date) : '-';
+            var end = contract && contract.end_date ? String(contract.end_date) : '-';
+            var contractId = parsePositiveInt(contract && contract.id, 0);
+            return '<option value="' + contractId + '">#' + contractId + ' (' + escapeHtml(start) + ' bis ' + escapeHtml(end) + ')</option>';
+        }).join('');
+
+        contractSelect.innerHTML = options;
+    }
+
+    function renderInvoiceItemRows(items) {
+        var host = document.getElementById('clientInvoiceItems');
+        if (!host) return;
+
+        var rows = (Array.isArray(items) ? items : []).map(function (item, idx) {
+            var index = idx + 1;
+            return '' +
+                '<div class="admin-clients-inline" style="margin-bottom:0.5rem; align-items:flex-end;">' +
+                '  <div style="flex:1; min-width:12rem;"><label class="admin-clients-label">Beschreibung</label><input class="admin-clients-input" data-item-field="description" data-item-index="' + index + '" type="text" value="' + escapeHtml(String(item && item.description ? item.description : '')) + '" /></div>' +
+                '  <div style="width:7rem;"><label class="admin-clients-label">Menge</label><input class="admin-clients-input" data-item-field="quantity" data-item-index="' + index + '" type="number" min="0.01" step="0.01" value="' + escapeHtml(String(item && item.quantity ? item.quantity : '1')) + '" /></div>' +
+                '  <div style="width:9rem;"><label class="admin-clients-label">Einzelpreis</label><input class="admin-clients-input" data-item-field="unit_price" data-item-index="' + index + '" type="number" step="0.01" value="' + escapeHtml(String(item && item.unit_price ? item.unit_price : '')) + '" /></div>' +
+                '  <button type="button" class="admin-clients-page-btn" data-remove-item="' + index + '">Entfernen</button>' +
+                '</div>';
+        }).join('');
+
+        host.innerHTML = rows;
+    }
+
+    function collectInvoiceItemsFromDom() {
+        var host = document.getElementById('clientInvoiceItems');
+        if (!host) return [];
+
+        var rowMap = {};
+        host.querySelectorAll('[data-item-field][data-item-index]').forEach(function (node) {
+            var field = String(node.getAttribute('data-item-field') || '');
+            var idx = String(node.getAttribute('data-item-index') || '');
+            if (!rowMap[idx]) rowMap[idx] = { description: '', quantity: '', unit_price: '' };
+            rowMap[idx][field] = String(node.value || '');
+        });
+
+        return Object.keys(rowMap).sort(function (a, b) { return parseInt(a, 10) - parseInt(b, 10); }).map(function (key) {
+            return rowMap[key];
+        });
+    }
+
+    function updateInvoiceTotals() {
+        var items = collectInvoiceItemsFromDom();
+        var subtotal = 0;
+        items.forEach(function (item) {
+            var qty = Number(item.quantity || 0);
+            var price = Number(item.unit_price || 0);
+            if (!Number.isFinite(qty) || !Number.isFinite(price) || qty <= 0) return;
+            subtotal += qty * price;
+        });
+
+        var discount = Number(getValue('clientInvoiceDiscount') || 0);
+        if (!Number.isFinite(discount) || discount < 0) discount = 0;
+        var total = Math.max(0, subtotal - discount);
+
+        var node = document.getElementById('clientInvoiceTotals');
+        if (!node) return;
+
+        node.textContent = 'Zwischensumme: ' + formatCurrency(subtotal, 'EUR') + ' | Rabatt: ' + formatCurrency(discount, 'EUR') + ' | Gesamt: ' + formatCurrency(total, 'EUR');
+    }
+
+    function createClientInvoice() {
+        if (!state.selectedClientId) return;
+
+        var projectId = parsePositiveInt(getValue('clientInvoiceProjectId'), 0);
+        var contractId = parsePositiveInt(getValue('clientInvoiceContractId'), 0);
+        var invoiceDate = getValue('clientInvoiceDate');
+        var dueDate = getValue('clientInvoiceDueDate');
+        var discountAmount = getValue('clientInvoiceDiscount');
+        var items = collectInvoiceItemsFromDom().map(function (item) {
+            return {
+                description: trim(item.description),
+                quantity: trim(item.quantity),
+                unit_price: trim(item.unit_price),
+            };
+        }).filter(function (item) {
+            return item.description !== '';
+        });
+
+        if (projectId <= 0) {
+            notify('warning', 'Bitte ein Projekt auswaehlen.');
+            return;
+        }
+
+        if (invoiceDate === '') {
+            notify('warning', 'Bitte ein Rechnungsdatum setzen.');
+            return;
+        }
+
+        if (items.length === 0) {
+            notify('warning', 'Bitte mindestens eine Position erfassen.');
+            return;
+        }
+
+        var payload = {
+            project_id: projectId,
+            contract_id: contractId > 0 ? contractId : null,
+            invoice_date: invoiceDate,
+            due_date: dueDate,
+            discount_amount: discountAmount,
+            items: items,
+        };
+
+        fetch(apiUrl(cfg.api && cfg.api.invoices_create, state.selectedClientId), {
+            method: 'POST',
+            credentials: 'include',
+            headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        })
+            .then(parseJsonResponse)
+            .then(function (result) {
+                if (result.status !== 201 && result.status !== 200) {
+                    throw new Error(extractErrorMessage(result, 'Rechnung konnte nicht erstellt werden.'));
+                }
+
+                notify('success', 'Rechnung wurde erstellt.');
+                window.adminCloseModal && window.adminCloseModal();
+                return fetchClientBookings(state.selectedClientId).then(function () {
+                    render();
+                });
+            })
+            .catch(function (err) {
+                notify('error', err && err.message ? err.message : 'Rechnung konnte nicht erstellt werden.');
+            });
+    }
+
+    function findProjectById(projectId) {
+        var id = parsePositiveInt(projectId, 0);
+        if (id <= 0) return null;
+        var projects = Array.isArray(state.projects) ? state.projects : [];
+        for (var i = 0; i < projects.length; i += 1) {
+            var project = projects[i];
+            if (parsePositiveInt(project && project.id, 0) === id) {
+                return project;
+            }
+        }
+        return null;
     }
 
     function createFormRecord() {

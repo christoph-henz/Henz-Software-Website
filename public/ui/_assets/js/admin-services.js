@@ -11,7 +11,7 @@
 
     var state = {
         services: [],
-        packages: [],
+        referencedProjects: [],
         loading: true,
         initialServiceId: parsePositiveInt(cfg.initial_service_id, 0) || null,
     };
@@ -22,17 +22,32 @@
         state.loading = true;
         render();
 
-        return Promise.all([
+        return Promise.allSettled([
             fetchJson(apiUrl(cfg.api && cfg.api.services && cfg.api.services.list)),
-            fetchJson(apiUrl(cfg.api && cfg.api.packages && cfg.api.packages.list)),
+            fetchJson(apiUrl(cfg.api && cfg.api.referenced_projects && cfg.api.referenced_projects.list)),
         ]).then(function (results) {
-            var servicesData = results[0] && results[0].json && results[0].json.data ? results[0].json.data : {};
-            var packagesData = results[1] && results[1].json && results[1].json.data ? results[1].json.data : {};
+            var serviceResult = results[0] && results[0].status === 'fulfilled' ? results[0].value : null;
+            var referencedProjectsResult = results[1] && results[1].status === 'fulfilled' ? results[1].value : null;
+            var serviceRequestOk = !!(serviceResult && serviceResult.status < 400);
+            var referencedProjectsRequestOk = !!(referencedProjectsResult && referencedProjectsResult.status < 400);
 
-            state.services = Array.isArray(servicesData.services) ? servicesData.services : [];
-            state.packages = Array.isArray(packagesData.packages) ? packagesData.packages : [];
+            var servicesData = serviceResult && serviceResult.json && serviceResult.json.data ? serviceResult.json.data : {};
+            var referencedProjectsData = referencedProjectsResult && referencedProjectsResult.json && referencedProjectsResult.json.data ? referencedProjectsResult.json.data : {};
+
+            state.services = serviceRequestOk && Array.isArray(servicesData.services) ? servicesData.services : [];
+            state.referencedProjects = referencedProjectsRequestOk && Array.isArray(referencedProjectsData.referenced_projects)
+                ? referencedProjectsData.referenced_projects
+                : [];
             state.loading = false;
             render();
+
+            if (!serviceRequestOk) {
+                notify('error', 'Services konnten nicht geladen werden.');
+            }
+
+            if (!referencedProjectsRequestOk) {
+                notify('error', 'Referenzprojekte konnten nicht geladen werden.');
+            }
 
             if (state.initialServiceId) {
                 var found = state.services.find(function (item) { return parsePositiveInt(item.id, 0) === state.initialServiceId; });
@@ -43,7 +58,7 @@
             }
         }).catch(function () {
             state.services = [];
-            state.packages = [];
+            state.referencedProjects = [];
             state.loading = false;
             render();
             notify('error', 'Leistungen konnten nicht geladen werden.');
@@ -58,14 +73,14 @@
 
         root.innerHTML = '' +
             renderServicesSection() +
-            renderPackagesSection();
+            renderReferencedProjectsSection();
 
         bindEvents();
     }
 
     function renderServicesSection() {
         var rows = state.services.length === 0
-            ? '<tr><td colspan="7" class="admin-services-empty">Keine Services vorhanden.</td></tr>'
+            ? '<tr><td colspan="6" class="admin-services-empty">Keine Services vorhanden.</td></tr>'
             : state.services.map(function (item) {
                 return '' +
                     '<tr class="admin-services-row" data-service-row data-id="' + item.id + '">' +
@@ -73,7 +88,6 @@
                     '  <td>' + escapeHtml(String(item.duration_minutes || 0)) + ' Min.</td>' +
                     '  <td>' + escapeHtml(formatMoney(item.price)) + '</td>' +
                     '  <td>' + badge(item.is_active, 'Aktiv') + '</td>' +
-                    '  <td>' + badge(item.is_featured, 'Beliebt') + '</td>' +
                     '  <td>' + escapeHtml(String(item.display_order || 0)) + '</td>' +
                     '  <td>' + escapeHtml(formatDate(item.updated_at || item.created_at || '')) + '</td>' +
                     '</tr>';
@@ -90,25 +104,25 @@
             '  </div>' +
             '  <div class="admin-services-table-wrap">' +
             '    <table class="admin-services-table">' +
-            '      <thead><tr><th>Name</th><th>Dauer</th><th>Preis</th><th>Aktiv</th><th>Beliebt</th><th>Sortierung</th><th>Aktualisiert</th></tr></thead>' +
+            '      <thead><tr><th>Name</th><th>Dauer</th><th>Preis</th><th>Aktiv</th><th>Sortierung</th><th>Aktualisiert</th></tr></thead>' +
             '      <tbody>' + rows + '</tbody>' +
             '    </table>' +
             '  </div>' +
             '</section>';
     }
 
-    function renderPackagesSection() {
-        var rows = state.packages.length === 0
-            ? '<tr><td colspan="7" class="admin-services-empty">Keine Pakete vorhanden.</td></tr>'
-            : state.packages.map(function (item) {
+    function renderReferencedProjectsSection() {
+        var rows = state.referencedProjects.length === 0
+            ? '<tr><td colspan="7" class="admin-services-empty">Keine Referenzprojekte vorhanden.</td></tr>'
+            : state.referencedProjects.map(function (item) {
                 return '' +
-                    '<tr class="admin-services-row" data-package-row data-id="' + item.id + '">' +
-                    '  <td><div class="admin-services-name">' + escapeHtml(item.name || '') + '</div><div class="admin-services-meta">' + escapeHtml(item.slug || '') + '</div></td>' +
-                    '  <td>' + escapeHtml(item.service_name || '-') + '<div class="admin-services-meta">' + escapeHtml(item.service_slug || '') + '</div></td>' +
-                    '  <td>' + escapeHtml(String(item.session_count || 0)) + '</td>' +
-                    '  <td>' + escapeHtml(formatMoney(item.price)) + '</td>' +
+                    '<tr class="admin-services-row" data-referenced-project-row data-id="' + item.id + '">' +
+                    '  <td><div class="admin-services-name">' + escapeHtml(item.title || '') + '</div><div class="admin-services-meta">' + escapeHtml(item.slug || '') + '</div></td>' +
+                    '  <td>' + escapeHtml(item.project_slug || '-') + '</td>' +
+                    '  <td>' + escapeHtml(item.project_url || '-') + '</td>' +
+                    '  <td>' + escapeHtml(item.project_image_path || '-') + '</td>' +
                     '  <td>' + badge(item.is_active, 'Aktiv') + '</td>' +
-                    '  <td>' + escapeHtml(String(item.display_order || 0)) + '</td>' +
+                    '  <td>' + escapeHtml(String(item.sort_order || 0)) + '</td>' +
                     '  <td>' + escapeHtml(formatDate(item.updated_at || item.created_at || '')) + '</td>' +
                     '</tr>';
             }).join('');
@@ -117,14 +131,14 @@
             '<section class="admin-services-section">' +
             '  <div class="admin-services-section-head">' +
             '    <div>' +
-            '      <h2 class="admin-services-section-title">Pakete</h2>' +
-            '      <p class="admin-services-section-subtitle">Pakete bearbeiten oder neue Pakete anlegen. Pakete zu deaktivierten Services werden nicht angezeigt.</p>' +
+            '      <h2 class="admin-services-section-title">Referenzprojekte</h2>' +
+            '      <p class="admin-services-section-subtitle">Referenzprojekte bearbeiten oder neue Referenzprojekte anlegen.</p>' +
             '    </div>' +
-            (canManage ? '<button type="button" class="admin-services-action-btn" data-package-create>Neues Paket</button>' : '') +
+            (canManage ? '<button type="button" class="admin-services-action-btn" data-referenced-project-create>Neues Referenzprojekt</button>' : '') +
             '  </div>' +
             '  <div class="admin-services-table-wrap">' +
             '    <table class="admin-services-table">' +
-            '      <thead><tr><th>Name</th><th>Service</th><th>Sitzungen</th><th>Preis</th><th>Aktiv</th><th>Sortierung</th><th>Aktualisiert</th></tr></thead>' +
+            '      <thead><tr><th>Titel</th><th>Route-Slug</th><th>Projekt-URL</th><th>Media-Datei</th><th>Aktiv</th><th>Sortierung</th><th>Aktualisiert</th></tr></thead>' +
             '      <tbody>' + rows + '</tbody>' +
             '    </table>' +
             '  </div>' +
@@ -138,9 +152,9 @@
             });
         });
 
-        root.querySelectorAll('[data-package-row]').forEach(function (row) {
+        root.querySelectorAll('[data-referenced-project-row]').forEach(function (row) {
             row.addEventListener('click', function () {
-                openPackageModal(findById(state.packages, row.getAttribute('data-id')), true);
+                openReferencedProjectModal(findById(state.referencedProjects, row.getAttribute('data-id')), true);
             });
         });
 
@@ -151,10 +165,10 @@
             });
         }
 
-        var packageCreateBtn = root.querySelector('[data-package-create]');
-        if (packageCreateBtn) {
-            packageCreateBtn.addEventListener('click', function () {
-                openPackageModal(null, true);
+        var referencedProjectCreateBtn = root.querySelector('[data-referenced-project-create]');
+        if (referencedProjectCreateBtn) {
+            referencedProjectCreateBtn.addEventListener('click', function () {
+                openReferencedProjectModal(null, true);
             });
         }
     }
@@ -163,7 +177,7 @@
         var isEdit = !!service;
         var title = isEdit ? 'Service #' + service.id : 'Neuer Service';
         var body = '' +
-            '<div class="admin-services-modal-note">Services werden direkt aus dem Admin heraus gepflegt. Das Highlight-Badge wird über <code>is_featured</code> gesteuert.</div>' +
+            '<div class="admin-services-modal-note">Services werden direkt aus dem Admin heraus gepflegt.</div>' +
             '<div class="admin-services-form-grid">' +
             field('Name', '<input id="serviceName" class="admin-services-input" type="text" value="' + escapeHtml(service ? service.name || '' : '') + '" />') +
             field('Slug', '<input id="serviceSlug" class="admin-services-input" type="text" value="' + escapeHtml(service ? service.slug || '' : '') + '" placeholder="automatisch aus dem Namen" />') +
@@ -171,7 +185,7 @@
             field('Preis', '<input id="servicePrice" class="admin-services-input" type="number" min="0" step="0.01" value="' + escapeHtml(String(service ? service.price || 0 : 0)) + '" />') +
             field('Sortierung', '<input id="serviceDisplayOrder" class="admin-services-input" type="number" step="1" value="' + escapeHtml(String(service ? service.display_order || 0 : 0)) + '" />') +
             field('Beschreibung', '<textarea id="serviceDescription" class="admin-services-textarea">' + escapeHtml(service ? service.description || '' : '') + '</textarea>', true) +
-            field('Status', checkbox('serviceActive', 'Aktiv', service ? !!service.is_active : true) + ' ' + checkbox('serviceFeatured', 'Beliebt', service ? !!service.is_featured : false), true) +
+            field('Status', checkbox('serviceActive', 'Aktiv', service ? !!service.is_active : true), true) +
             '</div>';
 
         window.adminOpenModal && window.adminOpenModal(title, body, {
@@ -183,45 +197,36 @@
         });
 
         if (pushState) {
-            window.history.pushState(null, '', '/admin/services');
+            window.history.pushState(null, '', '/services');
         }
     }
 
-    function openPackageModal(pkg, pushState) {
-        var isEdit = !!pkg;
-        var activeServices = state.services.filter(function (item) { return !!item.is_active; });
-        var serviceOptions = activeServices.map(function (item) {
-            var selected = pkg && parsePositiveInt(pkg.service_id, 0) === parsePositiveInt(item.id, 0) ? ' selected' : '';
-            return '<option value="' + item.id + '"' + selected + '>' + escapeHtml(item.name || '') + '</option>';
-        }).join('');
-
-        if (pkg && serviceOptions === '' && pkg.service_id) {
-            serviceOptions = '<option value="' + escapeHtml(String(pkg.service_id)) + '" selected>' + escapeHtml(pkg.service_name || 'Service #' + pkg.service_id) + '</option>';
-        }
+    function openReferencedProjectModal(project, pushState) {
+        var isEdit = !!project;
 
         var body = '' +
-            '<div class="admin-services-modal-note">Pakete sind nur für aktive Services auswählbar. Pakete von deaktivierten Services werden nicht angezeigt.</div>' +
+            '<div class="admin-services-modal-note">Referenzprojekte steuern die Referenzen im Frontend inklusive Route-Slug und optionaler externer URL.</div>' +
             '<div class="admin-services-form-grid">' +
-            field('Name', '<input id="packageName" class="admin-services-input" type="text" value="' + escapeHtml(pkg ? pkg.name || '' : '') + '" />') +
-            field('Slug', '<input id="packageSlug" class="admin-services-input" type="text" value="' + escapeHtml(pkg ? pkg.slug || '' : '') + '" placeholder="automatisch aus dem Namen" />') +
-            field('Service', '<select id="packageServiceId" class="admin-services-select"><option value="">Bitte wählen</option>' + serviceOptions + '</select>') +
-            field('Sitzungen', '<input id="packageSessions" class="admin-services-input" type="number" min="1" step="1" value="' + escapeHtml(String(pkg ? pkg.session_count || 0 : 3)) + '" />') +
-            field('Preis', '<input id="packagePrice" class="admin-services-input" type="number" min="0" step="0.01" value="' + escapeHtml(String(pkg ? pkg.price || 0 : 0)) + '" />') +
-            field('Sortierung', '<input id="packageDisplayOrder" class="admin-services-input" type="number" step="1" value="' + escapeHtml(String(pkg ? pkg.display_order || 0 : 0)) + '" />') +
-            field('Beschreibung', '<textarea id="packageDescription" class="admin-services-textarea">' + escapeHtml(pkg ? pkg.description || '' : '') + '</textarea>', true) +
-            field('Status', checkbox('packageActive', 'Aktiv', pkg ? !!pkg.is_active : true), true) +
+            field('Titel', '<input id="referencedProjectTitle" class="admin-services-input" type="text" value="' + escapeHtml(project ? project.title || '' : '') + '" />') +
+            field('Slug', '<input id="referencedProjectSlug" class="admin-services-input" type="text" value="' + escapeHtml(project ? project.slug || '' : '') + '" placeholder="automatisch aus dem Titel" />') +
+            field('Route-Slug', '<input id="referencedProjectRouteSlug" class="admin-services-input" type="text" value="' + escapeHtml(project ? project.project_slug || '' : '') + '" placeholder="z. B. projekt-dionysos" />') +
+            field('Projekt-URL', '<input id="referencedProjectUrl" class="admin-services-input" type="text" value="' + escapeHtml(project ? project.project_url || '' : '') + '" placeholder="z. B. https://example.com" />') +
+            field('Media-Datei', '<input id="referencedProjectImagePath" class="admin-services-input" type="text" value="' + escapeHtml(project ? project.project_image_path || '' : '') + '" placeholder="z. B. Dionysos-Website-1.mp4" />') +
+            field('Sortierung', '<input id="referencedProjectSortOrder" class="admin-services-input" type="number" step="1" value="' + escapeHtml(String(project ? project.sort_order || 0 : 0)) + '" />') +
+            field('Beschreibung', '<textarea id="referencedProjectDescription" class="admin-services-textarea">' + escapeHtml(project ? project.description || '' : '') + '</textarea>', true) +
+            field('Status', checkbox('referencedProjectActive', 'Aktiv', project ? !!project.is_active : true), true) +
             '</div>';
 
-        window.adminOpenModal && window.adminOpenModal(isEdit ? 'Paket #' + pkg.id : 'Neues Paket', body, {
+        window.adminOpenModal && window.adminOpenModal(isEdit ? 'Referenzprojekt #' + project.id : 'Neues Referenzprojekt', body, {
             type: 'form',
             buttons: [
-                { label: 'Speichern', variant: 'primary', onClick: function () { savePackage(pkg && pkg.id ? pkg.id : null); } },
+                { label: 'Speichern', variant: 'primary', onClick: function () { saveReferencedProject(project && project.id ? project.id : null); } },
                 { label: 'Abbrechen', variant: 'secondary', onClick: function () { window.adminCloseModal && window.adminCloseModal(); } },
             ],
         });
 
         if (pushState) {
-            window.history.pushState(null, '', '/admin/services');
+            window.history.pushState(null, '', '/services');
         }
     }
 
@@ -234,7 +239,6 @@
             display_order: getValue('serviceDisplayOrder'),
             description: getValue('serviceDescription'),
             is_active: isChecked('serviceActive'),
-            is_featured: isChecked('serviceFeatured'),
         };
 
         var endpoint = id ? apiUrl(cfg.api && cfg.api.services && cfg.api.services.update, id) : apiUrl(cfg.api && cfg.api.services && cfg.api.services.create);
@@ -255,33 +259,33 @@
         });
     }
 
-    function savePackage(id) {
+    function saveReferencedProject(id) {
         var payload = {
-            name: getValue('packageName'),
-            slug: getValue('packageSlug'),
-            service_id: getValue('packageServiceId'),
-            session_count: getValue('packageSessions'),
-            price: getValue('packagePrice'),
-            display_order: getValue('packageDisplayOrder'),
-            description: getValue('packageDescription'),
-            is_active: isChecked('packageActive'),
+            title: getValue('referencedProjectTitle'),
+            slug: getValue('referencedProjectSlug'),
+            project_slug: getValue('referencedProjectRouteSlug'),
+            project_url: getValue('referencedProjectUrl'),
+            project_image_path: getValue('referencedProjectImagePath'),
+            sort_order: getValue('referencedProjectSortOrder'),
+            description: getValue('referencedProjectDescription'),
+            is_active: isChecked('referencedProjectActive'),
         };
 
-        var endpoint = id ? apiUrl(cfg.api && cfg.api.packages && cfg.api.packages.update, id) : apiUrl(cfg.api && cfg.api.packages && cfg.api.packages.create);
+        var endpoint = id ? apiUrl(cfg.api && cfg.api.referenced_projects && cfg.api.referenced_projects.update, id) : apiUrl(cfg.api && cfg.api.referenced_projects && cfg.api.referenced_projects.create);
         fetchJson(endpoint, {
             method: id ? 'PATCH' : 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
         }).then(function (result) {
             if (result.status >= 400) {
-                throw new Error(buildErrorMessage(result, 'Paket konnte nicht gespeichert werden.'));
+                throw new Error(buildErrorMessage(result, 'Referenzprojekt konnte nicht gespeichert werden.'));
             }
 
-            notify('success', 'Paket wurde gespeichert.');
+            notify('success', 'Referenzprojekt wurde gespeichert.');
             window.adminCloseModal && window.adminCloseModal();
             fetchData();
         }).catch(function (err) {
-            notify('error', err && err.message ? err.message : 'Paket konnte nicht gespeichert werden.');
+            notify('error', err && err.message ? err.message : 'Referenzprojekt konnte nicht gespeichert werden.');
         });
     }
 

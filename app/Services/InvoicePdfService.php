@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Core\Database\Database;
 use DateTimeImmutable;
 use DateTimeZone;
 use Dompdf\Dompdf;
@@ -12,6 +13,8 @@ use Dompdf\Options;
 final class InvoicePdfService
 {
     private const STORAGE_PATH = 'storage/media/invoices';
+    private ?bool $bookingsTableAvailable = null;
+    private ?bool $invoiceHasBookingIdColumn = null;
 
     /**
      * @return array{relative_path: string, mime_type: string, file_size: int, sha256: string, generated_at: string}
@@ -36,9 +39,14 @@ final class InvoicePdfService
 
         $client = app(ClientFieldEncryptionService::class)->decryptClientRow($client);
 
-        $booking = db('bookings')
-            ->where('id', (int) ($invoice['booking_id'] ?? 0))
-            ->first();
+        $booking = null;
+        $bookingId = isset($invoice['booking_id']) ? (int) $invoice['booking_id'] : 0;
+        if ($bookingId > 0 && $this->isBookingsTableAvailable() && $this->invoiceHasBookingIdColumn()) {
+            $candidate = db('bookings')
+                ->where('id', $bookingId)
+                ->first();
+            $booking = is_array($candidate) ? $candidate : null;
+        }
 
         $items = db('invoice_items')
             ->where('invoice_id', $invoiceId)
@@ -75,6 +83,58 @@ final class InvoicePdfService
             'sha256' => hash('sha256', $pdf),
             'generated_at' => (new DateTimeImmutable('now', new DateTimeZone('Europe/Berlin')))->format('Y-m-d H:i:s'),
         ];
+    }
+
+    private function isBookingsTableAvailable(): bool
+    {
+        if ($this->bookingsTableAvailable !== null) {
+            return $this->bookingsTableAvailable;
+        }
+
+        try {
+            $pdo = app(Database::class)->connection();
+            $statement = $pdo->prepare(
+                'SELECT 1 FROM information_schema.tables
+                 WHERE table_schema = DATABASE()
+                   AND table_name = :table_name
+                 LIMIT 1'
+            );
+            $statement->execute(['table_name' => 'bookings']);
+
+            $this->bookingsTableAvailable = $statement->fetchColumn() !== false;
+            return $this->bookingsTableAvailable;
+        } catch (\Throwable) {
+            $this->bookingsTableAvailable = false;
+            return false;
+        }
+    }
+
+    private function invoiceHasBookingIdColumn(): bool
+    {
+        if ($this->invoiceHasBookingIdColumn !== null) {
+            return $this->invoiceHasBookingIdColumn;
+        }
+
+        try {
+            $pdo = app(Database::class)->connection();
+            $statement = $pdo->prepare(
+                'SELECT 1 FROM information_schema.columns
+                 WHERE table_schema = DATABASE()
+                   AND table_name = :table_name
+                   AND column_name = :column_name
+                 LIMIT 1'
+            );
+            $statement->execute([
+                'table_name' => 'invoices',
+                'column_name' => 'booking_id',
+            ]);
+
+            $this->invoiceHasBookingIdColumn = $statement->fetchColumn() !== false;
+            return $this->invoiceHasBookingIdColumn;
+        } catch (\Throwable) {
+            $this->invoiceHasBookingIdColumn = false;
+            return false;
+        }
     }
 
     private function renderPdf(string $html): string
@@ -170,7 +230,7 @@ final class InvoicePdfService
             . '<div style="text-align:right; font-weight:bold; font-size:14px; margin-top:4px;">Gesamt: '
             . $this->formatMoney((float) ($invoice['total_amount'] ?? 0.0)) . ' ' . $currency . '</div>'
                 . '<p style="margin-top:18px; color:#374151;">' . htmlspecialchars($paymentNotice, ENT_QUOTES, 'UTF-8') . '</p>'
-            . '<p style="margin-top:24px; color:#4b5563;">Umsatzsteuerfreie Heilbehandlung gemaess Paragraf 4 Nr. 14 UStG.</p>'
+            . '<p style="margin-top:24px; color:#4b5563;">Unternehmer nimmt die Kleinunternehmerregelung nach § 19 UStG in Anspruch.</p>'
             . '</body></html>';
     }
 

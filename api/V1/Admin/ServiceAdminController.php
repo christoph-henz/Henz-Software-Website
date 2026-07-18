@@ -22,8 +22,8 @@ final class ServiceAdminController extends BaseApiController
         }
 
         $rows = db('services')
-            ->select(['id', 'name', 'slug', 'duration_minutes', 'price', 'description', 'is_active', 'is_featured', 'display_order', 'sort_order', 'structure', 'data', 'created_at', 'updated_at'])
-            ->orderBy('display_order', 'asc')
+            ->select(['*'])
+            ->orderBy('sort_order', 'asc')
             ->orderBy('name', 'asc')
             ->get();
 
@@ -74,6 +74,7 @@ final class ServiceAdminController extends BaseApiController
         $description = trim((string) ($data['description'] ?? ''));
         $isActive = $this->normalizeBool($data['is_active'] ?? true);
         $isFeatured = $this->normalizeBool($data['is_featured'] ?? false);
+        $serviceColumns = $this->serviceColumnSet();
         $errors = [];
         $structurePayload = $this->normalizeJsonPayload($data['structure'] ?? [], true, 'structure', $errors);
         $dataPayload = $this->normalizeJsonPayload($data['data'] ?? [], false, 'data', $errors);
@@ -83,7 +84,7 @@ final class ServiceAdminController extends BaseApiController
         if ($slug === '') {
             $errors['slug'][] = 'required';
         }
-        if ($durationMinutes <= 0) {
+        if (isset($serviceColumns['duration_minutes']) && $durationMinutes <= 0) {
             $errors['duration_minutes'][] = 'invalid';
         }
         if ($price < 0) {
@@ -100,23 +101,60 @@ final class ServiceAdminController extends BaseApiController
             ]);
         }
 
+        $insertData = [
+            'name' => $name,
+            'slug' => $slug,
+        ];
+
+        if (isset($serviceColumns['duration_minutes'])) {
+            $insertData['duration_minutes'] = max(1, $durationMinutes);
+        }
+
+        if (isset($serviceColumns['price'])) {
+            $insertData['price'] = $price;
+        } elseif (isset($serviceColumns['price_min'])) {
+            $insertData['price_min'] = (int) max(0, round($price));
+        }
+
+        if (isset($serviceColumns['description'])) {
+            $insertData['description'] = $description !== '' ? $description : null;
+        }
+
+        if (isset($serviceColumns['is_active'])) {
+            $insertData['is_active'] = $isActive;
+        }
+
+        if (isset($serviceColumns['display_order'])) {
+            $insertData['display_order'] = $displayOrder;
+        } elseif (isset($serviceColumns['sort_order'])) {
+            $insertData['sort_order'] = $displayOrder;
+        }
+
+        if (isset($serviceColumns['is_featured'])) {
+            $insertData['is_featured'] = $isFeatured;
+        }
+
+        if (isset($serviceColumns['structure'])) {
+            $insertData['structure'] = $structurePayload;
+        }
+
+        if (isset($serviceColumns['data'])) {
+            $insertData['data'] = $dataPayload;
+        }
+
         $pdo = app(Database::class)->connection();
+        $columns = array_keys($insertData);
+        $placeholders = array_map(static fn (string $column): string => ':' . $column, $columns);
         $stmt = $pdo->prepare(
-            'INSERT INTO services (name, slug, duration_minutes, price, description, is_active, display_order, is_featured, structure, data)
-             VALUES (:name, :slug, :duration_minutes, :price, :description, :is_active, :display_order, :is_featured, :structure, :data)'
+            'INSERT INTO services (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $placeholders) . ')'
         );
-        $stmt->execute([
-            ':name' => $name,
-            ':slug' => $slug,
-            ':duration_minutes' => $durationMinutes,
-            ':price' => $price,
-            ':description' => $description !== '' ? $description : null,
-            ':is_active' => $isActive,
-            ':display_order' => $displayOrder,
-            ':is_featured' => $isFeatured,
-            ':structure' => $structurePayload,
-            ':data' => $dataPayload,
-        ]);
+
+        $bindings = [];
+        foreach ($insertData as $column => $value) {
+            $bindings[':' . $column] = $value;
+        }
+
+        $stmt->execute($bindings);
 
         $id = (int) $pdo->lastInsertId();
         $this->ensureServiceMediaAssignments($slug, $this->decodeJsonArray($structurePayload));
@@ -156,6 +194,7 @@ final class ServiceAdminController extends BaseApiController
         $description = trim((string) ($data['description'] ?? ($existing['description'] ?? '')));
         $isActive = $this->normalizeBool($data['is_active'] ?? ($existing['is_active'] ?? true));
         $isFeatured = $this->normalizeBool($data['is_featured'] ?? ($existing['is_featured'] ?? false));
+        $serviceColumns = $this->serviceColumnSet();
         $errors = [];
         $structurePayload = $this->normalizeJsonPayload($data['structure'] ?? ($existing['structure'] ?? []), true, 'structure', $errors);
         $dataPayload = $this->normalizeJsonPayload($data['data'] ?? ($existing['data'] ?? []), false, 'data', $errors);
@@ -165,7 +204,7 @@ final class ServiceAdminController extends BaseApiController
         if ($slug === '') {
             $errors['slug'][] = 'required';
         }
-        if ($durationMinutes <= 0) {
+        if (isset($serviceColumns['duration_minutes']) && $durationMinutes <= 0) {
             $errors['duration_minutes'][] = 'invalid';
         }
         if ($price < 0) {
@@ -182,35 +221,59 @@ final class ServiceAdminController extends BaseApiController
             ]);
         }
 
+        $updateData = [
+            'name' => $name,
+            'slug' => $slug,
+        ];
+
+        if (isset($serviceColumns['duration_minutes'])) {
+            $updateData['duration_minutes'] = max(1, $durationMinutes);
+        }
+
+        if (isset($serviceColumns['price'])) {
+            $updateData['price'] = $price;
+        } elseif (isset($serviceColumns['price_min'])) {
+            $updateData['price_min'] = (int) max(0, round($price));
+        }
+
+        if (isset($serviceColumns['description'])) {
+            $updateData['description'] = $description !== '' ? $description : null;
+        }
+
+        if (isset($serviceColumns['is_active'])) {
+            $updateData['is_active'] = $isActive;
+        }
+
+        if (isset($serviceColumns['display_order'])) {
+            $updateData['display_order'] = $displayOrder;
+        } elseif (isset($serviceColumns['sort_order'])) {
+            $updateData['sort_order'] = $displayOrder;
+        }
+
+        if (isset($serviceColumns['is_featured'])) {
+            $updateData['is_featured'] = $isFeatured;
+        }
+
+        if (isset($serviceColumns['structure'])) {
+            $updateData['structure'] = $structurePayload;
+        }
+
+        if (isset($serviceColumns['data'])) {
+            $updateData['data'] = $dataPayload;
+        }
+
+        $sets = [];
+        $bindings = [':id' => $id];
+        foreach ($updateData as $column => $value) {
+            $sets[] = $column . ' = :' . $column;
+            $bindings[':' . $column] = $value;
+        }
+
         $pdo = app(Database::class)->connection();
         $stmt = $pdo->prepare(
-            'UPDATE services
-             SET name = :name,
-                 slug = :slug,
-                 duration_minutes = :duration_minutes,
-                 price = :price,
-                 description = :description,
-                 is_active = :is_active,
-                 display_order = :display_order,
-                 is_featured = :is_featured,
-                 structure = :structure,
-                 data = :data,
-                 updated_at = NOW()
-             WHERE id = :id'
+            'UPDATE services SET ' . implode(', ', $sets) . ', updated_at = NOW() WHERE id = :id'
         );
-        $stmt->execute([
-            ':name' => $name,
-            ':slug' => $slug,
-            ':duration_minutes' => $durationMinutes,
-            ':price' => $price,
-            ':description' => $description !== '' ? $description : null,
-            ':is_active' => $isActive,
-            ':display_order' => $displayOrder,
-            ':is_featured' => $isFeatured,
-            ':structure' => $structurePayload,
-            ':data' => $dataPayload,
-            ':id' => $id,
-        ]);
+        $stmt->execute($bindings);
 
         $previousSlug = (string) ($existing['slug'] ?? '');
         if ($previousSlug !== '' && $previousSlug !== $slug) {
@@ -231,7 +294,7 @@ final class ServiceAdminController extends BaseApiController
         ]);
     }
 
-    public function packages(Request $request): Response
+    public function referencedProjects(Request $request): Response
     {
         if (!$this->canManageServices($request)) {
             return $this->fail('Forbidden', 403, [
@@ -239,37 +302,18 @@ final class ServiceAdminController extends BaseApiController
             ]);
         }
 
-        $pdo = app(Database::class)->connection();
-        $stmt = $pdo->prepare(
-            'SELECT
-                sp.id,
-                sp.name,
-                sp.slug,
-                sp.service_id,
-                sp.session_count,
-                sp.price,
-                sp.description,
-                sp.is_active,
-                sp.display_order,
-                sp.created_at,
-                sp.updated_at,
-                s.name AS service_name,
-                s.slug AS service_slug,
-                s.is_active AS service_is_active
-             FROM service_packages sp
-             INNER JOIN services s ON s.id = sp.service_id
-             WHERE s.is_active = 1
-             ORDER BY sp.display_order ASC, sp.name ASC, sp.id ASC'
-        );
-        $stmt->execute();
-        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        $rows = db('referenced_projects')
+            ->select(['*'])
+            ->orderBy('sort_order', 'asc')
+            ->orderBy('title', 'asc')
+            ->get();
 
         return $this->ok([
-            'packages' => array_map(static fn (array $row): array => self::formatPackageRow($row), is_array($rows) ? $rows : []),
+            'referenced_projects' => array_map(static fn (array $row): array => self::formatReferencedProjectRow($row), is_array($rows) ? $rows : []),
         ]);
     }
 
-    public function showPackage(Request $request): Response
+    public function showReferencedProject(Request $request): Response
     {
         if (!$this->canManageServices($request)) {
             return $this->fail('Forbidden', 403, [
@@ -284,17 +328,17 @@ final class ServiceAdminController extends BaseApiController
             ]);
         }
 
-        $row = $this->fetchPackageRow($id);
+        $row = $this->fetchReferencedProjectRow($id);
         if ($row === null) {
-            return $this->fail('Package not found', 404);
+            return $this->fail('Referenced project not found', 404);
         }
 
         return $this->ok([
-            'package' => self::formatPackageRow($row),
+            'referenced_project' => self::formatReferencedProjectRow($row),
         ]);
     }
 
-    public function storePackage(Request $request): Response
+    public function storeReferencedProject(Request $request): Response
     {
         if (!$this->canManageServices($request)) {
             return $this->fail('Forbidden', 403, [
@@ -303,72 +347,71 @@ final class ServiceAdminController extends BaseApiController
         }
 
         $data = $request->all();
-        $name = trim((string) ($data['name'] ?? ''));
-        $slug = $this->slugify((string) ($data['slug'] ?? ''), $name);
-        $serviceId = (int) ($data['service_id'] ?? 0);
-        $sessionCount = (int) ($data['session_count'] ?? 0);
-        $price = (float) ($data['price'] ?? 0);
-        $displayOrder = (int) ($data['display_order'] ?? 0);
+        $title = trim((string) ($data['title'] ?? ''));
+        $slug = $this->slugify((string) ($data['slug'] ?? ''), $title);
+        $projectSlug = $this->slugify((string) ($data['project_slug'] ?? ''), $slug);
+        $projectImagePath = trim((string) ($data['project_image_path'] ?? ''));
+        $projectUrl = trim((string) ($data['project_url'] ?? ''));
+        $sortOrder = (int) ($data['sort_order'] ?? 0);
         $description = trim((string) ($data['description'] ?? ''));
         $isActive = $this->normalizeBool($data['is_active'] ?? true);
-
         $errors = [];
-        if ($name === '') {
-            $errors['name'][] = 'required';
+        $structurePayload = $this->normalizeJsonPayload($data['structure'] ?? [], true, 'structure', $errors);
+        $dataPayload = $this->normalizeJsonPayload($data['data'] ?? [], false, 'data', $errors);
+
+        if ($title === '') {
+            $errors['title'][] = 'required';
         }
         if ($slug === '') {
             $errors['slug'][] = 'required';
         }
-        if ($serviceId <= 0) {
-            $errors['service_id'][] = 'required';
-        }
-        if ($sessionCount <= 0) {
-            $errors['session_count'][] = 'invalid';
-        }
-        if ($price < 0) {
-            $errors['price'][] = 'invalid';
-        }
-
-        $serviceRow = $serviceId > 0 ? $this->fetchServiceRow($serviceId) : null;
-        if (!is_array($serviceRow) || (int) ($serviceRow['is_active'] ?? 0) !== 1) {
-            $errors['service_id'][] = 'service_inactive';
+        if ($projectSlug === '') {
+            $errors['project_slug'][] = 'required';
         }
 
         if ($errors !== []) {
             return $this->fail('Validation failed', 422, $errors);
         }
 
-        if ($this->slugExists('service_packages', $slug)) {
+        if ($this->slugExists('referenced_projects', $slug)) {
             return $this->fail('Validation failed', 422, [
                 'slug' => ['already_exists'],
             ]);
         }
 
+        if ($this->valueExists('referenced_projects', 'project_slug', $projectSlug)) {
+            return $this->fail('Validation failed', 422, [
+                'project_slug' => ['already_exists'],
+            ]);
+        }
+
         $pdo = app(Database::class)->connection();
         $stmt = $pdo->prepare(
-            'INSERT INTO service_packages (name, slug, service_id, session_count, price, description, is_active, display_order)
-             VALUES (:name, :slug, :service_id, :session_count, :price, :description, :is_active, :display_order)'
+            'INSERT INTO referenced_projects (slug, title, description, project_image_path, project_slug, project_url, structure, data, sort_order, is_active)
+             VALUES (:slug, :title, :description, :project_image_path, :project_slug, :project_url, :structure, :data, :sort_order, :is_active)'
         );
         $stmt->execute([
-            ':name' => $name,
             ':slug' => $slug,
-            ':service_id' => $serviceId,
-            ':session_count' => $sessionCount,
-            ':price' => $price,
+            ':title' => $title,
             ':description' => $description !== '' ? $description : null,
+            ':project_image_path' => $projectImagePath !== '' ? $projectImagePath : null,
+            ':project_slug' => $projectSlug,
+            ':project_url' => $projectUrl !== '' ? $projectUrl : null,
+            ':structure' => $structurePayload,
+            ':data' => $dataPayload,
+            ':sort_order' => $sortOrder,
             ':is_active' => $isActive,
-            ':display_order' => $displayOrder,
         ]);
 
         $id = (int) $pdo->lastInsertId();
-        $row = $this->fetchPackageRow($id);
+        $row = $this->fetchReferencedProjectRow($id);
 
         return $this->ok([
-            'package' => self::formatPackageRow($row ?? []),
+            'referenced_project' => self::formatReferencedProjectRow($row ?? []),
         ], 201);
     }
 
-    public function updatePackage(Request $request): Response
+    public function updateReferencedProject(Request $request): Response
     {
         if (!$this->canManageServices($request)) {
             return $this->fail('Forbidden', 403, [
@@ -383,83 +426,84 @@ final class ServiceAdminController extends BaseApiController
             ]);
         }
 
-        $existing = $this->fetchPackageRow($id);
+        $existing = $this->fetchReferencedProjectRow($id);
         if ($existing === null) {
-            return $this->fail('Package not found', 404);
+            return $this->fail('Referenced project not found', 404);
         }
 
         $data = $request->all();
-        $name = trim((string) ($data['name'] ?? $existing['name'] ?? ''));
-        $slug = $this->slugify((string) ($data['slug'] ?? ($existing['slug'] ?? '')), $name);
-        $serviceId = (int) ($data['service_id'] ?? ($existing['service_id'] ?? 0));
-        $sessionCount = (int) ($data['session_count'] ?? ($existing['session_count'] ?? 0));
-        $price = (float) ($data['price'] ?? ($existing['price'] ?? 0));
-        $displayOrder = (int) ($data['display_order'] ?? ($existing['display_order'] ?? 0));
+        $title = trim((string) ($data['title'] ?? $existing['title'] ?? ''));
+        $slug = $this->slugify((string) ($data['slug'] ?? ($existing['slug'] ?? '')), $title);
+        $projectSlug = $this->slugify((string) ($data['project_slug'] ?? ($existing['project_slug'] ?? '')), $slug);
+        $projectImagePath = trim((string) ($data['project_image_path'] ?? ($existing['project_image_path'] ?? '')));
+        $projectUrl = trim((string) ($data['project_url'] ?? ($existing['project_url'] ?? '')));
+        $sortOrder = (int) ($data['sort_order'] ?? ($existing['sort_order'] ?? 0));
         $description = trim((string) ($data['description'] ?? ($existing['description'] ?? '')));
         $isActive = $this->normalizeBool($data['is_active'] ?? ($existing['is_active'] ?? true));
-
         $errors = [];
-        if ($name === '') {
-            $errors['name'][] = 'required';
+        $structurePayload = $this->normalizeJsonPayload($data['structure'] ?? ($existing['structure'] ?? []), true, 'structure', $errors);
+        $dataPayload = $this->normalizeJsonPayload($data['data'] ?? ($existing['data'] ?? []), false, 'data', $errors);
+
+        if ($title === '') {
+            $errors['title'][] = 'required';
         }
         if ($slug === '') {
             $errors['slug'][] = 'required';
         }
-        if ($serviceId <= 0) {
-            $errors['service_id'][] = 'required';
-        }
-        if ($sessionCount <= 0) {
-            $errors['session_count'][] = 'invalid';
-        }
-        if ($price < 0) {
-            $errors['price'][] = 'invalid';
-        }
-
-        $serviceRow = $serviceId > 0 ? $this->fetchServiceRow($serviceId) : null;
-        if (!is_array($serviceRow) || (int) ($serviceRow['is_active'] ?? 0) !== 1) {
-            $errors['service_id'][] = 'service_inactive';
+        if ($projectSlug === '') {
+            $errors['project_slug'][] = 'required';
         }
 
         if ($errors !== []) {
             return $this->fail('Validation failed', 422, $errors);
         }
 
-        if ($this->slugExists('service_packages', $slug, $id)) {
+        if ($this->slugExists('referenced_projects', $slug, $id)) {
             return $this->fail('Validation failed', 422, [
                 'slug' => ['already_exists'],
             ]);
         }
 
+        if ($this->valueExists('referenced_projects', 'project_slug', $projectSlug, $id)) {
+            return $this->fail('Validation failed', 422, [
+                'project_slug' => ['already_exists'],
+            ]);
+        }
+
         $pdo = app(Database::class)->connection();
         $stmt = $pdo->prepare(
-            'UPDATE service_packages
-             SET name = :name,
-                 slug = :slug,
-                 service_id = :service_id,
-                 session_count = :session_count,
-                 price = :price,
+            'UPDATE referenced_projects
+             SET slug = :slug,
+                 title = :title,
                  description = :description,
+                 project_image_path = :project_image_path,
+                 project_slug = :project_slug,
+                 project_url = :project_url,
+                 structure = :structure,
+                 data = :data,
                  is_active = :is_active,
-                 display_order = :display_order,
+                 sort_order = :sort_order,
                  updated_at = NOW()
              WHERE id = :id'
         );
         $stmt->execute([
-            ':name' => $name,
             ':slug' => $slug,
-            ':service_id' => $serviceId,
-            ':session_count' => $sessionCount,
-            ':price' => $price,
+            ':title' => $title,
             ':description' => $description !== '' ? $description : null,
+            ':project_image_path' => $projectImagePath !== '' ? $projectImagePath : null,
+            ':project_slug' => $projectSlug,
+            ':project_url' => $projectUrl !== '' ? $projectUrl : null,
+            ':structure' => $structurePayload,
+            ':data' => $dataPayload,
             ':is_active' => $isActive,
-            ':display_order' => $displayOrder,
+            ':sort_order' => $sortOrder,
             ':id' => $id,
         ]);
 
-        $row = $this->fetchPackageRow($id);
+        $row = $this->fetchReferencedProjectRow($id);
 
         return $this->ok([
-            'package' => self::formatPackageRow($row ?? $existing),
+            'referenced_project' => self::formatReferencedProjectRow($row ?? $existing),
         ]);
     }
 
@@ -476,56 +520,68 @@ final class ServiceAdminController extends BaseApiController
         return (int) ($adminUser['role_mask'] ?? 0);
     }
 
+    /** @return array<string, true> */
+    private function serviceColumnSet(): array
+    {
+        static $columnSet = null;
+
+        if (is_array($columnSet)) {
+            return $columnSet;
+        }
+
+        $pdo = app(Database::class)->connection();
+        $stmt = $pdo->query('SHOW COLUMNS FROM services');
+        $rows = $stmt !== false ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
+
+        $columnSet = [];
+        foreach ($rows as $row) {
+            $field = (string) ($row['Field'] ?? '');
+            if ($field !== '') {
+                $columnSet[$field] = true;
+            }
+        }
+
+        return $columnSet;
+    }
+
     /** @return array<string, mixed>|null */
     private function fetchServiceRow(int $id): ?array
     {
         $row = db('services')
             ->where('id', $id)
-            ->select(['id', 'name', 'slug', 'duration_minutes', 'price', 'description', 'is_active', 'is_featured', 'display_order', 'sort_order', 'structure', 'data', 'created_at', 'updated_at'])
+            ->select(['*'])
             ->first();
 
         return is_array($row) ? $row : null;
     }
 
     /** @return array<string, mixed>|null */
-    private function fetchPackageRow(int $id): ?array
+    private function fetchReferencedProjectRow(int $id): ?array
     {
-        $pdo = app(Database::class)->connection();
-        $stmt = $pdo->prepare(
-            'SELECT
-                sp.id,
-                sp.name,
-                sp.slug,
-                sp.service_id,
-                sp.session_count,
-                sp.price,
-                sp.description,
-                sp.is_active,
-                sp.display_order,
-                sp.created_at,
-                sp.updated_at,
-                s.name AS service_name,
-                s.slug AS service_slug,
-                s.is_active AS service_is_active
-             FROM service_packages sp
-             INNER JOIN services s ON s.id = sp.service_id
-             WHERE sp.id = :id
-             LIMIT 1'
-        );
-        $stmt->execute([':id' => $id]);
-        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $row = db('referenced_projects')
+            ->where('id', $id)
+            ->select(['*'])
+            ->first();
 
-        if (!is_array($row) || (int) ($row['service_is_active'] ?? 0) !== 1) {
-            return null;
-        }
-
-        return $row;
+        return is_array($row) ? $row : null;
     }
 
     private function slugExists(string $table, string $slug, ?int $ignoreId = null): bool
     {
         $query = db($table)
             ->where('slug', $slug);
+
+        if ($ignoreId !== null && $ignoreId > 0) {
+            $query->where('id', $ignoreId, '<>');
+        }
+
+        return $query->select(['id'])->first() !== null;
+    }
+
+    private function valueExists(string $table, string $column, string $value, ?int $ignoreId = null): bool
+    {
+        $query = db($table)
+            ->where($column, $value);
 
         if ($ignoreId !== null && $ignoreId > 0) {
             $query->where('id', $ignoreId, '<>');
@@ -652,16 +708,30 @@ final class ServiceAdminController extends BaseApiController
         $structureRaw = $row['structure'] ?? [];
         $dataRaw = $row['data'] ?? [];
 
+        $duration = isset($row['duration_minutes']) ? (int) $row['duration_minutes'] : 60;
+        if ($duration <= 0) {
+            $duration = 60;
+        }
+
+        $price = 0.0;
+        if (isset($row['price'])) {
+            $price = (float) $row['price'];
+        } elseif (isset($row['price_min'])) {
+            $price = (float) $row['price_min'];
+        }
+
+        $displayOrder = isset($row['display_order']) ? (int) $row['display_order'] : (int) ($row['sort_order'] ?? 0);
+
         return [
             'id' => (int) ($row['id'] ?? 0),
             'name' => (string) ($row['name'] ?? ''),
             'slug' => (string) ($row['slug'] ?? ''),
-            'duration_minutes' => (int) ($row['duration_minutes'] ?? 0),
-            'price' => isset($row['price']) ? (float) $row['price'] : 0.0,
+            'duration_minutes' => $duration,
+            'price' => $price,
             'description' => (string) ($row['description'] ?? ''),
             'is_active' => (int) ($row['is_active'] ?? 0) === 1,
             'is_featured' => (int) ($row['is_featured'] ?? 0) === 1,
-            'display_order' => (int) ($row['display_order'] ?? 0),
+            'display_order' => $displayOrder,
             'sort_order' => (int) ($row['sort_order'] ?? 0),
             'structure' => is_string($structureRaw) ? (json_decode($structureRaw, true) ?: []) : (is_array($structureRaw) ? $structureRaw : []),
             'data' => is_string($dataRaw) ? (json_decode($dataRaw, true) ?: []) : (is_array($dataRaw) ? $dataRaw : []),
@@ -671,20 +741,23 @@ final class ServiceAdminController extends BaseApiController
     }
 
     /** @param array<string, mixed> $row */
-    private static function formatPackageRow(array $row): array
+    private static function formatReferencedProjectRow(array $row): array
     {
+        $structureRaw = $row['structure'] ?? [];
+        $dataRaw = $row['data'] ?? [];
+
         return [
             'id' => (int) ($row['id'] ?? 0),
-            'name' => (string) ($row['name'] ?? ''),
             'slug' => (string) ($row['slug'] ?? ''),
-            'service_id' => (int) ($row['service_id'] ?? 0),
-            'service_name' => (string) ($row['service_name'] ?? ''),
-            'service_slug' => (string) ($row['service_slug'] ?? ''),
-            'session_count' => (int) ($row['session_count'] ?? 0),
-            'price' => isset($row['price']) ? (float) $row['price'] : 0.0,
+            'title' => (string) ($row['title'] ?? ''),
             'description' => (string) ($row['description'] ?? ''),
+            'project_image_path' => (string) ($row['project_image_path'] ?? ''),
+            'project_slug' => (string) ($row['project_slug'] ?? ''),
+            'project_url' => (string) ($row['project_url'] ?? ''),
+            'structure' => is_string($structureRaw) ? (json_decode($structureRaw, true) ?: []) : (is_array($structureRaw) ? $structureRaw : []),
+            'data' => is_string($dataRaw) ? (json_decode($dataRaw, true) ?: []) : (is_array($dataRaw) ? $dataRaw : []),
+            'sort_order' => (int) ($row['sort_order'] ?? 0),
             'is_active' => (int) ($row['is_active'] ?? 0) === 1,
-            'display_order' => (int) ($row['display_order'] ?? 0),
             'created_at' => (string) ($row['created_at'] ?? ''),
             'updated_at' => (string) ($row['updated_at'] ?? ''),
         ];

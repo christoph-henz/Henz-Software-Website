@@ -20,7 +20,7 @@ ob_start();
 <div class="admin-page-header admin-services-header">
     <div>
         <h1 class="admin-page-title">Leistungen</h1>
-        <p class="admin-page-subtitle">Zwei untereinanderliegende Bereiche für Services und Pakete. Sichtbar nur mit passender Berechtigung.</p>
+        <p class="admin-page-subtitle">Zwei untereinanderliegende Bereiche für Services und Referenzprojekte. Sichtbar nur mit passender Berechtigung.</p>
     </div>
 </div>
 
@@ -29,3 +29,4 @@ ob_start();
 $content = ob_get_clean();
 
 require base_path('public/ui/_partials/operations/admin-layout.php');
+ 
