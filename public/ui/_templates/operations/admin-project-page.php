@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 $pageTitle   = (string) ($pageTitle ?? 'Projektverwaltung');
 $adminUser   = is_array($adminUser ?? null) ? $adminUser : [];
-$logoutAction = (string) ($logoutAction ?? '/admin/logout');
+$logoutAction = (string) ($logoutAction ?? '/logout');
 $csrfToken   = (string) ($csrfToken ?? '');
 $projectsConfig = is_array($projectsConfig ?? null) ? $projectsConfig : [];
 $canManageProjects = (bool) ($projectsConfig['can_manage_projects'] ?? false);

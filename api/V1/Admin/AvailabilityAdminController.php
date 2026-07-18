@@ -16,8 +16,8 @@ use Throwable;
 
 final class AvailabilityAdminController extends BaseApiController
 {
-    private const VIEW_BOOKINGS_BIT = 1;
-    private const MANAGE_BOOKINGS_BIT = 2;
+    private const VIEW_APPOINTMENTS_BIT = 1;
+    private const MANAGE_APPOINTMENTS_BIT = 2;
     private const BERLIN_TIMEZONE = 'Europe/Berlin';
 
     public function index(Request $request): Response
@@ -66,29 +66,42 @@ final class AvailabilityAdminController extends BaseApiController
 
         $bufferMinutes = $this->readIntPayload($data['buffer_minutes'] ?? null, 0, 180, $errors, 'buffer_minutes');
         $maxAppointmentsPerDay = $this->readIntPayload($data['max_appointments_per_day'] ?? null, 0, 100, $errors, 'max_appointments_per_day');
-        $minNoticeHours = $this->readIntPayload($data['booking_min_hours_notice'] ?? null, 0, 720, $errors, 'booking_min_hours_notice');
-        $advanceDays = $this->readIntPayload($data['booking_advance_days'] ?? null, 1, 3650, $errors, 'booking_advance_days');
+        $appointmentsEnabled = $this->normalizeBool($data['appointments_enabled'] ?? true) ? 1 : 0;
+        $minNoticeHours = $this->readIntPayload($data['appointments_min_hours_notice'] ?? null, 0, 720, $errors, 'appointments_min_hours_notice');
+        $advanceDays = $this->readIntPayload($data['appointments_advance_days'] ?? null, 1, 3650, $errors, 'appointments_advance_days');
+        $dayStartHour = $this->readIntPayload($data['appointments_day_start_hour'] ?? null, 0, 23, $errors, 'appointments_day_start_hour');
+        $dayEndHour = $this->readIntPayload($data['appointments_day_end_hour'] ?? null, 1, 24, $errors, 'appointments_day_end_hour');
         $cancellationNoticeHours = $this->readIntPayload($data['cancellation_hours_notice'] ?? null, 1, 720, $errors, 'cancellation_hours_notice');
         $reminderHoursBefore = $this->readIntPayload($data['reminder_hours_before'] ?? null, 1, 720, $errors, 'reminder_hours_before');
+
+        if ($dayStartHour !== null && $dayEndHour !== null && $dayEndHour <= $dayStartHour) {
+            $errors['appointments_day_end_hour'] = ['must_be_after_start_hour'];
+        }
 
         if ($errors !== []) {
             return $this->fail('Validation failed', 422, $errors);
         }
 
         $rules = [
+            'appointments_enabled' => (string) $appointmentsEnabled,
             'buffer_minutes' => (string) $bufferMinutes,
             'max_appointments_per_day' => (string) $maxAppointmentsPerDay,
-            'booking_min_hours_notice' => (string) $minNoticeHours,
-            'booking_advance_days' => (string) $advanceDays,
+            'appointments_min_hours_notice' => (string) $minNoticeHours,
+            'appointments_advance_days' => (string) $advanceDays,
+            'appointments_day_start_hour' => (string) $dayStartHour,
+            'appointments_day_end_hour' => (string) $dayEndHour,
             'cancellation_hours_notice' => (string) $cancellationNoticeHours,
             'reminder_hours_before' => (string) $reminderHoursBefore,
         ];
 
         $descriptions = [
+            'appointments_enabled' => 'Terminbuchung aktiviert (1) oder deaktiviert (0)',
             'buffer_minutes' => 'Pufferzeit zwischen Terminen in Minuten',
             'max_appointments_per_day' => 'Maximale Anzahl Termine pro Tag (0 = unbegrenzt)',
-            'booking_min_hours_notice' => 'Mindestvorlaufzeit in Stunden',
-            'booking_advance_days' => 'Maximale Vorausplanung in Tagen',
+            'appointments_min_hours_notice' => 'Mindestvorlaufzeit in Stunden',
+            'appointments_advance_days' => 'Maximale Vorausplanung in Tagen',
+            'appointments_day_start_hour' => 'Frueheste Stunde fuer Tagesansicht',
+            'appointments_day_end_hour' => 'Spaeteste Stunde fuer Tagesansicht',
             'cancellation_hours_notice' => 'Stornofrist in Stunden vor Termin',
             'reminder_hours_before' => 'Erinnerung in Stunden vor Termin',
         ];
@@ -318,17 +331,22 @@ final class AvailabilityAdminController extends BaseApiController
     private function readRules(): array
     {
         $rules = [
+            'appointments_enabled' => 1,
             'buffer_minutes' => 0,
             'max_appointments_per_day' => 0,
-            'booking_min_hours_notice' => 24,
-            'booking_advance_days' => 60,
+            'appointments_min_hours_notice' => 24,
+            'appointments_advance_days' => 60,
+            'appointments_day_start_hour' => 8,
+            'appointments_day_end_hour' => 18,
             'cancellation_hours_notice' => 48,
             'reminder_hours_before' => 24,
         ];
 
         $legacyMap = [
-            'min_notice_hours' => 'booking_min_hours_notice',
-            'advance_days' => 'booking_advance_days',
+            'min_notice_hours' => 'appointments_min_hours_notice',
+            'advance_days' => 'appointments_advance_days',
+            'booking_min_hours_notice' => 'appointments_min_hours_notice',
+            'booking_advance_days' => 'appointments_advance_days',
         ];
 
         try {
@@ -427,8 +445,8 @@ final class AvailabilityAdminController extends BaseApiController
         $adminUser = $this->adminUser($request);
         $roleMask = (int) ($adminUser['role_mask'] ?? 0);
 
-        $viewBit = PermissionBits::resolve('view_bookings', self::VIEW_BOOKINGS_BIT);
-        $manageBit = PermissionBits::resolve('manage_bookings', self::MANAGE_BOOKINGS_BIT);
+        $viewBit = PermissionBits::resolve('view_appointments', self::VIEW_APPOINTMENTS_BIT);
+        $manageBit = PermissionBits::resolve('manage_appointments', self::MANAGE_APPOINTMENTS_BIT);
 
         return (($roleMask & ($viewBit | $manageBit)) !== 0);
     }
@@ -438,7 +456,7 @@ final class AvailabilityAdminController extends BaseApiController
         $adminUser = $this->adminUser($request);
         $roleMask = (int) ($adminUser['role_mask'] ?? 0);
 
-        $manageBit = PermissionBits::resolve('manage_bookings', self::MANAGE_BOOKINGS_BIT);
+        $manageBit = PermissionBits::resolve('manage_appointments', self::MANAGE_APPOINTMENTS_BIT);
 
         return (($roleMask & $manageBit) !== 0);
     }
@@ -562,16 +580,16 @@ final class AvailabilityAdminController extends BaseApiController
         $windowTo = $endsAt->modify('+1 day');
 
         $pdo = app(Database::class)->connection();
-        $stmt = $pdo->prepare(
-            'SELECT b.scheduled_at, s.duration_minutes
-             FROM bookings b
-             INNER JOIN services s ON s.id = b.service_id
-             WHERE b.status <> :cancelled
-               AND b.scheduled_at >= :from
-               AND b.scheduled_at < :to'
-        );
+         $stmt = $pdo->prepare(
+                   'SELECT b.scheduled_at, b.duration_minutes
+                    FROM appointments b
+                    WHERE b.status NOT IN (:storno, :declined)
+             AND b.scheduled_at >= :from
+             AND b.scheduled_at < :to'
+         );
         $stmt->execute([
-            ':cancelled' => 'cancelled',
+                        ':storno' => 'storno',
+                        ':declined' => 'declined',
             ':from' => $windowFrom->format('Y-m-d H:i:s'),
             ':to' => $windowTo->format('Y-m-d H:i:s'),
         ]);

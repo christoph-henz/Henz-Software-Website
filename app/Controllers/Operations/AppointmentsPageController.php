@@ -9,8 +9,11 @@ use App\Core\Http\Response;
 use App\Core\Security\CsrfTokenManager;
 use App\Core\Support\PermissionBits;
 
-final class BookingsPageController
+final class AppointmentsPageController
 {
+    private const VIEW_APPOINTMENTS_BIT = 1;
+    private const MANAGE_APPOINTMENTS_BIT = 2;
+
     public function index(Request $request): Response
     {
         return $this->renderPage($request, null);
@@ -29,9 +32,8 @@ final class BookingsPageController
         $adminUser = is_array($session[$sessionKey] ?? null) ? $session[$sessionKey] : [];
 
         $roleMask = (int) ($adminUser['role_mask'] ?? 0);
-        $viewBit = PermissionBits::resolve('view_bookings', 1);
-        $manageBit = PermissionBits::resolve('manage_bookings', 2);
-        $revertBit = PermissionBits::resolve('revert_booking_status', 4);
+        $viewBit = PermissionBits::resolve('view_appointments', self::VIEW_APPOINTMENTS_BIT);
+        $manageBit = PermissionBits::resolve('manage_appointments', self::MANAGE_APPOINTMENTS_BIT);
 
         $canView = (($roleMask & $viewBit) !== 0) || (($roleMask & $manageBit) !== 0);
         $canManage = (($roleMask & $manageBit) !== 0);
@@ -46,18 +48,17 @@ final class BookingsPageController
             ], 403);
         }
 
-        $config = require base_path('public/ui/_config/admin-bookings.php');
-        $config['can_view_bookings'] = $canView;
-        $config['can_manage_bookings'] = $canManage;
-        $config['can_revert_bookings'] = (($roleMask & $revertBit) !== 0);
-        $config['initial_booking_id'] = $bookingId;
+        $config = require base_path('public/ui/_config/operations/admin-appointments.php');
+        $config['can_view_appointments'] = $canView;
+        $config['can_manage_appointments'] = $canManage;
+        $config['initial_appointment_id'] = $bookingId;
 
-        return $this->render('admin-bookings-page.php', [
-            'pageTitle' => 'Buchungen – Henz Software',
+        return $this->render('admin-appointments-page.php', [
+            'pageTitle' => 'Termine – Henz Software',
             'adminUser' => $adminUser,
             'logoutAction' => '/logout',
             'csrfToken' => app(CsrfTokenManager::class)->token(),
-            'bookingsConfig' => $config,
+            'appointmentsConfig' => $config,
         ]);
     }
 
@@ -67,7 +68,7 @@ final class BookingsPageController
         extract($data, EXTR_SKIP);
 
         ob_start();
-        require base_path('public/ui/_templates/' . $template);
+        require base_path('public/ui/_templates/operations/' . $template);
         $html = (string) ob_get_clean();
 
         return new Response($html, $status, ['Content-Type' => 'text/html; charset=utf-8']);

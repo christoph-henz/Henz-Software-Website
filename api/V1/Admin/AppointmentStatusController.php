@@ -14,14 +14,14 @@ use App\Core\Support\PermissionBits;
 use DateTimeImmutable;
 use DateTimeZone;
 
-final class BookingStatusController extends BaseApiController
+final class AppointmentStatusController extends BaseApiController
 {
     private const MANAGE_BOOKINGS_MASK = 2;
 
     /**
-     * PATCH /v1/admin/bookings/{id}/status
+     * PATCH /v1/admin/appointments/{id}/status
      *
-     * Update booking status with transition validation.
+     * Update appointment status with transition validation.
      * Supports both normal transitions and admin reverts (if permitted).
      */
     public function updateStatus(Request $request): Response

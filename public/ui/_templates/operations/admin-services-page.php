@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 $pageTitle = (string) ($pageTitle ?? 'Leistungen - Henz Software');
 $adminUser = is_array($adminUser ?? null) ? $adminUser : [];
-$logoutAction = (string) ($logoutAction ?? '/admin/logout');
+$logoutAction = (string) ($logoutAction ?? '/logout');
 $csrfToken = (string) ($csrfToken ?? '');
 $servicesConfig = is_array($servicesConfig ?? null) ? $servicesConfig : [];
 

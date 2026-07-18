@@ -73,7 +73,7 @@ final class FormTemplatesPageController
         return $this->render('admin-form-templates-page.php', [
             'pageTitle' => 'Formularverwaltung - Henz Software',
             'adminUser' => $adminUser,
-            'logoutAction' => '/admin/logout',
+            'logoutAction' => '/logout',
             'csrfToken' => app(CsrfTokenManager::class)->token(),
             'templatesConfig' => $config,
         ]);

@@ -114,6 +114,14 @@ return [
                 'match_patterns' => [],
             ],
             [
+                'label' => 'Öffnungszeiten & Betriebsurlaub',
+                'href' => '/availability',
+                'exact' => false,
+                'icon' => 'calendar',
+                'permission_bit' => Role::resolve("manage_clients"),
+                'match_patterns' => ['/availability'],
+            ],
+            [
                 'label' => 'Finanzverwaltung',
                 'href' => '/finance',
                 'exact' => false,

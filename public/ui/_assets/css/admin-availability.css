@@ -1,0 +1,160 @@
+.admin-availability-root {
+  display: grid;
+  gap: 16px;
+}
+
+.admin-availability-header {
+  margin-bottom: 8px;
+}
+
+.admin-availability-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.admin-availability-card {
+  border: 1px solid var(--admin-border);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(12, 21, 32, 0.94), rgba(8, 13, 20, 0.9));
+  padding: 14px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
+}
+
+.admin-availability-card h2 {
+  margin: 0;
+  color: var(--admin-fg);
+  font-size: 1rem;
+}
+
+.admin-availability-subtext {
+  margin: 8px 0 12px;
+  color: var(--admin-muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.admin-availability-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+
+.admin-availability-field-label {
+  margin-bottom: 4px;
+  color: var(--admin-muted);
+  font-size: 0.75rem;
+}
+
+.admin-availability-input {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid rgba(90, 116, 148, 0.35);
+  border-radius: 10px;
+  background: rgba(6, 10, 15, 0.82);
+  color: var(--admin-fg);
+  padding: 7px 10px;
+  font-size: 0.82rem;
+}
+
+.admin-availability-input:focus {
+  outline: none;
+  border-color: rgba(0, 200, 255, 0.5);
+  box-shadow: 0 0 0 2px rgba(0, 200, 255, 0.14);
+}
+
+.admin-availability-actions {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-availability-btn {
+  appearance: none;
+  border: 1px solid rgba(0, 200, 255, 0.22);
+  border-radius: 10px;
+  background: rgba(0, 200, 255, 0.1);
+  color: var(--admin-fg);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 8px 12px;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+
+.admin-availability-btn:hover {
+  border-color: rgba(0, 200, 255, 0.42);
+  background: rgba(0, 200, 255, 0.18);
+}
+
+.admin-availability-btn:active {
+  transform: translateY(1px);
+}
+
+.admin-availability-btn--secondary {
+  border-color: rgba(90, 116, 148, 0.35);
+  background: rgba(90, 116, 148, 0.16);
+}
+
+.admin-availability-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 6px;
+  overflow: hidden;
+  border-radius: 10px;
+}
+
+.admin-availability-table thead th {
+  text-align: left;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--admin-muted);
+  padding: 9px 10px;
+  border-bottom: 1px solid rgba(90, 116, 148, 0.28);
+  background: rgba(6, 10, 15, 0.5);
+}
+
+.admin-availability-table tbody td {
+  padding: 10px;
+  border-bottom: 1px solid rgba(90, 116, 148, 0.2);
+  color: var(--admin-fg);
+  font-size: 0.81rem;
+  vertical-align: middle;
+}
+
+.admin-availability-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.admin-availability-table input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #00c8ff;
+}
+
+.admin-availability-empty {
+  text-align: center;
+  color: var(--admin-muted);
+  font-size: 0.82rem;
+  padding: 16px;
+}
+
+@media (max-width: 1100px) {
+  .admin-availability-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .admin-availability-row {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-availability-table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+}

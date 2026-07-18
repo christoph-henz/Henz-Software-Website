@@ -10,10 +10,13 @@
     var state = {
         loading: true,
         rules: {
+            appointments_enabled: 1,
+            appointments_day_start_hour: 8,
+            appointments_day_end_hour: 18,
+            appointments_min_hours_notice: 24,
+            appointments_advance_days: 60,
             buffer_minutes: 0,
             max_appointments_per_day: 0,
-            booking_min_hours_notice: 24,
-            booking_advance_days: 60,
             cancellation_hours_notice: 48,
             reminder_hours_before: 24,
         },
@@ -72,15 +75,20 @@
     }
 
     function renderRulesCard() {
+        var appointmentsEnabled = Number(state.rules.appointments_enabled || 0) === 1;
+
         return '' +
             '<section class="admin-availability-card">' +
-            '  <h2>Regeln</h2>' +
-            '  <p class="admin-availability-subtext">Pufferzeit, Vorlauf und Tageslimit steuern die automatische Slot-Generierung.</p>' +
+            '  <h2>Appointment-Einstellungen</h2>' +
+            '  <p class="admin-availability-subtext">Steuert Terminbuchung, Vorlauf, Planungsfenster und den sichtbaren Tagesbereich im Kalender.</p>' +
             '  <div class="admin-availability-row">' +
+            field('Appointments aktiviert', '<input id="ruleAppointmentsEnabled" class="admin-availability-input" type="checkbox"' + (appointmentsEnabled ? ' checked' : '') + '>') +
+            field('Kalender Startstunde', '<input id="ruleDayStartHour" class="admin-availability-input" type="number" min="0" max="23" value="' + esc(String(state.rules.appointments_day_start_hour || 8)) + '">') +
+            field('Kalender Endstunde', '<input id="ruleDayEndHour" class="admin-availability-input" type="number" min="1" max="24" value="' + esc(String(state.rules.appointments_day_end_hour || 18)) + '">') +
+            field('Mindestvorlauf (Stunden)', '<input id="ruleMinNotice" class="admin-availability-input" type="number" min="0" max="720" value="' + esc(String(state.rules.appointments_min_hours_notice || 24)) + '">') +
+            field('Vorausplanung (Tage)', '<input id="ruleAdvanceDays" class="admin-availability-input" type="number" min="1" max="3650" value="' + esc(String(state.rules.appointments_advance_days || 60)) + '">') +
             field('Puffer (Minuten)', '<input id="ruleBufferMinutes" class="admin-availability-input" type="number" min="0" max="180" value="' + esc(String(state.rules.buffer_minutes || 0)) + '">') +
             field('Max. Termine/Tag (0 = unbegrenzt)', '<input id="ruleMaxAppointments" class="admin-availability-input" type="number" min="0" max="100" value="' + esc(String(state.rules.max_appointments_per_day || 0)) + '">') +
-            field('Mindestvorlauf (Stunden)', '<input id="ruleMinNotice" class="admin-availability-input" type="number" min="0" max="720" value="' + esc(String(state.rules.booking_min_hours_notice || 24)) + '">') +
-            field('Vorausplanung (Tage)', '<input id="ruleAdvanceDays" class="admin-availability-input" type="number" min="1" max="3650" value="' + esc(String(state.rules.booking_advance_days || 60)) + '">') +
             field('Stornofrist (Stunden)', '<input id="ruleCancellationNotice" class="admin-availability-input" type="number" min="1" max="720" value="' + esc(String(state.rules.cancellation_hours_notice || 48)) + '">') +
             field('Erinnerung vor Termin (Stunden)', '<input id="ruleReminderHoursBefore" class="admin-availability-input" type="number" min="1" max="720" value="' + esc(String(state.rules.reminder_hours_before || 24)) + '">') +
             '  </div>' +
@@ -109,7 +117,7 @@
 
         return '' +
             '<section class="admin-availability-card">' +
-            '  <h2>Wöchentliche Arbeitszeiten</h2>' +
+            '  <h2>Öffnungszeiten</h2>' +
             '  <p class="admin-availability-subtext">Pro Wochentag ein aktives Zeitfenster. Deaktivierte Tage erzeugen keine Slots.</p>' +
             '  <table class="admin-availability-table">' +
             '      <thead><tr><th>Tag</th><th>Aktiv</th><th>Start</th><th>Ende</th></tr></thead>' +
@@ -144,8 +152,8 @@
 
         return '' +
             '<section class="admin-availability-card">' +
-            '  <h2>Sperrzeiten</h2>' +
-            '  <p class="admin-availability-subtext">Urlaub, Feiertage oder sonstige Ausnahmen blockieren Slots auch innerhalb aktiver Arbeitszeiten.</p>' +
+            '  <h2>Betriebsurlaub und Sperrzeiten</h2>' +
+            '  <p class="admin-availability-subtext">Urlaub, Feiertage oder sonstige Ausnahmen blockieren Slots auch innerhalb aktiver Öffnungszeiten.</p>' +
             addForm +
             '  <table class="admin-availability-table">' +
             '      <thead><tr><th>Von</th><th>Bis</th><th>Grund</th><th>Aktion</th></tr></thead>' +
@@ -181,11 +189,16 @@
     }
 
     function saveRules() {
+        var appointmentsEnabledElement = document.getElementById('ruleAppointmentsEnabled');
+
         var payload = {
+            appointments_enabled: appointmentsEnabledElement && appointmentsEnabledElement.checked ? 1 : 0,
+            appointments_day_start_hour: intValue('ruleDayStartHour', 8),
+            appointments_day_end_hour: intValue('ruleDayEndHour', 18),
+            appointments_min_hours_notice: intValue('ruleMinNotice', 24),
+            appointments_advance_days: intValue('ruleAdvanceDays', 60),
             buffer_minutes: intValue('ruleBufferMinutes', 0),
             max_appointments_per_day: intValue('ruleMaxAppointments', 0),
-            booking_min_hours_notice: intValue('ruleMinNotice', 24),
-            booking_advance_days: intValue('ruleAdvanceDays', 60),
             cancellation_hours_notice: intValue('ruleCancellationNotice', 48),
             reminder_hours_before: intValue('ruleReminderHoursBefore', 24)
         };
