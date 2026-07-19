@@ -76,6 +76,7 @@
 
     function renderRulesCard() {
         var appointmentsEnabled = Number(state.rules.appointments_enabled || 0) === 1;
+        var ticketsEnabled = Number(state.rules.tickets_enabled || 0) === 1;
 
         return '' +
             '<section class="admin-availability-card">' +
@@ -83,6 +84,7 @@
             '  <p class="admin-availability-subtext">Steuert Terminbuchung, Vorlauf, Planungsfenster und den sichtbaren Tagesbereich im Kalender.</p>' +
             '  <div class="admin-availability-row">' +
             field('Appointments aktiviert', '<input id="ruleAppointmentsEnabled" class="admin-availability-input" type="checkbox"' + (appointmentsEnabled ? ' checked' : '') + '>') +
+            field('Tickets aktiviert (WIP)', '<input id="ruleTicketsEnabled" disabled="true" class="admin-availability-input" type="checkbox"' + (ticketsEnabled ? ' checked' : '') + '>') +
             field('Kalender Startstunde', '<input id="ruleDayStartHour" class="admin-availability-input" type="number" min="0" max="23" value="' + esc(String(state.rules.appointments_day_start_hour || 8)) + '">') +
             field('Kalender Endstunde', '<input id="ruleDayEndHour" class="admin-availability-input" type="number" min="1" max="24" value="' + esc(String(state.rules.appointments_day_end_hour || 18)) + '">') +
             field('Mindestvorlauf (Stunden)', '<input id="ruleMinNotice" class="admin-availability-input" type="number" min="0" max="720" value="' + esc(String(state.rules.appointments_min_hours_notice || 24)) + '">') +

@@ -323,6 +323,7 @@ Router::get('/zielgruppen', function (): Response {
  *
  * @return Response HTML response for the ueber-mich page.
  */
+/*
 Router::get('/ueber-uns', function (): Response {
     ob_start();
     require base_path('public/ui/_templates/ueber-uns-page.php');
@@ -330,6 +331,20 @@ Router::get('/ueber-uns', function (): Response {
 
     return new Response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
 })->name('ueber-mich');
+*/
+
+/**
+ * Renders the contact page.
+ *
+ * @return Response HTML response for the contact page.
+ */
+Router::get('/kontakt', function (): Response {
+    ob_start();
+    require base_path('public/ui/_templates/contact-page.php');
+    $html = (string) ob_get_clean();
+
+    return new Response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
+})->name('kontakt');
 
 /**
  * Renders the impressum page.

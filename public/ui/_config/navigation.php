@@ -40,12 +40,12 @@ return [
         }, $rows),
     ],
     [
-        'label' => 'Zielgruppen',
-        'href' => '/zielgruppen',
+        'label' => 'Technologien',
+        'href' => '/technologien',
     ],
     [
-        'label' => 'Über Uns',
-        'href' => '/ueber-uns',
+        'label' => 'Kontakt',
+        'href' => '/kontakt',
     ],
 ];
 

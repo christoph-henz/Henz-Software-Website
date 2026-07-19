@@ -190,10 +190,13 @@ if (!function_exists('service_page_sections')) {
                     continue;
                 }
 
-                $slug = trim((string) ($row['slug'] ?? ''));
+                $slug = trim((string) ($row['cta_url'] ?? ''));
+
                 if ($slug === '') {
                     continue;
                 }
+
+                $slug = ltrim((string) strrchr($slug, '#'), '#');
 
                 $structureRaw = $row['structure'] ?? '[]';
                 $dataRaw = $row['data'] ?? '{}';

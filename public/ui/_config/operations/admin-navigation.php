@@ -61,6 +61,14 @@ return [
                 'permission_bit' => Role::resolve("view_appointments"), // view_bookings (1) | manage_bookings (2)
                 'match_patterns' => [],
             ],
+            [
+                'label' => 'Projekte',
+                'href' => '/projects',
+                'exact' => false,
+                'icon' => 'calendar',
+                'permission_bit' => Role::resolve("view_projects"), // view_bookings (1) | manage_bookings (2)
+                'match_patterns' => [],
+            ],
         ],
         'match_patterns' => [],
     ],
@@ -103,7 +111,7 @@ return [
         'href' => '/admin',
         'exact' => false,
         'icon' => 'factory',
-        'permission_bit' => Role::resolve("view_projects"), // view_media (1) | manage_media (2)
+        'permission_bit' => Role::resolve("manage_clients"), // view_media (1) | manage_media (2)
         'children' => [
             [
                 'label' => 'Leistungen',
@@ -127,14 +135,6 @@ return [
                 'exact' => false,
                 'icon' => 'finance',
                 'permission_bit' => Role::resolve("view_finances"), // manage_finance
-                'match_patterns' => [],
-            ],
-            [
-                'label' => 'Projekte',
-                'href' => '/projects',
-                'exact' => false,
-                'icon' => 'calendar',
-                'permission_bit' => Role::resolve("view_projects"), // view_bookings (1) | manage_bookings (2)
                 'match_patterns' => [],
             ],
         ],
