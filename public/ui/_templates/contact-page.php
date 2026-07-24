@@ -11,7 +11,6 @@ $pageTitle = (string) ($cfg['page_title'] ?? 'Kontakt – Henz Software');
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title><?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8'); ?></title>
     <link rel="stylesheet" href="/ui/_assets/css/theme.css" />
-    <link rel="stylesheet" href="/ui/_assets/css/error-theme.css" />
     <link rel="stylesheet" href="/ui/_assets/css/tailwind.css" />
 </head>
 <body>
@@ -23,6 +22,5 @@ $pageTitle = (string) ($cfg['page_title'] ?? 'Kontakt – Henz Software');
 
     <?php require __DIR__ . '/../_partials/footer.php'; ?>
     <script src="/ui/_assets/js/navbar.js" defer></script>
-    <script src="/ui/_assets/js/contact.js?v=7" defer></script>
 </body>
 </html>

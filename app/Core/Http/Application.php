@@ -53,7 +53,7 @@ final class Application
 
         $response = $pipeline->process(
             $this->injectRouteParams($request, $matched),
-            fn (Request $request): Response => $this->runHandler($request, $matched)
+            fn(Request $request): Response => $this->runHandler($request, $matched)
         );
 
         return $response->withHeader('X-Request-Id', $requestId);
@@ -77,12 +77,22 @@ final class Application
         }
 
         [$class, $method] = $handler;
-        $controller = $this->container->get($class);
-        $result = $controller->{$method}($request);
 
-        if (!$result instanceof Response) {
-            throw new RuntimeException(sprintf('Controller %s::%s must return Response', $class, $method));
+        try {
+            $controller = $this->container->get($class);
+        } catch (\Throwable $e) {
+            die(
+                get_class($e)
+                . "\n"
+                . $e->getMessage()
+                . "\n"
+                . $e->getFile()
+                . ':'
+                . $e->getLine()
+            );
         }
+
+        $result = $controller->{$method}($request);
 
         return $result;
     }

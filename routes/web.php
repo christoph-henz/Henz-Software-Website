@@ -7,6 +7,7 @@ use App\Core\Http\Request;
 use App\Core\Routing\RouterFacade as Router;
 use App\Controllers\Api\V1\AvailabilityController;
 use App\Controllers\Api\V1\RequestController;
+use App\Controllers\Api\V1\FormStateController;
 use App\Core\Support\OperationHost;
 
 if (!function_exists('serveMediaFileFromStorage')) {
@@ -172,6 +173,13 @@ Router::get('/status.json', fn () => Response::json([
  */
 Router::get('/favicon.ico', fn () => Response::noContent())->name('favicon');
 
+/**
+ * saves and destroys form state data for the contact form.
+ *
+ * @return Response JSON response with status details and appropriate status code.
+ */
+Router::post('/form-state', [FormStateController::class, 'store'])->name('api.v1.form-state.store');
+Router::delete('/form-state', [FormStateController::class, 'clear'])->name('api.v1.form-state.clear');
 /**
  * Renders the HTML system status page with runtime checks.
  *

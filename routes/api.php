@@ -174,13 +174,13 @@ Router::group('/v1', function (RouterInstance $router): void {
     Router::get('/availability/days', [AvailabilityController::class, 'days'])->name('api.v1.availability.days');
     Router::post('/request', [RequestController::class, 'store'])->name('api.v1.request.store');
     Router::post('/consents', [ConsentController::class, 'store'])->name('api.v1.consents.store');
-
     Router::group('/admin/requests', function (RouterInstance $router): void {
         Router::get('/', [RequestAdminController::class, 'index'])->name('api.v1.admin.requests.index');
         Router::get('/{id}', [RequestAdminController::class, 'show'])->name('api.v1.admin.requests.show');
         Router::patch('/{id}', [RequestAdminController::class, 'update'])->name('api.v1.admin.requests.update');
     }, ['admin_session']);
 
+    /*
     Router::group('/admin/bookings', function (RouterInstance $router): void {
         Router::get('/', [BookingAdminController::class, 'index'])->name('api.v1.admin.bookings.index');
         Router::get('/summary', [BookingAdminController::class, 'summary'])->name('api.v1.admin.bookings.summary');
@@ -191,6 +191,7 @@ Router::group('/v1', function (RouterInstance $router): void {
         Router::post('/{id}/invoice', [BookingAdminController::class, 'createInvoice'])->name('api.v1.admin.bookings.create_invoice');
         Router::get('/{id}/status-audit', [BookingStatusController::class, 'auditLog'])->name('api.v1.admin.bookings.audit_log');
     }, ['admin_session']);
+    */
 
     Router::group('/admin/clients', function (RouterInstance $router): void {
         Router::get('/', [ClientAdminController::class, 'index'])->name('api.v1.admin.clients.index');
