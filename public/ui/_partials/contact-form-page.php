@@ -58,6 +58,7 @@ $formState = $_SESSION['contact_form'] ?? [];
 function renderFields(array $fields, string $path = '', array $formState = []): void
 {
     foreach ($fields as $field) {
+        // var_dump($field);
         $name = (string) ($field['name'] ?? '');
         if ($name === '') {
             continue;
@@ -65,9 +66,34 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
 
         $type = (string) ($field['type'] ?? 'text');
         $label = (string) ($field['label'] ?? '');
-        $required = (bool) ($field['required'] ?? false);
+        $placeholder = (string) ($field['placeholder'] ?? '');
         $col = (string) ($field['col'] ?? 'full');
+        $validators = [];
 
+        if (!empty($field['required'])) {
+            $validators[] = [
+                'rule' => 'required',
+                'message' => 'Dieses Feld ist erforderlich.'
+            ];
+        }
+
+        if (!empty($field['validation'])) {
+
+            if (isset($field['validation']['rule'])) {
+                // Einzelner Validator
+                $validators[] = $field['validation'];
+            } else {
+                // Mehrere Validatoren
+                foreach ($field['validation'] as $validator) {
+                    $validators[] = $validator;
+                }
+            }
+
+        }
+
+        $required = (bool) ($field['required'] ?? false);
+        // var_dump($validators);
+        // die();
         $choices = is_array($field['choices'] ?? null)
             ? $field['choices']
             : [];
@@ -81,6 +107,9 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
         //     var_dump($value);
         //     die();
         // }
+        $requiredAttr = $required ? 'required' : '';
+        $placeholderAttr = htmlspecialchars($placeholder, ENT_QUOTES, 'UTF-8');
+
         $colSpanClass = $col === 'half'
             ? 'md:col-span-1'
             : 'md:col-span-2';
@@ -102,8 +131,34 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
                     <input
                         class="peer w-full rounded-xl border border-cyan-400/10 bg-[#0b1119] text-slate-100 px-5 pt-7 pb-3 focus:outline-none focus:border-cyan-400 transition-colors"
                         type="<?= htmlspecialchars($type) ?>" id="<?= htmlspecialchars($fieldId) ?>"
-                        name="<?= htmlspecialchars($fieldId) ?>" placeholder=" " <?= $required ? 'required' : '' ?>
-                        value="<?= htmlspecialchars((string) $value) ?>">
+                        name="<?= htmlspecialchars($fieldId) ?>" placeholder="<?= $placeholderAttr ?>"
+                        value="<?= htmlspecialchars((string) $value) ?>" data-validators='<?= htmlspecialchars(
+                               json_encode($validators, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '[]',
+                               ENT_QUOTES,
+                               'UTF-8'
+                           ) ?>'>
+                    <div class="validation-errors mt-2"></div>
+                    <label
+                        class="absolute left-5 top-5 text-slate-500 transition-all pointer-events-none peer-placeholder-shown:text-base peer-placeholder-shown:top-5 peer-focus:text-xs peer-focus:-translate-y-3 peer-focus:text-cyan-400 peer-not-placeholder-shown:text-xs peer-not-placeholder-shown:-translate-y-3"
+                        for="<?= htmlspecialchars($fieldId) ?>">
+                        <?= htmlspecialchars($label) ?>
+                    </label>
+
+                    <?php
+                    break;
+                case 'time':
+                    ?>
+
+                    <input
+                        class="peer w-full rounded-xl border border-cyan-400/10 bg-[#0b1119] text-slate-100 px-5 pt-7 pb-3 focus:outline-none focus:border-cyan-400 transition-colors"
+                        type="<?= htmlspecialchars($type) ?>" id="<?= htmlspecialchars($fieldId) ?>"
+                        name="<?= htmlspecialchars($fieldId) ?>" placeholder="<?= $placeholderAttr ?>"
+                        value="<?= htmlspecialchars((string) $value) ?>" data-validators='<?= htmlspecialchars(
+                               json_encode($validators, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '[]',
+                               ENT_QUOTES,
+                               'UTF-8'
+                           ) ?>'>
+                    <div class="validation-errors mt-2"></div>
                     <label
                         class="absolute left-5 top-5 text-slate-500 transition-all pointer-events-none peer-placeholder-shown:text-base peer-placeholder-shown:top-5 peer-focus:text-xs peer-focus:-translate-y-3 peer-focus:text-cyan-400 peer-not-placeholder-shown:text-xs peer-not-placeholder-shown:-translate-y-3"
                         for="<?= htmlspecialchars($fieldId) ?>">
@@ -118,8 +173,13 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
                     <input
                         class="peer w-full rounded-xl border border-cyan-400/10 bg-[#0b1119] text-slate-100 px-5 pt-7 pb-3 focus:outline-none focus:border-cyan-400 transition-colors"
                         type="<?= htmlspecialchars($type) ?>" id="<?= htmlspecialchars($fieldId) ?>"
-                        name="<?= htmlspecialchars($fieldId) ?>" placeholder=" " <?= $required ? 'required' : '' ?>
-                        value="<?= htmlspecialchars((string) $value) ?>">
+                        name="<?= htmlspecialchars($fieldId) ?>" placeholder="<?= $placeholderAttr ?>"
+                        value="<?= htmlspecialchars((string) $value) ?>" data-validators='<?= htmlspecialchars(
+                               json_encode($validators, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '[]',
+                               ENT_QUOTES,
+                               'UTF-8'
+                           ) ?>'>
+                    <div class="validation-errors mt-2"></div>
                     <label
                         class="absolute left-5 top-5 text-slate-500 transition-all pointer-events-none peer-placeholder-shown:text-base peer-placeholder-shown:top-5 peer-focus:text-xs peer-focus:-translate-y-3 peer-focus:text-cyan-400 peer-not-placeholder-shown:text-xs peer-not-placeholder-shown:-translate-y-3"
                         for="<?= htmlspecialchars($fieldId) ?>">
@@ -134,8 +194,13 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
 
                     <textarea
                         class="peer min-h-[180px] w-full rounded-xl border border-cyan-400/10 bg-[#0b1119] text-slate-100 px-5 pt-7 pb-3 resize-y focus:outline-none focus:border-cyan-400 transition-colors"
-                        id="<?= htmlspecialchars($fieldId) ?>" name="<?= htmlspecialchars($fieldId) ?>" placeholder=" " <?= $required ? 'required' : '' ?>><?= htmlspecialchars((string) $value) ?></textarea>
-
+                        id="<?= htmlspecialchars($fieldId) ?>" name="<?= htmlspecialchars($fieldId) ?>"
+                        placeholder="<?= $placeholderAttr ?>" data-validators='<?= htmlspecialchars(
+                              json_encode($validators, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '[]',
+                              ENT_QUOTES,
+                              'UTF-8'
+                          ) ?>'><?= htmlspecialchars((string) $value) ?></textarea>
+                    <div class="validation-errors mt-2"></div>
                     <label
                         class="absolute left-5 top-5 text-slate-500 transition-all pointer-events-none peer-placeholder-shown:text-base peer-placeholder-shown:top-5 peer-focus:text-xs peer-focus:-translate-y-3 peer-focus:text-cyan-400 peer-not-placeholder-shown:text-xs peer-not-placeholder-shown:-translate-y-3"
                         for="<?= htmlspecialchars($fieldId) ?>">
@@ -151,9 +216,15 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
 
                     <select
                         class="peer w-full rounded-xl border border-cyan-400/10 bg-[#0b1119] text-slate-100 px-5 pt-7 pb-3 appearance-none focus:outline-none focus:border-cyan-400 transition-colors"
-                        id="<?= htmlspecialchars($fieldId) ?>" name="<?= htmlspecialchars($fieldId) ?>" <?= $required ? 'required' : '' ?>>
+                        id="<?= htmlspecialchars($fieldId) ?>" name="<?= htmlspecialchars($fieldId) ?>" data-validators='<?= htmlspecialchars(
+                                json_encode($validators, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '[]',
+                                ENT_QUOTES,
+                                'UTF-8'
+                            ) ?>'>
 
-                        <option value="">Bitte auswählen…</option>
+                        <option value="">
+                            <?= htmlspecialchars($placeholder !== '' ? $placeholder : 'Bitte auswählen…') ?>
+                        </option>
 
                         <?php foreach ($choices as $choice): ?>
 
@@ -165,6 +236,7 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
                         <?php endforeach; ?>
 
                     </select>
+                    <div class="validation-errors mt-2"></div>
 
                     <label
                         class="absolute left-5 top-5 text-slate-500 transition-all pointer-events-none peer-placeholder-shown:text-base peer-placeholder-shown:top-5 peer-focus:text-xs peer-focus:-translate-y-3 peer-focus:text-cyan-400 peer-not-placeholder-shown:text-xs peer-not-placeholder-shown:-translate-y-3"><?= htmlspecialchars($label) ?></label>
@@ -271,7 +343,7 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
                 data-slot-advance-days="<?= htmlspecialchars((string) $slotPickerAdvanceDays, ENT_QUOTES, 'UTF-8'); ?>"
                 data-slot-work-windows="<?= $slotPickerWindowsJson; ?>" novalidate>
 
-                <?php 
+                <?php
                 //var_dump($formState);
                 //die();
                 //phpinfo();
@@ -316,9 +388,16 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
 
         </div>
 
-        <script>
-
+        <script type="module">
+            import { FormValidator } from "/ui/_assets/js/form-validators.js";
             document.addEventListener("DOMContentLoaded", () => {
+                const form = document.querySelector("#booking-form");
+                const validator = new FormValidator(form);
+                form.addEventListener("submit", async e => {
+                    if (!(await validator.validateForm())) {
+                        e.preventDefault();
+                    }
+                });
 
                 /**
                  * Speichert ein Feld in der Session.
@@ -357,32 +436,11 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
 
                     container.classList.add("hidden");
 
-                    // container.querySelectorAll("input, select, textarea").forEach(input => {
+                    container.querySelectorAll("input, select, textarea").forEach(input => {
 
-                    //     input.disabled = true;
+                        input.disabled = true;
 
-                    //     if (input.tagName === "SELECT") {
-
-                    //         input.selectedIndex = 0;
-                    //         //saveField(input.name, "");
-
-                    //     } else if (input.type === "checkbox" || input.type === "radio") {
-
-                    //         input.checked = false;
-                    //         //saveField(input.name, "");
-
-                    //     } else {
-
-                    //         input.value = "";
-                    //         //saveField(input.name, "");
-
-                    //     }
-
-                    // });
-
-                    // container.querySelectorAll(".option-container").forEach(child => {
-                    //     child.classList.add("hidden");
-                    //});
+                    });
 
                 }
 
@@ -492,7 +550,9 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
 
                     updateField(select);
 
-                    select.addEventListener("change", () => {
+                    select.addEventListener("change", async () => {
+
+                        await validator.validateField(select);
 
                         updateField(select);
                         updateUrl();
@@ -507,11 +567,9 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
                  */
                 document.querySelectorAll("input, textarea").forEach(input => {
 
-                    if (input.tagName === "SELECT") {
-                        return;
-                    }
+                    input.addEventListener("blur", async () => {
 
-                    input.addEventListener("blur", () => {
+                        await validator.validateField(input);
 
                         saveField(input.name, input.value);
 

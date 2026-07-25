@@ -175,13 +175,139 @@ try {
     // Keep empty service/service lists when DB is unavailable.
 }
 
+/**
+ * @var mixed
+ * @todo ContactRequestController mit serverseitiger Validation erstellen, um die Anfrage zu verarbeiten und an die einzelnen Controller wie TicketController weiterzuleiten.
+ */
 $apiBaseUrl = trim((string) env('API_BASE_URL', ''));
 $requestAction = $apiBaseUrl !== ''
-    ? rtrim($apiBaseUrl, '/') . '/v1/appointment'
-    : '/v1/appointment';
+    ? rtrim($apiBaseUrl, '/') . '/v1/contact-request'
+    : '/v1/contact-request';
+
 $slotsEndpoint = $apiBaseUrl !== ''
     ? rtrim($apiBaseUrl, '/') . '/v1/availability/slots'
     : '/v1/availability/slots';
+
+
+//     'name' => 'example_field',
+//     'type' => 'text',
+//     'label' => 'Beispiel Feld',
+//     'required' => true,
+//     'validation' => [
+
+//         [
+//             'rule' => 'required',
+//             'message' => 'Dieses Feld ist erforderlich.'
+//         ],
+
+//         [
+//             'rule' => 'minLength',
+//             'value' => 6,
+//             'message' => 'Mindestens 6 Zeichen.'
+//         ],
+
+//         [
+//             'rule' => 'maxLength',
+//             'value' => 20,
+//             'message' => 'Maximal 20 Zeichen.'
+//         ],
+
+//         [
+//             'rule' => 'length',
+//             'value' => 10,
+//             'message' => 'Genau 10 Zeichen.'
+//         ],
+
+//         [
+//             'rule' => 'regex',
+//             'pattern' => '^[A-Z0-9]+$',
+//             'message' => 'Nur Großbuchstaben und Zahlen.'
+//         ],
+
+//         [
+//             'rule' => 'email',
+//             'message' => 'Ungültige E-Mail-Adresse.'
+//         ],
+
+//         [
+//             'rule' => 'number',
+//             'message' => 'Es muss eine Zahl sein.'
+//         ],
+
+//         [
+//             'rule' => 'integer',
+//             'message' => 'Es muss eine ganze Zahl sein.'
+//         ],
+
+//         [
+//             'rule' => 'min',
+//             'value' => 18,
+//             'message' => 'Mindestens 18.'
+//         ],
+
+//         [
+//             'rule' => 'max',
+//             'value' => 99,
+//             'message' => 'Maximal 99.'
+//         ],
+
+//         [
+//             'rule' => 'range',
+//             'min' => 20,
+//             'max' => 80,
+//             'message' => 'Wert muss zwischen 20 und 80 liegen.'
+//         ],
+
+//         [
+//             'rule' => 'url',
+//             'message' => 'Bitte eine gültige URL eingeben.'
+//         ],
+
+//         [
+//             'rule' => 'date',
+//             'message' => 'Ungültiges Datum.'
+//         ],
+
+//         [
+//             'rule' => 'afterDate',
+//             'value' => '2026-01-01',
+//             'message' => 'Datum muss nach dem 01.01.2026 liegen.'
+//         ],
+
+//         [
+//             'rule' => 'beforeDate',
+//             'value' => '2030-01-01',
+//             'message' => 'Datum muss vor dem 01.01.2030 liegen.'
+//         ],
+
+//         [
+//             'rule' => 'equals',
+//             'field' => 'password_confirmation',
+//             'message' => 'Die Werte stimmen nicht überein.'
+//         ],
+
+//         [
+//             'rule' => 'fileSize',
+//             'value' => 5 * 1024 * 1024,
+//             'message' => 'Datei darf maximal 5 MB groß sein.'
+//         ],
+
+//         [
+//             'rule' => 'fileExtension',
+//             'extensions' => [
+//                 'pdf',
+//                 'doc',
+//                 'docx',
+//                 'jpg',
+//                 'jpeg',
+//                 'png'
+//             ],
+//             'message' => 'Dateityp nicht erlaubt.'
+//         ]
+
+//     ]
+// ]
+
 
 return [
 
@@ -217,26 +343,64 @@ return [
                             [
                                 'name' => 'firstname',
                                 'type' => 'text',
-                                'label' => 'Vorname *'
+                                'label' => 'Vorname *',
+                                'required' => true
                             ],
 
                             [
                                 'name' => 'lastname',
                                 'type' => 'text',
-                                'label' => 'Nachname *'
+                                'label' => 'Nachname *',
+                                'required' => true
                             ],
 
                             [
                                 'name' => 'email',
                                 'type' => 'email',
-                                'label' => 'E-Mail *'
+                                'label' => 'E-Mail *',
+                                'validation' => [
+                                    'rule' => 'email',
+                                    'message' => 'Bitte geben Sie eine gültige E-Mail-Adresse ein.'
+                                ]
+                            ],
+                            [
+                                'name' => 'appointment_date',
+                                'type' => 'date',
+                                'label' => 'Gewünschtes Datum *',
+                                'required' => true,
+                                'validation' => [
+                                    [
+                                        'rule' => 'afterDate',
+                                        'value' => (new DateTime())
+                                            ->modify('+2 days')
+                                            ->format('Y-m-d'),
+                                        'message' => 'Bitte wählen Sie einen Termin, der mindestens 2 Tage in der Zukunft liegt.'
+                                    ]
+                                ]
+                            ],
+                            [
+                                'name' => 'appointment_time',
+                                'type' => 'time',
+                                'label' => 'Gewünschte Uhrzeit *',
+                                'required' => true,
+                                'choices' => [
+                                    'slot_step_minutes' => $slotStepMinutes,
+                                    'work_windows_by_day' => $workWindowsByDay,
+                                    'timezone_name' => $timezoneName
+                                ]
                             ],
 
                             [
                                 'name' => 'message',
                                 'type' => 'textarea',
                                 'label' => 'Kurzbeschreibung *',
-                                'required' => true
+                                'required' => true,
+                                'placeholder' => "\nBitte geben Sie eine kurze Beschreibung Ihres Anliegens ein.",
+                                'validation' => [
+                                    'rule' => 'minLength',
+                                    'value' => 30,
+                                    'message' => 'Bitte geben Sie eine kurze Beschreibung Ihres Anliegens ein (mindestens 30 Zeichen).'
+                                ]
                             ]
                         ]
                     ],
@@ -251,19 +415,34 @@ return [
                                 'type' => 'text',
                                 'label' => 'Kundennummer *',
                                 'required' => true,
-                                'col' => 'half'
+                                'col' => 'half',
+                                'validation' => [
+                                    'rule' => 'minLength',
+                                    'value' => 6,
+                                    'message' => 'Die Kundennummer muss aus 6 Ziffern bestehen.'
+                                ]
                             ],
 
                             [
                                 'name' => 'project_number',
                                 'type' => 'text',
                                 'label' => 'Projektnummer (falls vorhanden)',
-                                'col' => 'half'
+                                'col' => 'half',
+                                'validation' => [
+                                    'rule' => 'minLength',
+                                    'value' => 6,
+                                    'message' => 'Die Projektnummer muss aus 6 Ziffern bestehen.'
+                                ]
                             ],
                             [
                                 'name' => 'contract_number',
                                 'type' => 'text',
                                 'label' => 'Vertragsnummer (falls vorhanden)',
+                                'validation' => [
+                                    'rule' => 'minLength',
+                                    'value' => 6,
+                                    'message' => 'Die Vertragsnummer muss aus 6 Ziffern bestehen.'
+                                ]
                             ],
                             [
                                 'name' => 'service_action',
@@ -278,7 +457,13 @@ return [
                                             [
                                                 'name' => 'update_details',
                                                 'type' => 'textarea',
-                                                'label' => 'Details zur Aktualisierung'
+                                                'label' => 'Details zur Aktualisierung',
+                                                'required' => true,
+                                                'validation' => [
+                                                    'rule' => 'minLength',
+                                                    'value' => 30,
+                                                    'message' => 'Bitte geben Sie eine kurze Beschreibung der gewünschten Aktualisierung ein (mindestens 30 Zeichen).'
+                                                ]
                                             ],
                                             [
                                                 'name' => 'file_upload',
@@ -294,12 +479,19 @@ return [
                                             [
                                                 'name' => 'cancel_date',
                                                 'type' => 'date',
-                                                'label' => 'Gewünschtes Kündigungsdatum'
+                                                'label' => 'Gewünschtes Kündigungsdatum',
+                                                'required' => true
                                             ],
                                             [
                                                 'name' => 'message',
                                                 'type' => 'textarea',
-                                                'label' => 'Grund für die Kündigung'
+                                                'label' => 'Grund für die Kündigung',
+                                                'required' => true,
+                                                'validation' => [
+                                                    'rule' => 'minLength',
+                                                    'value' => 30,
+                                                    'message' => 'Bitte geben Sie einen Grund für die Kündigung an (mindestens 30 Zeichen).'
+                                                ]
                                             ],
                                         ]
                                     ],
@@ -600,11 +792,11 @@ return [
                                                                     ]
                                                                 ]
                                                             ],
-                                                                [
-                                                                    'name' => 'kernel_version',
-                                                                    'type' => 'text',
-                                                                    'label' => 'Kernel-Version'
-                                                                ]
+                                                            [
+                                                                'name' => 'kernel_version',
+                                                                'type' => 'text',
+                                                                'label' => 'Kernel-Version'
+                                                            ]
                                                         ]
                                                     ]
                                                 ]
