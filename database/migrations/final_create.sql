@@ -104,6 +104,129 @@ CREATE TABLE IF NOT EXISTS client_inquiries (
     INDEX idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS email_templates (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    template_key VARCHAR(120) NOT NULL,
+    display_name VARCHAR(180) NOT NULL,
+    subject_template VARCHAR(255) NOT NULL,
+    html_template LONGTEXT NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_email_templates_template_key (template_key),
+    INDEX idx_email_templates_is_active (is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+USE `henz_software_main`;
+CREATE TABLE IF NOT EXISTS form_templates (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    template_key VARCHAR(150) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    description TEXT NULL,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_form_templates_template_key (template_key),
+    INDEX idx_form_templates_is_active (is_active),
+    INDEX idx_form_templates_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS form_template_versions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    template_id INT NOT NULL,
+    version_no INT NOT NULL,
+    schema_json JSON NOT NULL,
+    published_at DATETIME NULL,
+    created_by_user_id INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_form_template_versions_template
+        FOREIGN KEY (template_id) REFERENCES form_templates(id)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT fk_form_template_versions_created_by
+        FOREIGN KEY (created_by_user_id) REFERENCES users(id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    UNIQUE KEY uq_form_template_versions_template_version (template_id, version_no),
+    INDEX idx_form_template_versions_template_id (template_id),
+    INDEX idx_form_template_versions_published_at (published_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS form_records (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    client_id INT NOT NULL,
+    template_id INT NOT NULL,
+    template_version_id INT NOT NULL,
+    status ENUM('draft', 'final') NOT NULL DEFAULT 'draft',
+    encrypted_payload_json JSON NULL,
+    created_by_user_id INT NULL,
+    updated_by_user_id INT NULL,
+    finalized_at DATETIME NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted_at DATETIME NULL,
+    -- CONSTRAINT fk_form_records_booking
+    --     FOREIGN KEY (booking_id) REFERENCES bookings(id)
+    --     ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT fk_form_records_client
+        FOREIGN KEY (client_id) REFERENCES clients(id)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT fk_form_records_template
+        FOREIGN KEY (template_id) REFERENCES form_templates(id)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT fk_form_records_template_version
+        FOREIGN KEY (template_version_id) REFERENCES form_template_versions(id)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT fk_form_records_created_by
+        FOREIGN KEY (created_by_user_id) REFERENCES users(id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    CONSTRAINT fk_form_records_updated_by
+        FOREIGN KEY (updated_by_user_id) REFERENCES users(id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    -- INDEX idx_form_records_booking_id (booking_id),
+    INDEX idx_form_records_client_id (client_id),
+    INDEX idx_form_records_template_id (template_id),
+    INDEX idx_form_records_template_version_id (template_version_id),
+    INDEX idx_form_records_status (status),
+    INDEX idx_form_records_created_at (created_at),
+    INDEX idx_form_records_deleted_at (deleted_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS form_record_revisions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    form_record_id INT NOT NULL,
+    revision_no INT NOT NULL,
+    payload_json_snapshot JSON NULL,
+    changed_fields_json JSON NULL,
+    change_reason TEXT NOT NULL,
+    changed_by_user_id INT NULL,
+    changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_form_record_revisions_form_record
+        FOREIGN KEY (form_record_id) REFERENCES form_records(id)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT fk_form_record_revisions_changed_by
+        FOREIGN KEY (changed_by_user_id) REFERENCES users(id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    UNIQUE KEY uq_form_record_revisions_record_revision (form_record_id, revision_no),
+    INDEX idx_form_record_revisions_record_changed_at (form_record_id, changed_at),
+    INDEX idx_form_record_revisions_changed_by (changed_by_user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS form_attachments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    form_record_id INT NOT NULL,
+    storage_path VARCHAR(500) NOT NULL,
+    original_filename VARCHAR(255) NOT NULL,
+    checksum_sha256 CHAR(64) NOT NULL,
+    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_form_attachments_form_record
+        FOREIGN KEY (form_record_id) REFERENCES form_records(id)
+        ON DELETE RESTRICT ON UPDATE CASCADE,
+    UNIQUE KEY uq_form_attachments_checksum (checksum_sha256),
+    INDEX idx_form_attachments_record_id (form_record_id),
+    INDEX idx_form_attachments_uploaded_at (uploaded_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE projects (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `name` VARCHAR(255) NOT NULL,
@@ -356,129 +479,6 @@ CREATE TABLE IF NOT EXISTS consents (
     INDEX idx_client_request_id (client_request_id),
     INDEX idx_consent_key (consent_key),
     INDEX idx_accepted_at (accepted_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS email_templates (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    template_key VARCHAR(120) NOT NULL,
-    display_name VARCHAR(180) NOT NULL,
-    subject_template VARCHAR(255) NOT NULL,
-    html_template LONGTEXT NOT NULL,
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uq_email_templates_template_key (template_key),
-    INDEX idx_email_templates_is_active (is_active)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-USE `henz_software_main`;
-CREATE TABLE IF NOT EXISTS form_templates (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    template_key VARCHAR(150) NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    description TEXT NULL,
-    is_active TINYINT(1) NOT NULL DEFAULT 1,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uq_form_templates_template_key (template_key),
-    INDEX idx_form_templates_is_active (is_active),
-    INDEX idx_form_templates_created_at (created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS form_template_versions (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    template_id INT NOT NULL,
-    version_no INT NOT NULL,
-    schema_json JSON NOT NULL,
-    published_at DATETIME NULL,
-    created_by_user_id INT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT fk_form_template_versions_template
-        FOREIGN KEY (template_id) REFERENCES form_templates(id)
-        ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT fk_form_template_versions_created_by
-        FOREIGN KEY (created_by_user_id) REFERENCES users(id)
-        ON DELETE SET NULL ON UPDATE CASCADE,
-    UNIQUE KEY uq_form_template_versions_template_version (template_id, version_no),
-    INDEX idx_form_template_versions_template_id (template_id),
-    INDEX idx_form_template_versions_published_at (published_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS form_records (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    client_id INT NOT NULL,
-    template_id INT NOT NULL,
-    template_version_id INT NOT NULL,
-    status ENUM('draft', 'final') NOT NULL DEFAULT 'draft',
-    encrypted_payload_json JSON NULL,
-    created_by_user_id INT NULL,
-    updated_by_user_id INT NULL,
-    finalized_at DATETIME NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    deleted_at DATETIME NULL,
-    -- CONSTRAINT fk_form_records_booking
-    --     FOREIGN KEY (booking_id) REFERENCES bookings(id)
-    --     ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT fk_form_records_client
-        FOREIGN KEY (client_id) REFERENCES clients(id)
-        ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT fk_form_records_template
-        FOREIGN KEY (template_id) REFERENCES form_templates(id)
-        ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT fk_form_records_template_version
-        FOREIGN KEY (template_version_id) REFERENCES form_template_versions(id)
-        ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT fk_form_records_created_by
-        FOREIGN KEY (created_by_user_id) REFERENCES users(id)
-        ON DELETE SET NULL ON UPDATE CASCADE,
-    CONSTRAINT fk_form_records_updated_by
-        FOREIGN KEY (updated_by_user_id) REFERENCES users(id)
-        ON DELETE SET NULL ON UPDATE CASCADE,
-    -- INDEX idx_form_records_booking_id (booking_id),
-    INDEX idx_form_records_client_id (client_id),
-    INDEX idx_form_records_template_id (template_id),
-    INDEX idx_form_records_template_version_id (template_version_id),
-    INDEX idx_form_records_status (status),
-    INDEX idx_form_records_created_at (created_at),
-    INDEX idx_form_records_deleted_at (deleted_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS form_record_revisions (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    form_record_id INT NOT NULL,
-    revision_no INT NOT NULL,
-    payload_json_snapshot JSON NULL,
-    changed_fields_json JSON NULL,
-    change_reason TEXT NOT NULL,
-    changed_by_user_id INT NULL,
-    changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_form_record_revisions_form_record
-        FOREIGN KEY (form_record_id) REFERENCES form_records(id)
-        ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT fk_form_record_revisions_changed_by
-        FOREIGN KEY (changed_by_user_id) REFERENCES users(id)
-        ON DELETE SET NULL ON UPDATE CASCADE,
-    UNIQUE KEY uq_form_record_revisions_record_revision (form_record_id, revision_no),
-    INDEX idx_form_record_revisions_record_changed_at (form_record_id, changed_at),
-    INDEX idx_form_record_revisions_changed_by (changed_by_user_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS form_attachments (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    form_record_id INT NOT NULL,
-    storage_path VARCHAR(500) NOT NULL,
-    original_filename VARCHAR(255) NOT NULL,
-    checksum_sha256 CHAR(64) NOT NULL,
-    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_form_attachments_form_record
-        FOREIGN KEY (form_record_id) REFERENCES form_records(id)
-        ON DELETE RESTRICT ON UPDATE CASCADE,
-    UNIQUE KEY uq_form_attachments_checksum (checksum_sha256),
-    INDEX idx_form_attachments_record_id (form_record_id),
-    INDEX idx_form_attachments_uploaded_at (uploaded_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================

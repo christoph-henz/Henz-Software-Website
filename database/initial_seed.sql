@@ -58,9 +58,13 @@ INSERT INTO settings (`key`, value, type, `group`, description, is_public) VALUE
 ('reminder_hours_before', '24', 'integer', 'notifications', 'Hours before appointment for reminder', FALSE),
 ('auto_confirmation_enabled', '1', 'boolean', 'notifications', 'Automatic booking confirmation', FALSE),
 ('bank_transfer_enabled', '1', 'boolean', 'payment', 'Accept bank transfer', FALSE),
+('bank_data_name', 'Detusche Kredit Bank', 'string', 'payment', 'Bankname', FALSE),
+('bank_data_iban', 'DE20 1203 0000 1035 7553 94', 'string', 'payment', 'IBAN', FALSE),
+('bank_data_bic', 'BYLADEM1001', 'string', 'payment', 'BIC', FALSE),
 ('paypal_enabled', '0', 'boolean', 'payment', 'Accept PayPal', FALSE),
 ('paypal_email', '', 'string', 'payment', 'PayPal account email', FALSE),
-('package_expiration_months', '8', 'integer', 'booking', 'Default package validity in months', FALSE);
+('package_expiration_months', '8', 'integer', 'booking', 'Default package validity in months', FALSE),
+('ust_id', 'DE0123456789', 'string', 'payment', 'USt Id', FALSE);
 
 SET @individual_structure = JSON_ARRAY(
     JSON_OBJECT('type', 'intro', 'slug', 'slug', 'eyebrow', 'eyebrow', 'title', 'title', 'accent', 'title_accent', 'lead', 'lead', 'points', 'highlights', 'primary_cta', 'primary_cta', 'secondary_cta', 'secondary_cta', 'image_var', 'main_image', 'image_alt', 'main_image_alt'),

@@ -12,6 +12,8 @@ try {
         get();
 } catch (\Exception $e) {
     // Fallback if DB is not available
+    var_dump('Error fetching referenced projects: ' . $e->getMessage());
+    die();
 }
 
 $rows = [];
