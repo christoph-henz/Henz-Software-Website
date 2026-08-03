@@ -376,13 +376,13 @@ final class InvoicePdfService
                         <td colspan="2" style="padding:10px; text-align:left;">MwSt. (19%):</td>
                         <td></td>
                         <td></td>
-                        <td style="padding:10px; text-align:right;">28,50 €</td>
+                        <td style="padding:10px; text-align:right;">' . $this->formatMoney((float) ($invoice['ust_amount'] ?? 0.0)) . ' ' . $currency . '</td>
                     </tr>';
             }
             $html .= '<tr style="background:#dddddd; color:black;">
                     <td colspan="3" style="padding:10px; text-align:left; font-weight:bold;">Rechnungsbetrag:</td>
                     <td></td>
-                    <td style="padding:10px; text-align:right; font-weight:bold;">178,50 €</td>
+                    <td style="padding:10px; text-align:right; font-weight:bold;">' . $this->formatMoney((float) ($invoice['total_amount'] ?? 0.0)) . ' ' . $currency . '</td>
                 </tr>'
             . '</tbody>
                </table>';
