@@ -219,9 +219,9 @@ final class InvoicePdfService
             $lineTotal = $this->formatMoney((float) ($item['line_total'] ?? 0.0));
 
             $rowsHtml .= '<tr>'
-                . '<td style="padding:5px; text-align:left;">' . $position . '</td>'
+                . '<td style="padding:5px; text-align:center;">' . $position . '</td>'
                 . '<td style="padding:5px; text-align:center;">' . $quantity . '</td>'
-                . '<td style="padding:5px; text-align:left;">' . $description . '</td>'
+                . '<td style="padding:5px 5px 5px 10px; text-align:left;">' . $description . '</td>'
                 . '<td style="padding:5px; text-align:right;">' . $unitPrice . ' ' . $currency . '</td>'
                 . '<td style="padding:5px; text-align:right;">' . $lineTotal . ' ' . $currency . '</td>'
                 . '</tr>';
@@ -244,7 +244,7 @@ final class InvoicePdfService
             . '<style>
                 @page {
                     size: A4 portrait;
-                    margin: 12mm 15mm 25mm 15mm;
+                    margin: 12mm 15mm 25mm 20mm;
                 }
 
                 body {
@@ -294,18 +294,21 @@ final class InvoicePdfService
             . '<table cellspacing="0" cellpadding="0" style="width:100%; margin:0 0 4mm 0; border-collapse:collapse; table-layout:fixed;">
                 <!-- Absenderzeile über dem Empfänger -->
                <tr>'
-            . '<td colspan="2" style="font-size:9px; color:#303030; padding:0 2mm 10px 0;">
+            . '<td colspan="2" style="font-size:9px; color:#303030; padding:1cm 2mm 10px 0;">
                 Henz Software Solutions · Güterberg 30a · 63739 Aschaffenburg
                </td>
                <tr>'
             . '<tr>
-                    <td width="55%" style="vertical-align:top; padding-right:4mm;">
+                    <td width="55%" style="vertical-align:top; padding-right:4mm;">';
+            // TODO: Add company_name processing in frontend and backend
+            $html .= '
+                        <div>' . htmlspecialchars($client['company_name']) . '</div>
                         <div>' . htmlspecialchars($client['name']) . '</div>
                         <div>' . htmlspecialchars($street) . '</div>
                         <div>' . htmlspecialchars($city) . '</div>
                     </td>
                     <td width="45%" style="vertical-align:top; text-align:right; padding-right:2mm;">
-                        <div style=" margin-top:-30px;">
+                        <div style=" margin-top:-2cm;">
                             <strong style="font-size:15px;">Henz Software Solutions</strong><br>
                             Inhaber Christoph Henz<br>
                             Güterberg 30a<br>
@@ -322,7 +325,7 @@ final class InvoicePdfService
                 <tr>
                     <td></td>'
             . '<td style="text-align:right; vertical-align:top; padding-right:2mm;">'
-            . '<table align="right" cellspacing="0" cellpadding="2" style="display:inline-table; max-width:100%;">
+            . '<table align="right" cellspacing="0" cellpadding="2" style="display:inline-table; margin-top: -1cm; max-width:100%;">
                     <tr>
                         <td style="font-weight:bold;">Kundennummer: </td>
                         <td style="text-align:left;">&nbsp;0' . $client['id'] . '0</td>
@@ -344,7 +347,7 @@ final class InvoicePdfService
                     </tr>
                 </table>';
 
-            $html .= '<h1 style="font-size:32px; margin-bottom:20px;">Rechnung</h1>'
+            $html .= '<h1 style="font-size:24px; margin-bottom:20px;">Rechnung</h1>'
             .   '<div>
                     <p>Vielen Dank für Ihren Auftrag und das mir entgegengebrachte Vertrauen. Vereinbarungsgemäß berechne ich Ihnen hiermit folgende Leistungen:</p>
                     <br>
@@ -382,7 +385,7 @@ final class InvoicePdfService
             $html .= '<tr style="background:#dddddd; color:black;">
                     <td colspan="3" style="padding:10px; text-align:left; font-weight:bold;">Rechnungsbetrag:</td>
                     <td></td>
-                    <td style="padding:10px; text-align:right; font-weight:bold;">' . $this->formatMoney((float) ($invoice['total_amount'] ?? 0.0)) . ' ' . $currency . '</td>
+                    <td style="padding:10px 5px 10px; text-align:right; font-weight:bold;">' . $this->formatMoney((float) ($invoice['total_amount'] ?? 0.0)) . ' ' . $currency . '</td>
                 </tr>'
             . '</tbody>
                </table>';
