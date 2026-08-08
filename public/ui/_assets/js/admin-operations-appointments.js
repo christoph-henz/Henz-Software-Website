@@ -251,6 +251,56 @@
             .replace(/'/g, '&#039;');
     }
 
+    function parseNotes(value) {
+        var raw = String(value || '').trim();
+        if (raw === '') return '-';
+
+        if (raw[0] !== '{' && raw[0] !== '[') {
+            return raw;
+        }
+
+        var parsed;
+        try {
+            parsed = JSON.parse(raw);
+        } catch (_err) {
+            return raw;
+        }
+
+        var message = extractPreferredMessage(parsed);
+        if (message !== '') {
+            return message;
+        }
+
+        return 'Kontaktformular-Anfrage';
+    }
+
+    function extractPreferredMessage(node) {
+        if (!node || typeof node !== 'object') {
+            return '';
+        }
+
+        var preferredKeys = ['message', 'update_details', 'steps', 'details', 'note', 'notes'];
+        for (var i = 0; i < preferredKeys.length; i += 1) {
+            var key = preferredKeys[i];
+            if (typeof node[key] === 'string' && node[key].trim() !== '') {
+                return node[key].trim();
+            }
+        }
+
+        var keys = Object.keys(node);
+        for (var j = 0; j < keys.length; j += 1) {
+            var nested = node[keys[j]];
+            if (nested && typeof nested === 'object') {
+                var nestedMessage = extractPreferredMessage(nested);
+                if (nestedMessage !== '') {
+                    return nestedMessage;
+                }
+            }
+        }
+
+        return '';
+    }
+
     function render() {
         var listHtml = renderList();
         var detailHtml = renderDetail();
@@ -325,7 +375,7 @@
         var clientName = item.client && item.client.name ? item.client.name : '-';
         var email = item.client && item.client.email ? item.client.email : '-';
         var serviceName = item.service && item.service.name ? item.service.name : '-';
-        var notes = item.notes ? String(item.notes) : '-';
+        var notes = parseNotes(item.notes);
         var canAct = canManage && String(item.status || '') === 'pending';
 
         return '' +

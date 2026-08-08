@@ -183,12 +183,19 @@ Router::group('', function (): void {
     Router::get('/clients/data/{id}', [ClientAdminController::class, 'show'])->name('admin.clients.data.show');
     Router::patch('/clients/data/{id}', [ClientAdminController::class, 'update'])->name('admin.clients.data.update');
     Router::get('/clients/data/{id}/history', [ClientAdminController::class, 'history'])->name('admin.clients.data.history');
+    Router::get('/clients/data/{id}/appointments', [ClientAdminController::class, 'appointments'])->name('admin.clients.data.appointments');
     Router::get('/clients/data/{id}/consents', [ClientAdminController::class, 'consents'])->name('admin.clients.data.consents');
+    Router::get('/clients/data/{id}/tickets', [ClientAdminController::class, 'tickets'])->name('admin.clients.data.tickets');
+    Router::get('/tickets/data', [ClientAdminController::class, 'ticketsIndex'])->name('admin.tickets.data.index');
+    Router::get('/tickets/data/{ticket_id}', [ClientAdminController::class, 'ticketDetail'])->name('admin.tickets.data.show');
+    Router::patch('/tickets/data/{ticket_id}', [ClientAdminController::class, 'updateTicket'])->name('admin.tickets.data.update');
+    Router::post('/tickets/data/{ticket_id}/protocols', [ClientAdminController::class, 'createTicketProtocol'])->name('admin.tickets.data.protocols.create');
     Router::get('/clients/data/{id}/invoices', [ClientAdminController::class, 'invoices'])->name('admin.clients.data.invoices');
     Router::post('/clients/data/{id}/invoices', [ClientAdminController::class, 'createInvoice'])->name('admin.clients.data.invoices.create');
     Router::get('/clients/data/{id}/invoices/{invoice_id}/pdf', [ClientAdminController::class, 'invoicePdf'])->name('admin.clients.data.invoices.pdf');
     Router::get('/clients', [ClientsPageController::class, 'index'])->name('admin.clients.index');
     Router::get('/clients/{id}', [ClientsPageController::class, 'show'])->name('admin.clients.show');
+    Router::get('/tickets', [ClientsPageController::class, 'tickets'])->name('admin.tickets.index');
     
     Router::get('/projects', [ProjectsPageController::class, 'index'])->name('admin.projects.index');
     Router::get('/projects/data', [ProjectAdminController::class, 'index'])->name('admin.projects.data.index');

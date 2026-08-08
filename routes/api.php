@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Controllers\Api\V1\ConsentController;
 use App\Controllers\Api\V1\AvailabilityController;
+use App\Controllers\Api\V1\ContactRequestController;
 use App\Controllers\Api\V1\Admin\RequestAdminController;
 use App\Controllers\Api\V1\Admin\BookingAdminController;
 use App\Controllers\Api\V1\Admin\BookingStatusController;
@@ -172,6 +173,7 @@ HTML;
 Router::group('/v1', function (RouterInstance $router): void {
     Router::get('/availability/slots', [AvailabilityController::class, 'slots'])->name('api.v1.availability.slots');
     Router::get('/availability/days', [AvailabilityController::class, 'days'])->name('api.v1.availability.days');
+    Router::post('/contact-request', [ContactRequestController::class, 'store'])->name('api.v1.contact_request.store');
     Router::post('/request', [RequestController::class, 'store'])->name('api.v1.request.store');
     Router::post('/consents', [ConsentController::class, 'store'])->name('api.v1.consents.store');
     Router::group('/admin/requests', function (RouterInstance $router): void {
@@ -200,11 +202,20 @@ Router::group('/v1', function (RouterInstance $router): void {
         Router::get('/{id}', [ClientAdminController::class, 'show'])->name('api.v1.admin.clients.show');
         Router::patch('/{id}', [ClientAdminController::class, 'update'])->name('api.v1.admin.clients.update');
         Router::get('/{id}/history', [ClientAdminController::class, 'history'])->name('api.v1.admin.clients.history');
+        Router::get('/{id}/appointments', [ClientAdminController::class, 'appointments'])->name('api.v1.admin.clients.appointments');
         Router::get('/{id}/consents', [ClientAdminController::class, 'consents'])->name('api.v1.admin.clients.consents');
+        Router::get('/{id}/tickets', [ClientAdminController::class, 'tickets'])->name('api.v1.admin.clients.tickets');
         Router::get('/{id}/packages', [ClientAdminController::class, 'packages'])->name('api.v1.admin.clients.packages');
         Router::get('/{id}/invoices', [ClientAdminController::class, 'invoices'])->name('api.v1.admin.clients.invoices');
         Router::post('/{id}/invoices', [ClientAdminController::class, 'createInvoice'])->name('api.v1.admin.clients.invoices.create');
         Router::get('/{id}/invoices/{invoice_id}/pdf', [ClientAdminController::class, 'invoicePdf'])->name('api.v1.admin.clients.invoices.pdf');
+    }, ['admin_session']);
+
+    Router::group('/admin/tickets', function (RouterInstance $router): void {
+        Router::get('/', [ClientAdminController::class, 'ticketsIndex'])->name('api.v1.admin.tickets.index');
+        Router::get('/{ticket_id}', [ClientAdminController::class, 'ticketDetail'])->name('api.v1.admin.tickets.show');
+        Router::patch('/{ticket_id}', [ClientAdminController::class, 'updateTicket'])->name('api.v1.admin.tickets.update');
+        Router::post('/{ticket_id}/protocols', [ClientAdminController::class, 'createTicketProtocol'])->name('api.v1.admin.tickets.protocols.create');
     }, ['admin_session']);
 
     Router::group('/admin/services', function (RouterInstance $router): void {

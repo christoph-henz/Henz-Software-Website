@@ -30,6 +30,11 @@ final class ClientsPageController
         return $this->renderPage($request, $id, 'record');
     }
 
+    public function tickets(Request $request): Response
+    {
+        return $this->renderPage($request, null, 'tickets');
+    }
+
     private function renderPage(Request $request, ?int $pathClientId, string $viewMode): Response
     {
         $session = $request->session();
@@ -69,8 +74,15 @@ final class ClientsPageController
         $config['initial_invoices_open'] = $openInvoices;
         $config['view_mode'] = $viewMode;
 
+        $title = 'Clientverwaltung - Henz Software';
+        if ($viewMode === 'tickets') {
+            $config['default_sort'] = 'created_at';
+            $config['default_direction'] = 'desc';
+            $title = 'Tickets - Henz Software';
+        }
+
         return $this->render('admin-clients-page.php', [
-            'pageTitle' => 'Clientverwaltung - Henz Software',
+            'pageTitle' => $title,
             'adminUser' => $adminUser,
             'logoutAction' => '/logout',
             'csrfToken' => app(CsrfTokenManager::class)->token(),

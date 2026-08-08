@@ -354,6 +354,14 @@ Router::get('/kontakt', function (): Response {
     return new Response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
 })->name('kontakt');
 
+Router::get('/kontakt/erfolg', function (): Response {
+    ob_start();
+    require base_path('public/ui/_templates/contact-success-page.php');
+    $html = (string) ob_get_clean();
+
+    return new Response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
+})->name('kontakt.erfolg');
+
 /**
  * Renders the impressum page.
  *

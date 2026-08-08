@@ -18,6 +18,7 @@ $serviceOptions = is_array($form['services'] ?? null) ? $form['services'] : [];
 $slotPicker = is_array($form['slot_picker'] ?? null) ? $form['slot_picker'] : [];
 $consents = is_array($form['consents'] ?? null) ? $form['consents'] : [];
 $submitLabel = (string) ($form['submit_label'] ?? 'Anfrage absenden');
+$successRedirectUrl = (string) ($form['success_redirect_url'] ?? '/kontakt/erfolg');
 $processSteps = is_array($process['steps'] ?? null) ? $process['steps'] : [];
 
 $slotPickerEndpoint = (string) ($slotPicker['slots_endpoint'] ?? '/v1/availability/slots');
@@ -336,6 +337,7 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
             class="sp-booking-form-wrap rounded-[32px] border border-cyan-400/10 bg-[#060a0f] shadow-2xl shadow-cyan-500/5 overflow-hidden p-8 lg:p-10">
             <form class="gap-6" id="booking-form" action="<?= htmlspecialchars($action, ENT_QUOTES, 'UTF-8'); ?>"
                 method="<?= htmlspecialchars($method, ENT_QUOTES, 'UTF-8'); ?>"
+                data-success-url="<?= htmlspecialchars($successRedirectUrl, ENT_QUOTES, 'UTF-8'); ?>"
                 data-slots-endpoint="<?= htmlspecialchars($slotPickerEndpoint, ENT_QUOTES, 'UTF-8'); ?>"
                 data-slots-timezone="<?= htmlspecialchars($slotPickerTimezone, ENT_QUOTES, 'UTF-8'); ?>"
                 data-slot-step-minutes="<?= htmlspecialchars((string) $slotPickerStepMinutes, ENT_QUOTES, 'UTF-8'); ?>"
@@ -393,11 +395,276 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
             document.addEventListener("DOMContentLoaded", () => {
                 const form = document.querySelector("#booking-form");
                 const validator = new FormValidator(form);
+                const successUrl = form.dataset.successUrl || "/kontakt/erfolg";
+
                 form.addEventListener("submit", async e => {
+                    e.preventDefault();
+
+                    const submitButton = form.querySelector("button[type='submit']");
+                    const originalLabel = submitButton ? submitButton.textContent : "";
+
+                    normalizeNumericLengthFields();
+
                     if (!(await validator.validateForm())) {
-                        e.preventDefault();
+                        return;
+                    }
+
+                    if (submitButton) {
+                        submitButton.disabled = true;
+                        submitButton.textContent = "Wird gesendet ...";
+                    }
+
+                    const payload = buildPayload(form);
+
+                    try {
+                        const response = await fetch(form.action, {
+                            method: (form.method || "POST").toUpperCase(),
+                            headers: {
+                                "Content-Type": "application/json",
+                                "Accept": "application/json"
+                            },
+                            body: JSON.stringify(payload)
+                        });
+
+                        const responseJson = await response.json().catch(() => ({}));
+
+                        if (!response.ok) {
+                            const errors = responseJson && typeof responseJson === "object"
+                                ? responseJson.errors
+                                : null;
+                            applyServerErrors(errors);
+                            alert((responseJson && responseJson.message) || "Die Anfrage konnte nicht gesendet werden.");
+                            if (submitButton) {
+                                submitButton.disabled = false;
+                                submitButton.textContent = originalLabel;
+                            }
+                            return;
+                        }
+
+                        const summary = buildSuccessSummary(form, payload, responseJson && responseJson.data ? responseJson.data : {});
+                        sessionStorage.setItem("contactFormSuccessSummary", JSON.stringify(summary));
+
+                        fetch("/form-state", { method: "DELETE" }).catch(() => {});
+
+                        window.location.href = successUrl;
+                    } catch (_err) {
+                        alert("Verbindungsfehler. Bitte versuchen Sie es erneut.");
+                        if (submitButton) {
+                            submitButton.disabled = false;
+                            submitButton.textContent = originalLabel;
+                        }
                     }
                 });
+
+                function buildPayload(currentForm) {
+                    const payload = {};
+                    const formData = new FormData(currentForm);
+
+                    for (const [key, value] of formData.entries()) {
+                        if (key.startsWith("consent_check_")) {
+                            continue;
+                        }
+
+                        payload[key] = value;
+                    }
+
+                    const consentsPayload = [];
+                    currentForm.querySelectorAll("input[data-consent-key]").forEach(input => {
+                        if (!(input instanceof HTMLInputElement) || !input.checked) {
+                            return;
+                        }
+
+                        const consentKey = String(input.dataset.consentKey || "").trim();
+                        const labelText = String(input.closest("label")?.querySelector("span")?.textContent || "").trim();
+
+                        if (consentKey === "") {
+                            return;
+                        }
+
+                        consentsPayload.push({
+                            consent_key: consentKey,
+                            accepted: true,
+                            consent_text_snapshot: labelText,
+                        });
+                    });
+
+                    payload.consents = consentsPayload;
+                    payload.consent_version = "1.0";
+
+                    return payload;
+                }
+
+                function applyServerErrors(errors) {
+                    if (!errors || typeof errors !== "object") {
+                        return;
+                    }
+
+                    Object.entries(errors).forEach(([fieldName, fieldErrors]) => {
+                        const messages = Array.isArray(fieldErrors)
+                            ? fieldErrors.map(item => mapErrorToMessage(item)).filter(Boolean)
+                            : [];
+
+                        const field = resolveFormField(fieldName);
+                        if (!field || messages.length === 0) {
+                            return;
+                        }
+
+                        validator.renderErrors(field, messages);
+                    });
+                }
+
+                function resolveFormField(fieldName) {
+                    const normalized = String(fieldName || "").trim();
+                    if (normalized === "") {
+                        return null;
+                    }
+
+                    const direct = form.querySelector(`[name="${selectorEscape(normalized)}"]`);
+                    if (direct) {
+                        return direct;
+                    }
+
+                    const underscored = normalized.replace(/\./g, "_");
+                    const fallback = form.querySelector(`[name="${selectorEscape(underscored)}"]`);
+                    return fallback || null;
+                }
+
+                function mapErrorToMessage(code) {
+                    const value = String(code || "").trim();
+                    if (value === "") {
+                        return "Ungültige Eingabe.";
+                    }
+
+                    const map = {
+                        required: "Dieses Feld ist erforderlich.",
+                        email: "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
+                        invalid_option: "Bitte wählen Sie einen gültigen Wert aus.",
+                        invalid_service: "Bitte wählen Sie ein gültiges Angebot aus.",
+                        invalid_datetime: "Bitte geben Sie ein gültiges Datum und eine gültige Uhrzeit an.",
+                        invalid_client_number: "Bitte geben Sie eine gültige Kundennummer an.",
+                    };
+
+                    return map[value] || value;
+                }
+
+                function buildSuccessSummary(currentForm, payload, responseData) {
+                    const items = [];
+                    const ignoredKeys = new Set(["company", "consents", "consent_version"]);
+
+                    Object.entries(payload).forEach(([key, rawValue]) => {
+                        if (ignoredKeys.has(key)) {
+                            return;
+                        }
+
+                        const value = String(rawValue ?? "").trim();
+                        if (value === "") {
+                            return;
+                        }
+
+                        const label = resolveFieldLabel(currentForm, key);
+                        const displayValue = resolveDisplayValue(currentForm, key, String(rawValue ?? ""));
+                        if (String(displayValue).trim() === "") {
+                            return;
+                        }
+
+                        items.push({
+                            key,
+                            label,
+                            value: displayValue,
+                        });
+                    });
+
+                    const consentItems = Array.isArray(payload.consents) ? payload.consents : [];
+                    if (consentItems.length > 0) {
+                        const consentLabels = consentItems
+                            .map(item => String(item && item.consent_text_snapshot ? item.consent_text_snapshot : "").trim())
+                            .filter(Boolean);
+
+                        if (consentLabels.length > 0) {
+                            items.push({
+                                key: "consents",
+                                label: "Bestätigte Einwilligungen",
+                                value: consentLabels.join("\n"),
+                            });
+                        }
+                    }
+
+                    const serviceTypeValue = String(payload.service_type || "").trim();
+                    const serviceTypeLabel = resolveDisplayValue(currentForm, "service_type", serviceTypeValue) || serviceTypeValue;
+                    const reference = resolveReference(responseData);
+
+                    return {
+                        submitted_at: new Date().toISOString(),
+                        service_type: serviceTypeValue,
+                        service_type_label: serviceTypeLabel,
+                        reference,
+                        items,
+                    };
+                }
+
+                function resolveReference(responseData) {
+                    if (!responseData || typeof responseData !== "object") {
+                        return "";
+                    }
+
+                    const requestType = String(responseData.request_type || "").trim();
+                    const appointmentId = Number(responseData.appointment_id || 0);
+                    const ticketId = Number(responseData.ticket_id || 0);
+
+                    if (requestType === "contact" && appointmentId > 0) {
+                        return `Termin #${appointmentId}`;
+                    }
+
+                    if ((requestType === "ticket" || requestType === "service") && ticketId > 0) {
+                        return `Ticket #${ticketId}`;
+                    }
+
+                    return "";
+                }
+
+                function resolveFieldLabel(currentForm, fieldName) {
+                    const field = currentForm.querySelector(`[name="${selectorEscape(fieldName)}"]`);
+                    if (!field) {
+                        return fieldName;
+                    }
+
+                    const inputId = field.getAttribute("id");
+                    if (!inputId) {
+                        return fieldName;
+                    }
+
+                    const label = currentForm.querySelector(`label[for="${selectorEscape(inputId)}"]`);
+                    if (!label) {
+                        return fieldName;
+                    }
+
+                    return String(label.textContent || fieldName).replace(/\*/g, "").trim();
+                }
+
+                function resolveDisplayValue(currentForm, fieldName, rawValue) {
+                    const field = currentForm.querySelector(`[name="${selectorEscape(fieldName)}"]`);
+                    if (field && field.tagName === "SELECT") {
+                        const select = /** @type {HTMLSelectElement} */ (field);
+                        const option = select.selectedOptions && select.selectedOptions[0]
+                            ? select.selectedOptions[0]
+                            : null;
+
+                        if (option && String(option.value).trim() !== "") {
+                            return String(option.textContent || rawValue).trim();
+                        }
+                    }
+
+                    return String(rawValue || "");
+                }
+
+                function selectorEscape(value) {
+                    const text = String(value || "");
+                    if (window.CSS && typeof window.CSS.escape === "function") {
+                        return window.CSS.escape(text);
+                    }
+
+                    return text.replace(/([\"\\])/g, "\\$1");
+                }
 
                 /**
                  * Speichert ein Feld in der Session.
@@ -427,6 +694,80 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
 
                     }
 
+                }
+
+                /**
+                 * Füllt numerische Felder mit führenden Nullen auf,
+                 * wenn eine Längenregel (length/minLength/maxLength) vorhanden ist.
+                 */
+                function padNumericValueByRule(input) {
+                    if (!(input instanceof HTMLInputElement)) {
+                        return;
+                    }
+
+                    if (input.disabled || input.closest(".hidden")) {
+                        return;
+                    }
+
+                    const raw = String(input.value || "").trim();
+                    if (raw === "" || !/^\d+$/.test(raw)) {
+                        return;
+                    }
+
+                    const rules = parseValidators(input.dataset.validators);
+                    const targetLength = resolveNumericTargetLength(rules);
+
+                    if (targetLength <= 0 || raw.length >= targetLength) {
+                        return;
+                    }
+
+                    input.value = raw.padStart(targetLength, "0");
+                }
+
+                function normalizeNumericLengthFields() {
+                    form.querySelectorAll("input").forEach(input => {
+                        padNumericValueByRule(input);
+                    });
+                }
+
+                function parseValidators(rawValidators) {
+                    try {
+                        const parsed = JSON.parse(rawValidators || "[]");
+                        return Array.isArray(parsed) ? parsed : [];
+                    } catch (_err) {
+                        return [];
+                    }
+                }
+
+                function resolveNumericTargetLength(rules) {
+                    if (!Array.isArray(rules)) {
+                        return 0;
+                    }
+
+                    let target = 0;
+
+                    for (const rule of rules) {
+                        if (!rule || typeof rule !== "object") {
+                            continue;
+                        }
+
+                        const name = String(rule.rule || "").toLowerCase();
+                        const value = Number(rule.value || 0);
+
+                        if (!Number.isFinite(value) || value <= 0) {
+                            continue;
+                        }
+
+                        if (name === "length") {
+                            return Math.trunc(value);
+                        }
+
+                        if ((name === "minlength" || name === "maxlength") && Math.trunc(value) > target) {
+                            target = Math.trunc(value);
+                        }
+                    }
+
+                    return target;
                 }
 
                 /**
@@ -568,6 +909,8 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
                 document.querySelectorAll("input, textarea").forEach(input => {
 
                     input.addEventListener("blur", async () => {
+
+                        padNumericValueByRule(input);
 
                         await validator.validateField(input);
 

@@ -103,72 +103,42 @@ try {
 
     $serviceRows = db('services')
         ->where('is_active', true)
-        ->select(['id', 'name', 'cta_url'])
+        ->select(['id', 'name', 'slug', 'sort_order'])
         ->get();
 
-    $serviceSlugById = [];
-
-    if ($serviceRows !== []) {
+    if (is_array($serviceRows) && $serviceRows !== []) {
         usort(
             $serviceRows,
-            static fn(array $a, array $b): int => (int) ($a['display_order'] ?? 0) <=> (int) ($b['display_order'] ?? 0)
+            static fn(array $a, array $b): int => (int) ($a['sort_order'] ?? 0) <=> (int) ($b['sort_order'] ?? 0)
         );
 
         $services = [];
 
         foreach ($serviceRows as $row) {
-            $slugRaw = (string) ($row['slug'] ?? '');
-            $slug = $toAsciiSlug($slugRaw !== '' ? $slugRaw : (string) ($row['name'] ?? ''));
-            if ($slug === '') {
+            if (!is_array($row)) {
                 continue;
             }
 
-            $name = (string) ($row['name'] ?? '');
+            $slug = trim((string) ($row['slug'] ?? ''));
+            $name = trim((string) ($row['name'] ?? ''));
+            $serviceId = (int) ($row['id'] ?? 0);
 
-            $label = $name;
+            if ($name === '') {
+                continue;
+            }
+
+            $value = $slug !== ''
+                ? $slug
+                : ($serviceId > 0 ? (string) $serviceId : '');
+
+            if ($value === '') {
+                continue;
+            }
 
             $services[] = [
-                'value' => $slug,
-                'label' => $label,
+                'value' => $value,
+                'label' => $name,
             ];
-
-            $serviceId = (int) ($row['id'] ?? 0);
-            if ($serviceId > 0) {
-                $serviceSlugById[$serviceId] = $slug;
-            }
-        }
-
-        $serviceRows = db('services')
-            ->where('is_active', true)
-            ->select(['id', 'name', 'slug', 'service_id', 'session_count', 'price', 'display_order'])
-            ->get();
-
-        if ($serviceRows !== []) {
-            usort(
-                $serviceRows,
-                static fn(array $a, array $b): int => (int) ($a['display_order'] ?? 0) <=> (int) ($b['display_order'] ?? 0)
-            );
-
-            foreach ($serviceRows as $row) {
-                $serviceSlugRaw = (string) ($row['slug'] ?? '');
-                $serviceSlug = $toAsciiSlug($serviceSlugRaw !== '' ? $serviceSlugRaw : (string) ($row['name'] ?? ''));
-                if ($serviceSlug === '') {
-                    continue;
-                }
-
-                $serviceId = (int) ($row['service_id'] ?? 0);
-                $serviceSlug = (string) ($serviceSlugById[$serviceId] ?? '');
-                if ($serviceSlug === '') {
-                    continue;
-                }
-
-                $services[$serviceSlug] = [
-                    'id' => (int) ($row['id'] ?? 0),
-                    'slug' => ltrim(strstr($service_slug, '#'), '#'),
-                    'name' => (string) ($row['name'] ?? ''),
-                    'service_id' => $serviceId,
-                ];
-            }
         }
     }
 } catch (Exception) {
@@ -317,6 +287,7 @@ return [
 
         'action' => $requestAction,
         'method' => 'post',
+        'success_redirect_url' => '/kontakt/erfolg',
 
         'fields' => [
 

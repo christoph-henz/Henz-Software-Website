@@ -62,6 +62,14 @@ return [
                 'match_patterns' => [],
             ],
             [
+                'label' => 'Tickets',
+                'href' => '/tickets',
+                'exact' => false,
+                'icon' => 'warning',
+                'permission_bit' => Role::resolve("view_appointments"), // view_tickets (8) | manage_tickets (16)
+                'match_patterns' => [],
+            ],
+            [
                 'label' => 'Projekte',
                 'href' => '/projects',
                 'exact' => false,

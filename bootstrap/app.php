@@ -83,12 +83,13 @@ $kernel->setGlobal([
 
 $kernel->alias('auth', App\Middleware\AuthMiddleware::class);
 $kernel->alias('throttle', App\Middleware\RateLimitMiddleware::class);
+$kernel->alias('admin_session', App\Middleware\AdminApiMiddleware::class);
 
 RouterFacade::setRouter($router);
 
 require base_path('routes/web.php');
 require base_path('routes/admin.php');
-// API läuft auf eigener Subdomain mit eigenem Bootstrap (bootstrap/api.php).
+require base_path('routes/api.php');
 
 $errorHandler = new ErrorHandler((bool) config('app.debug', false), $container->get(Logger::class));
 $errorHandler->register();

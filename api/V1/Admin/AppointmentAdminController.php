@@ -653,6 +653,21 @@ final class AppointmentAdminController extends BaseApiController
             }
         }
 
+        if (($updates['status'] ?? null) === 'accepted') {
+            $currentClientId = isset($updates['client_id'])
+                ? (int) $updates['client_id']
+                : (int) ($appointment['client_id'] ?? 0);
+
+            if ($currentClientId <= 0 && $this->isContactFormAppointment($appointment)) {
+                $clientCreation = $this->resolveClientIdForAcceptedContactAppointment($appointment);
+                if ($clientCreation['error'] !== null) {
+                    $errors = array_merge($errors, $clientCreation['error']);
+                } elseif ((int) ($clientCreation['client_id'] ?? 0) > 0) {
+                    $updates['client_id'] = (int) $clientCreation['client_id'];
+                }
+            }
+        }
+
         if ($errors !== []) {
             return $this->fail('Validation failed', 422, $errors);
         }
@@ -829,7 +844,7 @@ final class AppointmentAdminController extends BaseApiController
     private function baseAppointmentsQuery(): \App\Core\Database\QueryBuilder
     {
         $query = db('appointments b')
-            ->join('clients c', 'c.id', '=', 'b.client_id')
+            ->join('clients c', 'c.id', '=', 'b.client_id', 'LEFT')
             ->join('services s', 's.id', '=', 'b.service_id');
 
         $select = [
@@ -850,6 +865,9 @@ final class AppointmentAdminController extends BaseApiController
         $optionalAppointmentColumns = [
             'status',
             'payment_status',
+            'prospect_name',
+            'prospect_email',
+            'origin',
             'notes',
             'cancellation_reason',
             'cancellation_timing',
@@ -924,7 +942,7 @@ final class AppointmentAdminController extends BaseApiController
         $pdo = $database->connection();
 
         $sql = 'SELECT COUNT(*) AS aggregate FROM appointments b'
-            . ' INNER JOIN clients c ON c.id = b.client_id'
+            . ' LEFT JOIN clients c ON c.id = b.client_id'
             . ' INNER JOIN services s ON s.id = b.service_id';
         $sql .= $this->buildAppointmentWhereSql($statusFilter, $searchTerm);
 
@@ -946,6 +964,9 @@ final class AppointmentAdminController extends BaseApiController
         $optionalAppointmentColumns = [
             'status',
             'payment_status',
+            'prospect_name',
+            'prospect_email',
+            'origin',
             'notes',
             'cancellation_reason',
             'cancellation_timing',
@@ -985,7 +1006,7 @@ final class AppointmentAdminController extends BaseApiController
         $sql .= 'c.name, c.email, c.phone, '
             . 's.name AS service_name, s.slug AS service_slug, s.price_min AS service_price, b.duration_minutes AS appointment_duration_minutes '
             . 'FROM appointments b '
-            . 'INNER JOIN clients c ON c.id = b.client_id '
+            . 'LEFT JOIN clients c ON c.id = b.client_id '
             . 'INNER JOIN services s ON s.id = b.service_id ';
 
         if ($this->isInvoiceTableAvailable() && $this->isInvoiceAppointmentLinkAvailable()) {
@@ -1169,6 +1190,14 @@ final class AppointmentAdminController extends BaseApiController
         $row = app(ClientFieldEncryptionService::class)->decryptClientRow($row);
 
         $clientName = trim((string) ($row['name'] ?? ''));
+        $prospectName = trim((string) ($row['prospect_name'] ?? ''));
+        $displayName = $clientName !== '' ? $clientName : $prospectName;
+
+        $clientEmail = trim((string) ($row['email'] ?? ''));
+        $prospectEmail = trim((string) ($row['prospect_email'] ?? ''));
+        $displayEmail = $clientEmail !== '' ? $clientEmail : $prospectEmail;
+
+        $clientPhone = trim((string) ($row['phone'] ?? ''));
         $invoice = null;
 
         if (isset($row['invoice_id']) && (int) ($row['invoice_id'] ?? 0) > 0) {
@@ -1193,7 +1222,7 @@ final class AppointmentAdminController extends BaseApiController
             'duration_minutes' => isset($row['duration_minutes']) ? (int) $row['duration_minutes'] : 0,
             'status' => (string) ($row['status'] ?? 'pending'),
             'payment_status' => (string) ($row['payment_status'] ?? 'pending'),
-            'notes' => $row['notes'] ?? null,
+            'notes' => $this->formatReadableNotes($row['notes'] ?? null),
             'cancellation_reason' => $row['cancellation_reason'] ?? null,
             'cancellation_timing' => $row['cancellation_timing'] ?? null,
             'cancelled_at' => $row['cancelled_at'] ?? null,
@@ -1219,9 +1248,9 @@ final class AppointmentAdminController extends BaseApiController
             'created_at' => (string) ($row['created_at'] ?? ''),
             'updated_at' => (string) ($row['updated_at'] ?? ''),
             'client' => [
-                'name' => $clientName,
-                'email' => (string) ($row['email'] ?? ''),
-                'phone' => (string) ($row['phone'] ?? ''),
+                'name' => $displayName,
+                'email' => $displayEmail,
+                'phone' => $clientPhone,
             ],
             'service' => [
                 'name' => (string) ($row['service_name'] ?? ''),
@@ -1230,6 +1259,65 @@ final class AppointmentAdminController extends BaseApiController
                 'duration_minutes' => isset($row['appointment_duration_minutes']) ? (int) $row['appointment_duration_minutes'] : 0,
             ],
         ];
+    }
+
+    private function formatReadableNotes(mixed $rawNotes): ?string
+    {
+        if ($rawNotes === null) {
+            return null;
+        }
+
+        $notes = trim((string) $rawNotes);
+        if ($notes === '') {
+            return null;
+        }
+
+        $decoded = json_decode($notes, true);
+        if (!is_array($decoded)) {
+            return $notes;
+        }
+
+        $preferredMessage = $this->findPreferredMessage($decoded);
+        if ($preferredMessage !== null) {
+            return $preferredMessage;
+        }
+
+        return 'Kontaktformular-Anfrage';
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function findPreferredMessage(array $payload): ?string
+    {
+        $preferredKeys = ['message', 'update_details', 'steps', 'details', 'note', 'notes'];
+
+        foreach ($preferredKeys as $key) {
+            if (!array_key_exists($key, $payload)) {
+                continue;
+            }
+
+            $value = $payload[$key];
+            if (is_string($value)) {
+                $value = trim($value);
+                if ($value !== '') {
+                    return $value;
+                }
+            }
+        }
+
+        foreach ($payload as $value) {
+            if (!is_array($value)) {
+                continue;
+            }
+
+            $nestedMessage = $this->findPreferredMessage($value);
+            if ($nestedMessage !== null) {
+                return $nestedMessage;
+            }
+        }
+
+        return null;
     }
 
     private function resolveOpenPaymentAmount(array $row): float
@@ -1539,6 +1627,147 @@ final class AppointmentAdminController extends BaseApiController
             'client_id' => $clientId,
             'error' => null,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $appointment
+     * @return array{client_id:int|null,error:array<string,array<int,string>>|null}
+     */
+    private function resolveClientIdForAcceptedContactAppointment(array $appointment): array
+    {
+        $name = trim((string) ($appointment['prospect_name'] ?? ''));
+        $email = strtolower(trim((string) ($appointment['prospect_email'] ?? '')));
+        $phone = null;
+
+        $notesPayload = $this->decodeNotesPayload($appointment['notes'] ?? null);
+        if ($email === '') {
+            $email = strtolower(trim((string) ($notesPayload['prospect']['email'] ?? '')));
+        }
+
+        if ($name === '') {
+            $name = trim((string) ($notesPayload['prospect']['name'] ?? ''));
+            if ($name === '') {
+                $firstName = trim((string) ($notesPayload['prospect']['first_name'] ?? ''));
+                $lastName = trim((string) ($notesPayload['prospect']['last_name'] ?? ''));
+                $name = trim($firstName . ' ' . $lastName);
+            }
+        }
+
+        $phoneCandidate = trim((string) ($notesPayload['prospect']['phone'] ?? ''));
+        if ($phoneCandidate !== '') {
+            $phone = $phoneCandidate;
+        }
+
+        $errors = [];
+        if ($name === '') {
+            $errors['client'] = ['missing_prospect_name'];
+        }
+        if ($email === '') {
+            $errors['client'] = ['missing_prospect_email'];
+        } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $errors['client'] = ['invalid_prospect_email'];
+        }
+
+        if ($errors !== []) {
+            return [
+                'client_id' => null,
+                'error' => $errors,
+            ];
+        }
+
+        $clientCrypto = app(ClientFieldEncryptionService::class);
+        $existingClientId = $this->findClientIdByEmail($email, $clientCrypto);
+        if ($existingClientId !== null) {
+            return [
+                'client_id' => $existingClientId,
+                'error' => null,
+            ];
+        }
+
+        $clientInsert = [
+            'name' => $name,
+            'email' => $email,
+            'phone' => $phone,
+            'address' => null,
+        ];
+        if ($this->isClientTimezoneColumnAvailable()) {
+            $clientInsert['timezone'] = self::BERLIN_TIMEZONE;
+        }
+
+        $clientInsert = $clientCrypto->encryptClientData($clientInsert);
+        $clientId = (int) db('clients')->insert($clientInsert);
+
+        return [
+            'client_id' => $clientId > 0 ? $clientId : null,
+            'error' => $clientId > 0 ? null : ['client' => ['create_failed']],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $appointment
+     */
+    private function isContactFormAppointment(array $appointment): bool
+    {
+        $origin = strtolower(trim((string) ($appointment['origin'] ?? '')));
+        if ($origin === 'contact_form') {
+            return true;
+        }
+
+        $notesPayload = $this->decodeNotesPayload($appointment['notes'] ?? null);
+        return strtolower(trim((string) ($notesPayload['service_type'] ?? ''))) === 'contact';
+    }
+
+    private function findClientIdByEmail(string $email, ClientFieldEncryptionService $clientCrypto): ?int
+    {
+        $normalizedEmail = strtolower(trim($email));
+        if ($normalizedEmail === '') {
+            return null;
+        }
+
+        if ($clientCrypto->isEmailBlindIndexColumnAvailable()) {
+            $blindIndex = $clientCrypto->emailBlindIndex($normalizedEmail);
+            if ($blindIndex !== null) {
+                $row = db('clients')
+                    ->where('email_blind_index', $blindIndex)
+                    ->select(['id'])
+                    ->first();
+
+                if (is_array($row) && (int) ($row['id'] ?? 0) > 0) {
+                    return (int) $row['id'];
+                }
+            }
+        }
+
+        $rows = db('clients')
+            ->select(['id', 'email'])
+            ->get();
+
+        foreach ($clientCrypto->decryptClientRows(is_array($rows) ? $rows : []) as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $rowEmail = strtolower(trim((string) ($row['email'] ?? '')));
+            if ($rowEmail === $normalizedEmail) {
+                $id = (int) ($row['id'] ?? 0);
+                return $id > 0 ? $id : null;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function decodeNotesPayload(mixed $rawNotes): array
+    {
+        if (!is_string($rawNotes) || trim($rawNotes) === '') {
+            return [];
+        }
+
+        $decoded = json_decode($rawNotes, true);
+        return is_array($decoded) ? $decoded : [];
     }
 
     /**

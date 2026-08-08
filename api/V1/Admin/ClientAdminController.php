@@ -26,6 +26,8 @@ final class ClientAdminController extends BaseApiController
     private ?bool $emailLogSenderColumnAvailable = null;
     private ?bool $emailLogSenderEncryptedColumnAvailable = null;
     private ?bool $invoiceTableAvailable = null;
+    private ?bool $ticketsTableAvailable = null;
+    private ?bool $ticketProtocolsTableAvailable = null;
     /** @var array<string, true>|null */
     private ?array $invoiceColumnSet = null;
 
@@ -298,23 +300,35 @@ final class ClientAdminController extends BaseApiController
         $fields = [];
         $bindings = [':id' => $id];
 
-        if (array_key_exists('first_name', $payload) || array_key_exists('firstname', $payload)) {
-            $firstName = trim((string) ($payload['first_name'] ?? $payload['firstname'] ?? ''));
-            if ($firstName === '') {
-                $errors['first_name'][] = 'required';
+        if (array_key_exists('name', $payload)) {
+            $name = trim((string) ($payload['name'] ?? ''));
+            if ($name === '') {
+                $errors['name'][] = 'required';
             } else {
-                $fields[] = 'first_name = :first_name';
-                $bindings[':first_name'] = $firstName;
+                $fields[] = 'name = :name';
+                $bindings[':name'] = $name;
             }
         }
 
-        if (array_key_exists('last_name', $payload) || array_key_exists('lastname', $payload)) {
+        // Backward compatibility for old payloads still sending first/last name.
+        if (
+            !array_key_exists('name', $payload)
+            && (
+                array_key_exists('first_name', $payload)
+                || array_key_exists('firstname', $payload)
+                || array_key_exists('last_name', $payload)
+                || array_key_exists('lastname', $payload)
+            )
+        ) {
+            $firstName = trim((string) ($payload['first_name'] ?? $payload['firstname'] ?? ''));
             $lastName = trim((string) ($payload['last_name'] ?? $payload['lastname'] ?? ''));
-            if ($lastName === '') {
-                $errors['last_name'][] = 'required';
+            $composedName = trim($firstName . ' ' . $lastName);
+
+            if ($composedName === '') {
+                $errors['name'][] = 'required';
             } else {
-                $fields[] = 'last_name = :last_name';
-                $bindings[':last_name'] = $lastName;
+                $fields[] = 'name = :name';
+                $bindings[':name'] = $composedName;
             }
         }
 
@@ -351,10 +365,11 @@ final class ClientAdminController extends BaseApiController
             $bindings[':phone'] = $phone !== '' ? $phone : null;
         }
 
-        if (array_key_exists('notes', $payload)) {
-            $notes = trim((string) ($payload['notes'] ?? ''));
-            $fields[] = 'medical_notes = :medical_notes';
-            $bindings[':medical_notes'] = $notes !== '' ? $notes : null;
+        if (array_key_exists('address', $payload)) {
+            $addressRaw = (string) ($payload['address'] ?? '');
+            $addressNormalized = str_replace(["\r\n", "\r"], "\n", $addressRaw);
+            $fields[] = 'address = :address';
+            $bindings[':address'] = trim($addressNormalized) !== '' ? $addressNormalized : null;
         }
 
         if ($errors !== []) {
@@ -715,6 +730,530 @@ final class ClientAdminController extends BaseApiController
         return $this->ok([
             'history' => $history,
         ]);
+    }
+
+    public function appointments(Request $request): Response
+    {
+        if (!$this->canViewClients($request)) {
+            return $this->fail('Forbidden', 403, [
+                'permission' => ['insufficient_role'],
+            ]);
+        }
+
+        $id = (int) $request->attribute('id', 0);
+        if ($id <= 0) {
+            return $this->fail('Validation failed', 422, [
+                'id' => ['required'],
+            ]);
+        }
+
+        $client = $this->fetchClient($id);
+        if ($client === null) {
+            return $this->fail('Client not found', 404);
+        }
+
+        $pdo = app(Database::class)->connection();
+        $stmt = $pdo->prepare(
+            'SELECT
+                a.id,
+                a.appointment_date,
+                a.duration_minutes,
+                a.status,
+                a.notes,
+                a.origin,
+                a.created_at,
+                a.updated_at,
+                s.name AS service_name
+             FROM appointments a
+             LEFT JOIN services s ON s.id = a.service_id
+             WHERE a.client_id = :client_id
+             ORDER BY a.appointment_date DESC, a.id DESC'
+        );
+        $stmt->execute([':client_id' => $id]);
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $appointments = array_map(static function (array $row): array {
+            $appointmentId = (int) ($row['id'] ?? 0);
+
+            return [
+                'id' => $appointmentId,
+                'service_name' => trim((string) ($row['service_name'] ?? '')),
+                'appointment_date' => (string) ($row['appointment_date'] ?? ''),
+                'duration_minutes' => (int) ($row['duration_minutes'] ?? 0),
+                'status' => (string) ($row['status'] ?? 'pending'),
+                'notes' => (string) ($row['notes'] ?? ''),
+                'origin' => (string) ($row['origin'] ?? ''),
+                'created_at' => (string) ($row['created_at'] ?? ''),
+                'updated_at' => (string) ($row['updated_at'] ?? ''),
+                'appointment_url' => $appointmentId > 0 ? '/appointments/' . $appointmentId : null,
+            ];
+        }, is_array($rows) ? $rows : []);
+
+        return $this->ok([
+            'appointments' => $appointments,
+        ]);
+    }
+
+    public function ticketsIndex(Request $request): Response
+    {
+        if (!$this->canViewClients($request)) {
+            return $this->fail('Forbidden', 403, [
+                'permission' => ['insufficient_role'],
+            ]);
+        }
+
+        $page = max(1, (int) $request->query('page', 1));
+        $perPage = min(100, max(1, (int) $request->query('per_page', 20)));
+        $offset = ($page - 1) * $perPage;
+
+        $sort = strtolower(trim((string) $request->query('sort', 'created_at')));
+        $direction = strtolower(trim((string) $request->query('direction', 'desc')));
+        $direction = in_array($direction, ['asc', 'desc'], true) ? $direction : 'desc';
+
+        $sortMap = [
+            'id',
+            'ticket_type',
+            'category',
+            'priority',
+            'status',
+            'subject',
+            'created_at',
+            'updated_at',
+            'client_name',
+        ];
+        if (!in_array($sort, $sortMap, true)) {
+            $sort = 'created_at';
+        }
+
+        $search = strtolower(trim((string) $request->query('q', '')));
+
+        if (!$this->isTicketsTableAvailable()) {
+            return $this->ok([
+                'tickets' => [],
+                'meta' => [
+                    'page' => $page,
+                    'per_page' => $perPage,
+                    'total' => 0,
+                    'total_pages' => 1,
+                    'sort' => $sort,
+                    'direction' => $direction,
+                    'q' => trim((string) $request->query('q', '')),
+                ],
+            ]);
+        }
+
+        $ticketRows = db('tickets')
+            ->select([
+                'id',
+                'client_id',
+                'ticket_type',
+                'category',
+                'priority',
+                'subject',
+                'message',
+                'source',
+                'status',
+                'assigned_user_id',
+                'created_at',
+                'updated_at',
+            ])
+            ->orderBy('created_at', 'desc')
+            ->orderBy('id', 'desc')
+            ->get();
+
+        $pdo = app(Database::class)->connection();
+        $clientStmt = $pdo->query('SELECT id, name, email FROM clients');
+        $clientRows = $clientStmt !== false ? $clientStmt->fetchAll(\PDO::FETCH_ASSOC) : [];
+        $clientRows = app(ClientFieldEncryptionService::class)->decryptClientRows(is_array($clientRows) ? $clientRows : []);
+
+        $clientMap = [];
+        foreach ($clientRows as $clientRow) {
+            if (!is_array($clientRow)) {
+                continue;
+            }
+
+            $clientId = (int) ($clientRow['id'] ?? 0);
+            if ($clientId <= 0) {
+                continue;
+            }
+
+            $clientMap[$clientId] = [
+                'name' => trim((string) ($clientRow['name'] ?? '')),
+                'email' => trim((string) ($clientRow['email'] ?? '')),
+            ];
+        }
+
+        $rows = [];
+        foreach ((array) $ticketRows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $clientId = (int) ($row['client_id'] ?? 0);
+            $client = $clientMap[$clientId] ?? ['name' => '', 'email' => ''];
+
+            $item = [
+                'id' => (int) ($row['id'] ?? 0),
+                'client_id' => $clientId > 0 ? $clientId : null,
+                'client_name' => (string) ($client['name'] ?? ''),
+                'client_email' => (string) ($client['email'] ?? ''),
+                'ticket_type' => (string) ($row['ticket_type'] ?? ''),
+                'category' => (string) ($row['category'] ?? ''),
+                'priority' => $row['priority'] !== null ? (string) $row['priority'] : null,
+                'subject' => (string) ($row['subject'] ?? ''),
+                'message' => (string) ($row['message'] ?? ''),
+                'source' => (string) ($row['source'] ?? ''),
+                'status' => (string) ($row['status'] ?? ''),
+                'assigned_user_id' => $row['assigned_user_id'] !== null ? (int) $row['assigned_user_id'] : null,
+                'created_at' => (string) ($row['created_at'] ?? ''),
+                'updated_at' => (string) ($row['updated_at'] ?? ''),
+            ];
+
+            if ($search !== '') {
+                $haystack = strtolower(trim(implode(' ', [
+                    (string) ($item['client_name'] ?? ''),
+                    (string) ($item['client_email'] ?? ''),
+                    (string) ($item['ticket_type'] ?? ''),
+                    (string) ($item['category'] ?? ''),
+                    (string) ($item['priority'] ?? ''),
+                    (string) ($item['status'] ?? ''),
+                    (string) ($item['subject'] ?? ''),
+                    (string) ($item['message'] ?? ''),
+                ])));
+                if (!str_contains($haystack, $search)) {
+                    continue;
+                }
+            }
+
+            $rows[] = $item;
+        }
+
+        usort($rows, static function (array $a, array $b) use ($sort, $direction): int {
+            $aValue = strtolower(trim((string) ($a[$sort] ?? '')));
+            $bValue = strtolower(trim((string) ($b[$sort] ?? '')));
+            $cmp = $aValue <=> $bValue;
+            if ($cmp === 0) {
+                $cmp = ((int) ($a['id'] ?? 0)) <=> ((int) ($b['id'] ?? 0));
+            }
+
+            return $direction === 'asc' ? $cmp : -$cmp;
+        });
+
+        $total = count($rows);
+        $rows = array_slice($rows, $offset, $perPage);
+
+        return $this->ok([
+            'tickets' => $rows,
+            'meta' => [
+                'page' => $page,
+                'per_page' => $perPage,
+                'total' => $total,
+                'total_pages' => (int) max(1, (int) ceil($total / max(1, $perPage))),
+                'sort' => $sort,
+                'direction' => $direction,
+                'q' => trim((string) $request->query('q', '')),
+            ],
+        ]);
+    }
+
+    public function tickets(Request $request): Response
+    {
+        if (!$this->canViewClients($request)) {
+            return $this->fail('Forbidden', 403, [
+                'permission' => ['insufficient_role'],
+            ]);
+        }
+
+        $id = (int) $request->attribute('id', 0);
+        if ($id <= 0) {
+            return $this->fail('Validation failed', 422, [
+                'id' => ['required'],
+            ]);
+        }
+
+        $client = $this->fetchClient($id);
+        if ($client === null) {
+            return $this->fail('Client not found', 404);
+        }
+
+        if (!$this->isTicketsTableAvailable()) {
+            return $this->ok([
+                'tickets' => [],
+            ]);
+        }
+
+        $rows = db('tickets')
+            ->where('client_id', $id)
+            ->select([
+                'id',
+                'ticket_type',
+                'category',
+                'priority',
+                'subject',
+                'message',
+                'source',
+                'status',
+                'assigned_user_id',
+                'created_at',
+                'updated_at',
+            ])
+            ->orderBy('created_at', 'desc')
+            ->orderBy('id', 'desc')
+            ->get();
+
+        $tickets = array_map(
+            static fn(array $row): array => [
+                'id' => (int) ($row['id'] ?? 0),
+                'ticket_type' => (string) ($row['ticket_type'] ?? ''),
+                'category' => (string) ($row['category'] ?? ''),
+                'priority' => $row['priority'] !== null ? (string) $row['priority'] : null,
+                'subject' => (string) ($row['subject'] ?? ''),
+                'message' => (string) ($row['message'] ?? ''),
+                'source' => (string) ($row['source'] ?? ''),
+                'status' => (string) ($row['status'] ?? ''),
+                'assigned_user_id' => $row['assigned_user_id'] !== null ? (int) $row['assigned_user_id'] : null,
+                'created_at' => (string) ($row['created_at'] ?? ''),
+                'updated_at' => (string) ($row['updated_at'] ?? ''),
+            ],
+            is_array($rows) ? $rows : []
+        );
+
+        return $this->ok([
+            'tickets' => $tickets,
+        ]);
+    }
+
+    public function ticketDetail(Request $request): Response
+    {
+        if (!$this->canViewClients($request)) {
+            return $this->fail('Forbidden', 403, [
+                'permission' => ['insufficient_role'],
+            ]);
+        }
+
+        $ticketId = (int) $request->attribute('ticket_id', 0);
+        if ($ticketId <= 0) {
+            return $this->fail('Validation failed', 422, [
+                'ticket_id' => ['required'],
+            ]);
+        }
+
+        if (!$this->isTicketsTableAvailable()) {
+            return $this->fail('Ticket not found', 404);
+        }
+
+        $row = db('tickets')
+            ->where('id', $ticketId)
+            ->select([
+                'id',
+                'client_id',
+                'ticket_type',
+                'category',
+                'priority',
+                'subject',
+                'message',
+                'source',
+                'status',
+                'assigned_user_id',
+                'created_at',
+                'updated_at',
+            ])
+            ->first();
+
+        if (!is_array($row)) {
+            return $this->fail('Ticket not found', 404);
+        }
+
+        $clientId = (int) ($row['client_id'] ?? 0);
+        $client = $clientId > 0 ? $this->fetchClient($clientId) : null;
+
+        return $this->ok([
+            'ticket' => $this->formatTicketRow($row, $client),
+            'protocols' => $this->fetchTicketProtocols($ticketId),
+            'status_options' => $this->ticketStatusOptions(),
+            'priority_options' => $this->ticketPriorityOptions(),
+        ]);
+    }
+
+    public function updateTicket(Request $request): Response
+    {
+        if (!$this->canManageClients($request)) {
+            return $this->fail('Forbidden', 403, [
+                'permission' => ['insufficient_role'],
+            ]);
+        }
+
+        $ticketId = (int) $request->attribute('ticket_id', 0);
+        if ($ticketId <= 0) {
+            return $this->fail('Validation failed', 422, [
+                'ticket_id' => ['required'],
+            ]);
+        }
+
+        if (!$this->isTicketsTableAvailable()) {
+            return $this->fail('Ticket not found', 404);
+        }
+
+        $row = db('tickets')->where('id', $ticketId)->first();
+        if (!is_array($row)) {
+            return $this->fail('Ticket not found', 404);
+        }
+
+        $payload = $request->all();
+        $statusProvided = array_key_exists('status', $payload);
+        $priorityProvided = array_key_exists('priority', $payload);
+        $protocolNote = trim((string) ($payload['protocol_note'] ?? ''));
+
+        $updates = [];
+        $errors = [];
+        $oldStatus = (string) ($row['status'] ?? 'new');
+        $oldPriority = $row['priority'] !== null ? (string) $row['priority'] : null;
+        $newStatus = $oldStatus;
+        $newPriority = $oldPriority;
+
+        if ($statusProvided) {
+            $newStatus = strtolower(trim((string) ($payload['status'] ?? '')));
+            if (!in_array($newStatus, $this->ticketStatusOptions(), true)) {
+                $errors['status'][] = 'invalid_status';
+            } elseif ($newStatus !== $oldStatus) {
+                $updates['status'] = $newStatus;
+            }
+        }
+
+        if ($priorityProvided) {
+            $rawPriority = strtolower(trim((string) ($payload['priority'] ?? '')));
+            if ($rawPriority === '') {
+                $newPriority = null;
+            } elseif (!in_array($rawPriority, $this->ticketPriorityOptions(), true)) {
+                $errors['priority'][] = 'invalid_priority';
+            } else {
+                $newPriority = $rawPriority;
+            }
+
+            if ($newPriority !== $oldPriority) {
+                $updates['priority'] = $newPriority;
+            }
+        }
+
+        if ($errors !== []) {
+            return $this->fail('Validation failed', 422, $errors);
+        }
+
+        if ($updates === [] && $protocolNote === '') {
+            return $this->fail('Validation failed', 422, [
+                'ticket' => ['nothing_to_update'],
+            ]);
+        }
+
+        if ($updates !== []) {
+            db('tickets')
+                ->where('id', $ticketId)
+                ->update($updates);
+        }
+
+        $actorId = $this->actorId($request);
+
+        if ($protocolNote !== '') {
+            $this->createTicketProtocolEntry(
+                $ticketId,
+                'note',
+                $protocolNote,
+                null,
+                null,
+                null,
+                null,
+                $actorId
+            );
+        }
+
+        if ($oldStatus !== $newStatus) {
+            $this->createTicketProtocolEntry(
+                $ticketId,
+                'status_change',
+                sprintf('Status geändert: %s -> %s', $oldStatus, $newStatus),
+                $oldStatus,
+                $newStatus,
+                null,
+                null,
+                $actorId
+            );
+        }
+
+        if ($oldPriority !== $newPriority) {
+            $this->createTicketProtocolEntry(
+                $ticketId,
+                'priority_change',
+                sprintf(
+                    'Priorität geändert: %s -> %s',
+                    $oldPriority ?? '-',
+                    $newPriority ?? '-'
+                ),
+                null,
+                null,
+                $oldPriority,
+                $newPriority,
+                $actorId
+            );
+        }
+
+        $updated = db('tickets')->where('id', $ticketId)->first();
+        $clientId = (int) (($updated['client_id'] ?? $row['client_id'] ?? 0));
+        $client = $clientId > 0 ? $this->fetchClient($clientId) : null;
+
+        return $this->ok([
+            'ticket' => is_array($updated)
+                ? $this->formatTicketRow($updated, $client)
+                : $this->formatTicketRow($row, $client),
+            'protocols' => $this->fetchTicketProtocols($ticketId),
+        ]);
+    }
+
+    public function createTicketProtocol(Request $request): Response
+    {
+        if (!$this->canManageClients($request)) {
+            return $this->fail('Forbidden', 403, [
+                'permission' => ['insufficient_role'],
+            ]);
+        }
+
+        $ticketId = (int) $request->attribute('ticket_id', 0);
+        if ($ticketId <= 0) {
+            return $this->fail('Validation failed', 422, [
+                'ticket_id' => ['required'],
+            ]);
+        }
+
+        if (!$this->isTicketsTableAvailable()) {
+            return $this->fail('Ticket not found', 404);
+        }
+
+        $ticket = db('tickets')->where('id', $ticketId)->select(['id'])->first();
+        if (!is_array($ticket)) {
+            return $this->fail('Ticket not found', 404);
+        }
+
+        $payload = $request->all();
+        $message = trim((string) ($payload['message'] ?? ''));
+        if ($message === '') {
+            return $this->fail('Validation failed', 422, [
+                'message' => ['required'],
+            ]);
+        }
+
+        $this->createTicketProtocolEntry(
+            $ticketId,
+            'note',
+            $message,
+            null,
+            null,
+            null,
+            null,
+            $this->actorId($request)
+        );
+
+        return $this->ok([
+            'protocols' => $this->fetchTicketProtocols($ticketId),
+        ], 201);
     }
 
     public function invoicePdf(Request $request): Response
@@ -1167,6 +1706,153 @@ final class ClientAdminController extends BaseApiController
             $this->invoiceTableAvailable = false;
             return false;
         }
+    }
+
+    private function isTicketsTableAvailable(): bool
+    {
+        if ($this->ticketsTableAvailable !== null) {
+            return $this->ticketsTableAvailable;
+        }
+
+        try {
+            $pdo = app(Database::class)->connection();
+            $statement = $pdo->prepare(
+                'SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = :table_name LIMIT 1'
+            );
+            $statement->execute(['table_name' => 'tickets']);
+            $this->ticketsTableAvailable = $statement->fetchColumn() !== false;
+            return $this->ticketsTableAvailable;
+        } catch (\Throwable) {
+            $this->ticketsTableAvailable = false;
+            return false;
+        }
+    }
+
+    private function isTicketProtocolsTableAvailable(): bool
+    {
+        if ($this->ticketProtocolsTableAvailable !== null) {
+            return $this->ticketProtocolsTableAvailable;
+        }
+
+        try {
+            $pdo = app(Database::class)->connection();
+            $statement = $pdo->prepare(
+                'SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = :table_name LIMIT 1'
+            );
+            $statement->execute(['table_name' => 'ticket_protocols']);
+            $this->ticketProtocolsTableAvailable = $statement->fetchColumn() !== false;
+            return $this->ticketProtocolsTableAvailable;
+        } catch (\Throwable) {
+            $this->ticketProtocolsTableAvailable = false;
+            return false;
+        }
+    }
+
+    /** @return array<int, string> */
+    private function ticketStatusOptions(): array
+    {
+        return ['new', 'open', 'in_progress', 'resolved', 'closed'];
+    }
+
+    /** @return array<int, string> */
+    private function ticketPriorityOptions(): array
+    {
+        return ['low', 'medium', 'high', 'critical'];
+    }
+
+    /**
+     * @param array<string, mixed> $ticketRow
+     * @param array<string, mixed>|null $client
+     * @return array<string, mixed>
+     */
+    private function formatTicketRow(array $ticketRow, ?array $client = null): array
+    {
+        return [
+            'id' => (int) ($ticketRow['id'] ?? 0),
+            'client_id' => isset($ticketRow['client_id']) && $ticketRow['client_id'] !== null
+                ? (int) $ticketRow['client_id']
+                : null,
+            'client_name' => is_array($client) ? (string) ($client['name'] ?? '') : '',
+            'client_email' => is_array($client) ? (string) ($client['email'] ?? '') : '',
+            'ticket_type' => (string) ($ticketRow['ticket_type'] ?? ''),
+            'category' => (string) ($ticketRow['category'] ?? ''),
+            'priority' => $ticketRow['priority'] !== null ? (string) $ticketRow['priority'] : null,
+            'subject' => (string) ($ticketRow['subject'] ?? ''),
+            'message' => (string) ($ticketRow['message'] ?? ''),
+            'source' => (string) ($ticketRow['source'] ?? ''),
+            'status' => (string) ($ticketRow['status'] ?? ''),
+            'assigned_user_id' => $ticketRow['assigned_user_id'] !== null ? (int) $ticketRow['assigned_user_id'] : null,
+            'created_at' => (string) ($ticketRow['created_at'] ?? ''),
+            'updated_at' => (string) ($ticketRow['updated_at'] ?? ''),
+        ];
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function fetchTicketProtocols(int $ticketId): array
+    {
+        if ($ticketId <= 0 || !$this->isTicketProtocolsTableAvailable()) {
+            return [];
+        }
+
+        $rows = db('ticket_protocols')
+            ->where('ticket_id', $ticketId)
+            ->select([
+                'id',
+                'ticket_id',
+                'protocol_type',
+                'message',
+                'old_status',
+                'new_status',
+                'old_priority',
+                'new_priority',
+                'created_by_user_id',
+                'created_at',
+            ])
+            ->orderBy('created_at', 'desc')
+            ->orderBy('id', 'desc')
+            ->get();
+
+        return array_map(
+            static fn(array $row): array => [
+                'id' => (int) ($row['id'] ?? 0),
+                'ticket_id' => (int) ($row['ticket_id'] ?? 0),
+                'protocol_type' => (string) ($row['protocol_type'] ?? 'note'),
+                'message' => (string) ($row['message'] ?? ''),
+                'old_status' => $row['old_status'] !== null ? (string) $row['old_status'] : null,
+                'new_status' => $row['new_status'] !== null ? (string) $row['new_status'] : null,
+                'old_priority' => $row['old_priority'] !== null ? (string) $row['old_priority'] : null,
+                'new_priority' => $row['new_priority'] !== null ? (string) $row['new_priority'] : null,
+                'created_by_user_id' => $row['created_by_user_id'] !== null ? (int) $row['created_by_user_id'] : null,
+                'created_at' => (string) ($row['created_at'] ?? ''),
+            ],
+            is_array($rows) ? $rows : []
+        );
+    }
+
+    private function createTicketProtocolEntry(
+        int $ticketId,
+        string $type,
+        string $message,
+        ?string $oldStatus,
+        ?string $newStatus,
+        ?string $oldPriority,
+        ?string $newPriority,
+        ?int $actorId
+    ): void {
+        if ($ticketId <= 0 || !$this->isTicketProtocolsTableAvailable()) {
+            return;
+        }
+
+        db('ticket_protocols')->insert([
+            'ticket_id' => $ticketId,
+            'protocol_type' => $type,
+            'message' => $message,
+            'old_status' => $oldStatus,
+            'new_status' => $newStatus,
+            'old_priority' => $oldPriority,
+            'new_priority' => $newPriority,
+            'created_by_user_id' => $actorId,
+        ]);
     }
 
     private function reserveNextInvoiceNumber(): int

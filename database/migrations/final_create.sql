@@ -87,22 +87,6 @@ CREATE TABLE IF NOT EXISTS clients (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
--- Client Inquiries: Contact form submissions linked to a patient record
-CREATE TABLE IF NOT EXISTS client_inquiries (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    client_id INT NOT NULL,
-    message TEXT NOT NULL,
-    status ENUM('new', 'read', 'responded') DEFAULT 'new',
-    internal_notes TEXT,
-    responded_by_user_id INT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    responded_at DATETIME,
-    FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE ON UPDATE CASCADE,
-    FOREIGN KEY (responded_by_user_id) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE,
-    INDEX idx_client_id (client_id),
-    INDEX idx_status (status),
-    INDEX idx_created_at (created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS email_templates (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -408,21 +392,49 @@ CREATE TABLE IF NOT EXISTS reminders (
 
 CREATE TABLE IF NOT EXISTS appointments (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    client_id INT NOT NULL,
+    client_id INT NULL,
     service_id INT NOT NULL,
     appointment_date DATETIME NOT NULL,
     duration_minutes INT UNSIGNED NOT NULL DEFAULT 60,
     status ENUM('pending','accepted','declined','completed','storno') NOT NULL DEFAULT 'pending',
+    prospect_name VARCHAR(255) NULL,
+    prospect_email VARCHAR(190) NULL,
     notes TEXT,
+    origin VARCHAR(50) NULL,
     created_by INT,
     FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL,
     updated_by INT,
     FOREIGN KEY (updated_by) REFERENCES users (id) ON DELETE SET NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE CASCADE,
+    FOREIGN KEY (client_id) REFERENCES clients (id) ON DELETE SET NULL,
     FOREIGN KEY (service_id) REFERENCES services (id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS tickets (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    client_id INT NULL,
+    ticket_type VARCHAR(40) NOT NULL DEFAULT 'support',
+    category VARCHAR(100) NOT NULL DEFAULT 'general',
+    priority VARCHAR(20) NULL,
+    subject VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    payload_json JSON NULL,
+    source VARCHAR(50) NOT NULL DEFAULT 'contact_form',
+    status ENUM('new','open','in_progress','resolved','closed') NOT NULL DEFAULT 'new',
+    assigned_user_id INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_tickets_client
+        FOREIGN KEY (client_id) REFERENCES clients(id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    CONSTRAINT fk_tickets_assigned_user
+        FOREIGN KEY (assigned_user_id) REFERENCES users(id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    INDEX idx_tickets_client_id (client_id),
+    INDEX idx_tickets_ticket_type_status (ticket_type, status),
+    INDEX idx_tickets_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE availability_rules (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -474,7 +486,7 @@ CREATE TABLE IF NOT EXISTS consents (
     user_agent VARCHAR(512) NOT NULL,
     signature_hash VARCHAR(255) NOT NULL,
     FOREIGN KEY (contract_id) REFERENCES contracts(id) ON DELETE RESTRICT ON UPDATE CASCADE,
-    FOREIGN KEY (client_request_id) REFERENCES client_inquiries(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    FOREIGN KEY (client_request_id) REFERENCES appointments(id) ON DELETE RESTRICT ON UPDATE CASCADE,
     INDEX idx_contract_id (contract_id),
     INDEX idx_client_request_id (client_request_id),
     INDEX idx_consent_key (consent_key),
@@ -586,7 +598,7 @@ CREATE TABLE IF NOT EXISTS consent_audit_log (
     error_message TEXT NULL,
     attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (contract_id) REFERENCES henz_software_main.contracts(id) ON DELETE CASCADE ON UPDATE CASCADE,
-    FOREIGN KEY (client_request_id) REFERENCES henz_software_main.client_inquiries(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (client_request_id) REFERENCES henz_software_main.appointments(id) ON DELETE CASCADE ON UPDATE CASCADE,
     INDEX idx_contract_id (contract_id),
     INDEX idx_client_request_id (client_request_id),
     INDEX idx_consent_id (consent_id),

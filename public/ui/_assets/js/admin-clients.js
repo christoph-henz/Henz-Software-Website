@@ -9,7 +9,7 @@
     var canManage = !!cfg.can_manage_clients;
     var canUseFormTemplates = !!cfg.can_use_form_templates_for_clients;
     var canViewProjects = !!cfg.can_view_projects;
-    var viewMode = cfg.view_mode === 'record' ? 'record' : 'list';
+    var viewMode = normalizeViewMode(cfg.view_mode);
 
     function allowedDetailTabs() {
         var tabs = ['info', 'forms'];
@@ -33,6 +33,7 @@
         loadingList: false,
         selectedClientId: parsePositiveInt(cfg.initial_client_id, 0) || null,
         selectedClient: null,
+        focusedTicketId: null,
         loadingDetail: false,
         loadingRecords: false,
         formRecords: [],
@@ -48,6 +49,10 @@
         infoSubtab: cfg.initial_packages_open ? 'packages' : (cfg.initial_invoices_open ? 'invoices' : 'overview'),
         loadingHistory: false,
         historyItems: [],
+        loadingTickets: false,
+        tickets: [],
+        loadingTicketIndex: false,
+        ticketIndexRows: [],
         loadingContracts: false,
         contracts: [],
         loadingPackages: false,
@@ -63,6 +68,8 @@
 
     if (viewMode === 'list') {
         fetchList();
+    } else if (viewMode === 'tickets') {
+        fetchTicketsIndex();
     } else {
         if (!state.selectedClientId) {
             window.location.href = '/clients';
@@ -75,6 +82,8 @@
         hydrateFromUrl();
         if (viewMode === 'list') {
             fetchList();
+        } else if (viewMode === 'tickets') {
+            fetchTicketsIndex();
         } else {
             if (!state.selectedClientId) {
                 window.location.href = '/clients';
@@ -106,9 +115,24 @@
             state.detailTab = 'info';
         }
 
+        state.focusedTicketId = null;
         var infoSection = trim(qs.get('info_section'));
-        if (infoSection !== '' && inArray(infoSection, ['overview', 'projects', 'invoices', 'packages', 'contracts', 'history'])) {
-            state.infoSubtab = infoSection;
+        if (infoSection !== '') {
+            if (infoSection === 'history') {
+                state.infoSubtab = 'appointments';
+            } else
+            if (infoSection.indexOf('tickets/') === 0) {
+                state.infoSubtab = 'tickets';
+                state.focusedTicketId = parsePositiveInt(infoSection.slice(8), 0) || null;
+            } else if (inArray(infoSection, ['overview', 'projects', 'invoices', 'packages', 'contracts', 'appointments', 'tickets'])) {
+                state.infoSubtab = infoSection;
+            }
+        }
+
+        var queryTicketId = parsePositiveInt(qs.get('ticket_id'), 0);
+        if (queryTicketId > 0) {
+            state.infoSubtab = 'tickets';
+            state.focusedTicketId = queryTicketId;
         }
 
         var path = window.location.pathname || '/clients';
@@ -150,9 +174,83 @@
         }
 
         if (viewMode === 'list') root.innerHTML = renderListView();
+        else if (viewMode === 'tickets') root.innerHTML = renderTicketsIndexView();
         else root.innerHTML = renderRecordView();
 
         bindEvents();
+    }
+
+    function renderTicketsIndexView() {
+        var rows = '';
+        if (state.loadingTicketIndex) {
+            rows = '<tr><td colspan="9" class="admin-clients-empty">Lade Tickets...</td></tr>';
+        } else if (!Array.isArray(state.ticketIndexRows) || state.ticketIndexRows.length === 0) {
+            rows = '<tr><td colspan="9" class="admin-clients-empty">Keine Tickets gefunden.</td></tr>';
+        } else {
+            rows = state.ticketIndexRows.map(function (item) {
+                var ticketId = parsePositiveInt(item && item.id, 0);
+                var clientId = parsePositiveInt(item && item.client_id, 0);
+                var link = clientId > 0 && ticketId > 0
+                    ? ('/clients/' + clientId + '?info_section=tickets/' + ticketId)
+                    : '';
+                var openLinkHtml = link !== ''
+                    ? ('<a class="admin-clients-page-btn" href="' + escapeHtml(link) + '">Ticket öffnen</a>')
+                    : '<span class="admin-clients-muted">Kein Klient</span>';
+                var editButtonHtml = canManage && ticketId > 0
+                    ? ('<button type="button" class="admin-clients-page-btn" data-edit-ticket="' + escapeHtml(String(ticketId)) + '">Bearbeiten</button>')
+                    : '';
+
+                return '' +
+                    '<tr>' +
+                    '  <td>#' + escapeHtml(String(ticketId > 0 ? ticketId : '-')) + '</td>' +
+                    '  <td>' + escapeHtml(String(item && item.client_name ? item.client_name : '-')) + '</td>' +
+                    '  <td>' + escapeHtml(String(item && item.ticket_type ? item.ticket_type : '-')) + '</td>' +
+                    '  <td>' + escapeHtml(String(item && item.category ? item.category : '-')) + '</td>' +
+                    '  <td>' + escapeHtml(String(item && item.priority ? item.priority : '-')) + '</td>' +
+                    '  <td>' + escapeHtml(String(item && item.status ? item.status : '-')) + '</td>' +
+                    '  <td>' + escapeHtml(String(item && item.subject ? item.subject : '-')) + '</td>' +
+                    '  <td><div class="admin-clients-inline-actions">' + editButtonHtml + '</div></td>' +
+                    '  <td><div class="admin-clients-inline-actions">' + openLinkHtml + '</div></td>' +
+                    '</tr>';
+            }).join('');
+        }
+
+        return '' +
+            '<div class="admin-clients-toolbar">' +
+            '  <form class="admin-clients-search" data-search-form>' +
+            '    <input class="admin-clients-search-input" name="q" type="search" value="' + escapeHtml(state.search) + '" placeholder="Ticket nach Betreff, Typ oder Klient suchen" />' +
+            '    <button type="submit" class="admin-clients-page-btn">Suchen</button>' +
+            '  </form>' +
+            '  <div class="admin-clients-toolbar-right">' +
+            '    <div class="admin-clients-meta">Gesamt: ' + state.total + '</div>' +
+            '  </div>' +
+            '</div>' +
+            '<section class="admin-clients-pane admin-clients-pane--list-only">' +
+            '  <div class="admin-clients-pane-head">Ticket-Liste</div>' +
+            '  <div class="admin-clients-table-wrap">' +
+            '    <table class="admin-clients-table">' +
+            '      <thead><tr>' +
+            '        <th><button type="button" class="admin-clients-sort" data-sort="id">ID ' + sortIndicator('id') + '</button></th>' +
+            '        <th><button type="button" class="admin-clients-sort" data-sort="client_name">Klient ' + sortIndicator('client_name') + '</button></th>' +
+            '        <th><button type="button" class="admin-clients-sort" data-sort="ticket_type">Typ ' + sortIndicator('ticket_type') + '</button></th>' +
+            '        <th><button type="button" class="admin-clients-sort" data-sort="category">Kategorie ' + sortIndicator('category') + '</button></th>' +
+            '        <th><button type="button" class="admin-clients-sort" data-sort="priority">Priorität ' + sortIndicator('priority') + '</button></th>' +
+            '        <th><button type="button" class="admin-clients-sort" data-sort="status">Status ' + sortIndicator('status') + '</button></th>' +
+            '        <th><button type="button" class="admin-clients-sort" data-sort="subject">Betreff ' + sortIndicator('subject') + '</button></th>' +
+            '        <th>Bearbeiten</th>' +
+            '        <th>Aktion</th>' +
+            '      </tr></thead>' +
+            '      <tbody>' + rows + '</tbody>' +
+            '    </table>' +
+            '  </div>' +
+            '  <div class="admin-clients-pagination">' +
+            '    <div class="admin-clients-pagination-info">Seite ' + state.page + ' / ' + state.totalPages + '</div>' +
+            '    <div class="admin-clients-pagination-controls">' +
+            '      <button type="button" class="admin-clients-page-btn" data-page-prev ' + (state.page <= 1 ? 'disabled' : '') + '>Zurueck</button>' +
+            '      <button type="button" class="admin-clients-page-btn" data-page-next ' + (state.page >= state.totalPages ? 'disabled' : '') + '>Weiter</button>' +
+            '    </div>' +
+            '  </div>' +
+            '</section>';
     }
 
     function renderListView() {
@@ -267,7 +365,8 @@
             '  <div class="admin-clients-subtabs" role="tablist" aria-label="Zusaetzliche Klienteninformationen">' +
             infoTabButton('overview', 'Übersicht') +
             infoTabButton('projects', 'Projekte') +
-            infoTabButton('history', 'Buchungshistorie') +
+            infoTabButton('appointments', 'Termine') +
+            infoTabButton('tickets', 'Tickets') +
             infoTabButton('invoices', 'Rechnungen') +
             infoTabButton('contracts', 'Verträge') +
             '  </div>' +
@@ -277,7 +376,8 @@
 
     function renderInfoSubtab(client) {
         if (state.infoSubtab === 'projects') return renderProjectsSection();
-        if (state.infoSubtab === 'history') return renderHistorySection();
+        if (state.infoSubtab === 'appointments') return renderAppointmentsSection();
+        if (state.infoSubtab === 'tickets') return renderTicketsSection();
         if (state.infoSubtab === 'invoices') return renderInvoicesSection();
         if (state.infoSubtab === 'contracts') return renderContractsSection();
         return renderInfoOverviewSection(client);
@@ -287,7 +387,8 @@
         return '' +
             '<div class="admin-clients-overview-grid">' +
             overviewMetric('Projekte', String(state.projects.length), 'Alle Projekte des Clients inkl. Unterstruktur.') +
-            overviewMetric('Buchungshistorie', String(state.historyItems.length), 'Alle zusammengefuehrten Ereignisse zur Klientenakte.') +
+            overviewMetric('Termine', String(state.historyItems.length), 'Alle Termine des Clients mit Direktlink zur Detailansicht.') +
+            overviewMetric('Tickets', String(state.tickets.length), 'Support- und Service-Tickets des Clients.') +
             overviewMetric('Rechnungen', String(countInvoices()), 'Buchungen mit Rechnungsbezug inklusive PDF-Status.') +
             overviewMetric('Testprotokolle', String(countTestProtocols()), 'Abgeschlossene oder laufende Testprotokolle aus Projektphasen.') +
             '</div>' +
@@ -401,29 +502,91 @@
             '</details>';
     }
 
-    function renderHistorySection() {
+    function renderAppointmentsSection() {
         if (state.loadingHistory) {
-            return '<div class="admin-clients-empty">Lade Buchungshistorie...</div>';
+            return '<div class="admin-clients-empty">Lade Termine...</div>';
         }
 
         if (state.historyItems.length === 0) {
-            return '<div class="admin-clients-empty">Keine Historieneinträge vorhanden.</div>';
+            return '<div class="admin-clients-empty">Keine Termine vorhanden.</div>';
         }
 
         return '<div class="admin-clients-stack">' + state.historyItems.map(function (item) {
-            var link = item.booking_url
-                ? '<a class="admin-clients-link" href="' + escapeHtml(String(item.booking_url)) + '">Buchung öffnen</a>'
+            var linkUrl = item.appointment_url || item.booking_url || '';
+            var appointmentAt = formatDateTime(item.appointment_date || item.happened_at);
+            var serviceName = trim(String(item.service_name || ''));
+            var status = trim(String(item.status || ''));
+            var duration = parsePositiveInt(item.duration_minutes, 0);
+
+            var title = trim(String(item.title || ''));
+            if (title === '') {
+                title = serviceName !== '' ? ('Termin: ' + serviceName) : 'Termin';
+            }
+
+            var description = trim(String(item.description || ''));
+            if (description === '') {
+                var parts = [];
+                parts.push('Zeit: ' + appointmentAt);
+                if (status !== '') parts.push('Status: ' + status);
+                if (duration > 0) parts.push('Dauer: ' + duration + ' min');
+                description = parts.join(' | ');
+            }
+
+            var link = linkUrl
+                ? '<a class="admin-clients-link" href="' + escapeHtml(String(linkUrl)) + '">Termin öffnen</a>'
                 : '';
             return '' +
                 '<article class="admin-clients-entry-card">' +
                 '  <div class="admin-clients-entry-head">' +
-                '    <strong>' + escapeHtml(String(item.title || 'Ereignis')) + '</strong>' +
-                '    <span class="admin-clients-entry-time">' + escapeHtml(formatDateTime(item.happened_at)) + '</span>' +
+                '    <strong>' + escapeHtml(title) + '</strong>' +
+                '    <span class="admin-clients-entry-time">' + escapeHtml(appointmentAt) + '</span>' +
                 '  </div>' +
-                '  <p class="admin-clients-entry-copy">' + escapeHtml(String(item.description || '')) + '</p>' +
+                '  <p class="admin-clients-entry-copy">' + escapeHtml(description) + '</p>' +
                 (link ? '  <div class="admin-clients-entry-actions">' + link + '</div>' : '') +
                 '</article>';
         }).join('') + '</div>';
+    }
+
+    function renderTicketsSection() {
+        if (state.loadingTickets) {
+            return '<div class="admin-clients-empty">Lade Tickets...</div>';
+        }
+
+        if (!Array.isArray(state.tickets) || state.tickets.length === 0) {
+            return '<div class="admin-clients-empty">Keine Tickets vorhanden.</div>';
+        }
+
+        return '' +
+            '<div class="admin-clients-table-wrap">' +
+            '  <table class="admin-clients-table">' +
+            '    <thead><tr><th>ID</th><th>Typ</th><th>Kategorie</th><th>Priorität</th><th>Status</th><th>Betreff</th><th>Erstellt</th><th>Bearbeiten</th></tr></thead>' +
+            '    <tbody>' + state.tickets.map(function (item) {
+                var id = parsePositiveInt(item && item.id, 0);
+                var type = String(item && item.ticket_type ? item.ticket_type : '-');
+                var category = String(item && item.category ? item.category : '-');
+                var priority = String(item && item.priority ? item.priority : '-');
+                var status = String(item && item.status ? item.status : '-');
+                var subject = String(item && item.subject ? item.subject : '-');
+                var message = String(item && item.message ? item.message : '');
+                var rowClass = state.focusedTicketId && id === state.focusedTicketId ? ' class="admin-clients-row--highlight"' : '';
+                var messageMeta = message !== ''
+                    ? ('<div class="admin-clients-table-meta">' + escapeHtml(message) + '</div>')
+                    : '';
+
+                return '' +
+                    '<tr' + rowClass + '>' +
+                    '  <td>#' + escapeHtml(String(id > 0 ? id : '-')) + '</td>' +
+                    '  <td>' + escapeHtml(type) + '</td>' +
+                    '  <td>' + escapeHtml(category) + '</td>' +
+                    '  <td>' + escapeHtml(priority) + '</td>' +
+                    '  <td>' + escapeHtml(status) + '</td>' +
+                    '  <td>' + escapeHtml(subject) + messageMeta + '</td>' +
+                    '  <td>' + escapeHtml(formatDateTime(item && item.created_at ? item.created_at : '')) + '</td>' +
+                    '  <td>' + (canManage && id > 0 ? '<button type="button" class="admin-clients-page-btn" data-edit-ticket="' + escapeHtml(String(id)) + '">Bearbeiten</button>' : '<span class="admin-clients-muted">-</span>') + '</td>' +
+                    '</tr>';
+            }).join('') + '</tbody>' +
+            '  </table>' +
+            '</div>';
     }
 
     function renderInvoicesSection() {
@@ -782,6 +945,46 @@
             return;
         }
 
+        if (viewMode === 'tickets') {
+            var ticketSearchForm = root.querySelector('[data-search-form]');
+            if (ticketSearchForm) {
+                ticketSearchForm.addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    var ticketFd = new FormData(ticketSearchForm);
+                    state.search = trim(ticketFd.get('q'));
+                    state.page = 1;
+                    fetchTicketsIndex();
+                });
+            }
+
+            root.querySelectorAll('[data-sort]').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    var nextSort = String(btn.getAttribute('data-sort') || 'created_at');
+                    if (state.sort === nextSort) state.direction = state.direction === 'asc' ? 'desc' : 'asc';
+                    else {
+                        state.sort = nextSort;
+                        state.direction = 'asc';
+                    }
+                    state.page = 1;
+                    fetchTicketsIndex();
+                });
+            });
+
+            var ticketPrev = root.querySelector('[data-page-prev]');
+            var ticketNext = root.querySelector('[data-page-next]');
+            if (ticketPrev) ticketPrev.addEventListener('click', function () { if (state.page > 1) { state.page -= 1; fetchTicketsIndex(); } });
+            if (ticketNext) ticketNext.addEventListener('click', function () { if (state.page < state.totalPages) { state.page += 1; fetchTicketsIndex(); } });
+
+            root.querySelectorAll('[data-edit-ticket]').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    var ticketId = parsePositiveInt(btn.getAttribute('data-edit-ticket'), 0);
+                    if (ticketId <= 0) return;
+                    openTicketEditModal(ticketId);
+                });
+            });
+            return;
+        }
+
         root.querySelectorAll('[data-detail-tab]').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 var tab = String(btn.getAttribute('data-detail-tab') || 'info');
@@ -795,7 +998,7 @@
         root.querySelectorAll('[data-info-tab]').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 var tab = String(btn.getAttribute('data-info-tab') || 'overview');
-                if (!inArray(tab, ['overview', 'projects', 'history', 'invoices', 'packages', 'contracts'])) return;
+                if (!inArray(tab, ['overview', 'projects', 'appointments', 'tickets', 'invoices', 'packages', 'contracts'])) return;
                 state.infoSubtab = tab;
                 writeRecordUrl(false);
                 render();
@@ -858,6 +1061,14 @@
                     return;
                 }
                 openInvoicePdfModal(viewUrl, downloadUrl, invoiceLabel);
+            });
+        });
+
+        root.querySelectorAll('[data-edit-ticket]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var ticketId = parsePositiveInt(btn.getAttribute('data-edit-ticket'), 0);
+                if (ticketId <= 0) return;
+                openTicketEditModal(ticketId);
             });
         });
     }
@@ -942,6 +1153,181 @@
                         URL.revokeObjectURL(objectUrl);
                     }, 1000);
                 });
+            });
+    }
+
+    function openTicketEditModal(ticketId) {
+        if (!canManage) {
+            notify('error', 'Keine Berechtigung zum Bearbeiten von Tickets.');
+            return;
+        }
+
+        var detailUrl = apiUrl(cfg.api && cfg.api.ticket_detail, { ticket_id: ticketId });
+        if (detailUrl === '') {
+            notify('error', 'Ticket-Endpoint ist nicht konfiguriert.');
+            return;
+        }
+
+        fetch(detailUrl, {
+            credentials: 'include',
+            headers: { Accept: 'application/json' },
+        })
+            .then(parseJsonResponse)
+            .then(function (result) {
+                if (result.status !== 200) {
+                    throw new Error(extractErrorMessage(result, 'Ticket konnte nicht geladen werden.'));
+                }
+
+                var data = result.json && result.json.data ? result.json.data : {};
+                var ticket = data.ticket && typeof data.ticket === 'object' ? data.ticket : null;
+                if (!ticket) {
+                    throw new Error('Ticketdaten sind nicht verfuegbar.');
+                }
+
+                var statusOptions = Array.isArray(data.status_options) ? data.status_options : ['new', 'open', 'in_progress', 'resolved', 'closed'];
+                var priorityOptions = Array.isArray(data.priority_options) ? data.priority_options : ['low', 'medium', 'high', 'critical'];
+                var selectedStatus = trim(String(ticket.status || 'new'));
+                var selectedPriority = ticket.priority !== null && ticket.priority !== undefined ? trim(String(ticket.priority)) : '';
+                var ticketMessage = trim(String(ticket.message || ''));
+                var protocols = Array.isArray(data.protocols) ? data.protocols : [];
+
+                var statusSelect = '<select id="ticketEditStatus" class="admin-clients-input">' +
+                    statusOptions.map(function (optionValue) {
+                        var value = String(optionValue || '');
+                        return '<option value="' + escapeHtml(value) + '" ' + (value === selectedStatus ? 'selected' : '') + '>' + escapeHtml(value) + '</option>';
+                    }).join('') +
+                    '</select>';
+
+                var prioritySelect = '<select id="ticketEditPriority" class="admin-clients-input">' +
+                    '<option value="">-</option>' +
+                    priorityOptions.map(function (optionValue) {
+                        var value = String(optionValue || '');
+                        return '<option value="' + escapeHtml(value) + '" ' + (value === selectedPriority ? 'selected' : '') + '>' + escapeHtml(value) + '</option>';
+                    }).join('') +
+                    '</select>';
+
+                var body = '' +
+                    '<section class="admin-clients-attachments">' +
+                    '  <div class="admin-clients-meta-grid" style="margin-bottom:0.75rem;">' +
+                    metaPill('Ticket-ID', '#' + String(ticket.id || '-')) +
+                    metaPill('Klient', String(ticket.client_name || '-')) +
+                    metaPill('Typ', String(ticket.ticket_type || '-')) +
+                    metaPill('Kategorie', String(ticket.category || '-')) +
+                    '  </div>' +
+                    '  <div class="admin-clients-form-grid">' +
+                    '    <div><label class="admin-clients-label" for="ticketEditStatus">Status</label>' + statusSelect + '</div>' +
+                    '    <div><label class="admin-clients-label" for="ticketEditPriority">Prioritaet</label>' + prioritySelect + '</div>' +
+                    '  </div>' +
+                    '  <div style="margin-top:0.75rem;">' +
+                    '    <label class="admin-clients-label" for="ticketCurrentMessage">Aktuelle Notiz</label>' +
+                    '    <textarea id="ticketCurrentMessage" class="admin-clients-textarea" readonly>' + escapeHtml(ticketMessage !== '' ? ticketMessage : '-') + '</textarea>' +
+                    '  </div>' +
+                    '  <div style="margin-top:0.75rem;">' +
+                    '    <label class="admin-clients-label" for="ticketProtocolNote">Protokoll-Eintrag</label>' +
+                    '    <textarea id="ticketProtocolNote" class="admin-clients-textarea" placeholder="Optional: Kommentar zum Status/Prioritaetswechsel oder allgemeine Notiz"></textarea>' +
+                    '  </div>' +
+                    '  <div style="margin-top:0.9rem;">' +
+                    '    <h4 class="admin-clients-card-title" style="margin-bottom:0.5rem;">Protokoll-Historie</h4>' +
+                    renderTicketProtocolHistory(protocols) +
+                    '  </div>' +
+                    '</section>';
+
+                window.adminOpenModal && window.adminOpenModal('Ticket bearbeiten #' + String(ticket.id || ticketId), body, {
+                    type: 'form',
+                    buttons: [
+                        {
+                            label: 'Schliessen',
+                            variant: 'secondary',
+                            onClick: function () {
+                                window.adminCloseModal && window.adminCloseModal();
+                            }
+                        },
+                        {
+                            label: 'Speichern',
+                            variant: 'primary',
+                            onClick: function () {
+                                submitTicketEdit(ticketId);
+                            }
+                        },
+                    ],
+                });
+            })
+            .catch(function (err) {
+                notify('error', err && err.message ? err.message : 'Ticket konnte nicht geladen werden.');
+            });
+    }
+
+    function renderTicketProtocolHistory(protocols) {
+        if (!Array.isArray(protocols) || protocols.length === 0) {
+            return '<div class="admin-clients-empty">Noch keine Protokolleintraege vorhanden.</div>';
+        }
+
+        return '<div class="admin-clients-stack">' + protocols.map(function (entry) {
+            var type = String(entry && entry.protocol_type ? entry.protocol_type : 'note');
+            var text = String(entry && entry.message ? entry.message : '');
+            var createdAt = formatDateTime(entry && entry.created_at ? entry.created_at : '');
+            var actor = entry && entry.created_by_user_id ? ('User #' + String(entry.created_by_user_id)) : '-';
+
+            return '' +
+                '<article class="admin-clients-entry-card">' +
+                '  <div class="admin-clients-entry-head">' +
+                '    <strong>' + escapeHtml(type) + '</strong>' +
+                '    <span class="admin-clients-entry-time">' + escapeHtml(createdAt) + '</span>' +
+                '  </div>' +
+                '  <p class="admin-clients-entry-copy">' + escapeHtml(text) + '</p>' +
+                '  <div class="admin-clients-meta">Erstellt von: ' + escapeHtml(actor) + '</div>' +
+                '</article>';
+        }).join('') + '</div>';
+    }
+
+    function submitTicketEdit(ticketId) {
+        var updateUrl = apiUrl(cfg.api && cfg.api.ticket_update, { ticket_id: ticketId });
+        if (updateUrl === '') {
+            notify('error', 'Ticket-Update-Endpoint ist nicht konfiguriert.');
+            return;
+        }
+
+        var statusEl = document.getElementById('ticketEditStatus');
+        var priorityEl = document.getElementById('ticketEditPriority');
+        var noteEl = document.getElementById('ticketProtocolNote');
+
+        var payload = {
+            status: statusEl ? trim(statusEl.value) : '',
+            priority: priorityEl ? trim(priorityEl.value) : '',
+            protocol_note: noteEl ? trim(noteEl.value) : '',
+        };
+
+        fetch(updateUrl, {
+            method: 'PATCH',
+            credentials: 'include',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+        })
+            .then(parseJsonResponse)
+            .then(function (result) {
+                if (result.status !== 200) {
+                    throw new Error(extractErrorMessage(result, 'Ticket konnte nicht gespeichert werden.'));
+                }
+
+                notify('success', 'Ticket wurde aktualisiert.');
+                window.adminCloseModal && window.adminCloseModal();
+
+                if (viewMode === 'tickets') {
+                    fetchTicketsIndex();
+                    return;
+                }
+
+                if (state.selectedClientId) {
+                    fetchClientTickets(state.selectedClientId).finally(function () {
+                        render();
+                    });
+                }
+            })
+            .catch(function (err) {
+                notify('error', err && err.message ? err.message : 'Ticket konnte nicht gespeichert werden.');
             });
     }
 
@@ -1797,6 +2183,45 @@
             });
     }
 
+    function fetchTicketsIndex() {
+        if (!canView) return Promise.resolve();
+        state.loadingTicketIndex = true;
+        render();
+
+        var params = new URLSearchParams({
+            page: String(state.page),
+            per_page: String(state.perPage),
+            sort: state.sort,
+            direction: state.direction,
+        });
+        if (state.search !== '') params.set('q', state.search);
+
+        return fetch(apiUrl(cfg.api && cfg.api.tickets_list) + '?' + params.toString(), {
+            credentials: 'include',
+            headers: { Accept: 'application/json' },
+        })
+            .then(parseJsonResponse)
+            .then(function (result) {
+                if (result.status !== 200) throw new Error('Tickets konnten nicht geladen werden');
+                var data = (result.json && result.json.data) || {};
+                state.ticketIndexRows = Array.isArray(data.tickets) ? data.tickets : [];
+                state.total = parsePositiveInt(data.meta && data.meta.total, 0);
+                state.totalPages = parsePositiveInt(data.meta && data.meta.total_pages, 1);
+                state.page = Math.max(1, Math.min(state.page, state.totalPages));
+                writeTicketsUrl(false);
+            })
+            .catch(function (err) {
+                state.ticketIndexRows = [];
+                state.total = 0;
+                state.totalPages = 1;
+                notify('error', err && err.message ? err.message : 'Tickets konnten nicht geladen werden.');
+            })
+            .finally(function () {
+                state.loadingTicketIndex = false;
+                render();
+            });
+    }
+
     function loadRecordView() {
         state.loadingDetail = true;
         render();
@@ -1805,7 +2230,8 @@
             fetchClientDetail(state.selectedClientId),
             fetchClientRecords(state.selectedClientId),
             fetchClientBookings(state.selectedClientId),
-            fetchClientHistory(state.selectedClientId),
+            fetchClientAppointments(state.selectedClientId),
+            fetchClientTickets(state.selectedClientId),
             fetchClientConsents(state.selectedClientId),
             fetchClientPackages(state.selectedClientId),
             fetchLatestTemplates(),
@@ -1831,6 +2257,18 @@
                 if (result.status !== 200) throw new Error('Client-Details konnten nicht geladen werden');
                 state.selectedClient = result.json && result.json.data ? result.json.data.client : null;
             });
+    }
+
+    function writeTicketsUrl(push) {
+        var qs = new URLSearchParams();
+        qs.set('sort', state.sort);
+        qs.set('direction', state.direction);
+        qs.set('page', String(state.page));
+        qs.set('per_page', String(state.perPage));
+        if (state.search !== '') qs.set('q', state.search);
+        var nextUrl = '/tickets' + (qs.toString() ? ('?' + qs.toString()) : '');
+        if (push) window.history.pushState(null, '', nextUrl);
+        else window.history.replaceState(null, '', nextUrl);
     }
 
     function fetchClientRecords(id) {
@@ -2050,9 +2488,9 @@
         return status !== 'completed' && status !== 'cancelled' && status !== 'archived';
     }
 
-    function fetchClientHistory(id) {
+    function fetchClientAppointments(id) {
         state.loadingHistory = true;
-        return fetch(apiUrl(cfg.api && cfg.api.history, id), {
+        return fetch(apiUrl(cfg.api && cfg.api.appointments, id), {
             credentials: 'include',
             headers: { Accept: 'application/json' },
         })
@@ -2063,12 +2501,34 @@
                     state.historyItems = [];
                     return;
                 }
-                var rows = result.json && result.json.data && result.json.data.history;
+                var rows = result.json && result.json.data && result.json.data.appointments;
                 state.historyItems = Array.isArray(rows) ? rows : [];
             })
             .catch(function () {
                 state.loadingHistory = false;
                 state.historyItems = [];
+            });
+    }
+
+    function fetchClientTickets(id) {
+        state.loadingTickets = true;
+        return fetch(apiUrl(cfg.api && cfg.api.tickets, id), {
+            credentials: 'include',
+            headers: { Accept: 'application/json' },
+        })
+            .then(parseJsonResponse)
+            .then(function (result) {
+                state.loadingTickets = false;
+                if (result.status !== 200) {
+                    state.tickets = [];
+                    return;
+                }
+                var rows = result.json && result.json.data && result.json.data.tickets;
+                state.tickets = Array.isArray(rows) ? rows : [];
+            })
+            .catch(function () {
+                state.loadingTickets = false;
+                state.tickets = [];
             });
     }
 
@@ -2202,7 +2662,7 @@
             name: getValue('clientName'),
             email: getValue('clientEmail'),
             phone: getValue('clientPhone'),
-            address: getValue('clientAddress'),
+            address: getRawValue('clientAddress'),
         };
 
         fetch(apiUrl(cfg.api && cfg.api.update, state.selectedClientId), {
@@ -3095,6 +3555,13 @@
         return Number.isFinite(n) && n > 0 ? n : fallback;
     }
 
+    function normalizeViewMode(mode) {
+        var value = trim(String(mode || '')).toLowerCase();
+        if (value === 'record') return 'record';
+        if (value === 'tickets') return 'tickets';
+        return 'list';
+    }
+
     function trim(value) {
         return String(value || '').trim();
     }
@@ -3102,6 +3569,11 @@
     function getValue(id) {
         var el = document.getElementById(id);
         return el ? trim(el.value) : '';
+    }
+
+    function getRawValue(id) {
+        var el = document.getElementById(id);
+        return el ? String(el.value || '') : '';
     }
 
     function isValidEmail(value) {
