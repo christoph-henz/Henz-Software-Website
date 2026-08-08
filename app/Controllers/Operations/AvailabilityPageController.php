@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Controllers\Admin;
+namespace App\Controllers\Operations;
 
 use App\Core\Http\Request;
 use App\Core\Http\Response;
@@ -11,8 +11,8 @@ use App\Core\Support\PermissionBits;
 
 final class AvailabilityPageController
 {
-    private const VIEW_BOOKINGS_BIT = 1;
-    private const MANAGE_BOOKINGS_BIT = 2;
+    private const VIEW_APPOINTMENTS_BIT = 1;
+    private const MANAGE_APPOINTMENTS_BIT = 2;
 
     public function index(Request $request): Response
     {
@@ -21,8 +21,8 @@ final class AvailabilityPageController
         $adminUser = is_array($session[$sessionKey] ?? null) ? $session[$sessionKey] : [];
 
         $roleMask = (int) ($adminUser['role_mask'] ?? 0);
-        $viewBit = PermissionBits::resolve('view_bookings', self::VIEW_BOOKINGS_BIT);
-        $manageBit = PermissionBits::resolve('manage_bookings', self::MANAGE_BOOKINGS_BIT);
+        $viewBit = PermissionBits::resolve('view_appointments', self::VIEW_APPOINTMENTS_BIT);
+        $manageBit = PermissionBits::resolve('manage_appointments', self::MANAGE_APPOINTMENTS_BIT);
 
         $canView = (($roleMask & ($viewBit | $manageBit)) !== 0);
         $canManage = (($roleMask & $manageBit) !== 0);
@@ -31,14 +31,14 @@ final class AvailabilityPageController
             return $this->renderError(403, 'Zugriff verweigert', 'Ihre Rolle berechtigt nicht zur Verfügbarkeitsverwaltung.');
         }
 
-        $config = require base_path('public/ui/_config/admin-availability.php');
+        $config = require base_path('public/ui/_config/operations/admin-availability.php');
         $config['can_view_availability'] = $canView;
         $config['can_manage_availability'] = $canManage;
 
         return $this->render('admin-availability-page.php', [
-            'pageTitle' => 'Verfügbarkeit - Getragen Begleiten',
+            'pageTitle' => 'Verfügbarkeit - Henz Software',
             'adminUser' => $adminUser,
-            'logoutAction' => '/admin/logout',
+            'logoutAction' => '/logout',
             'csrfToken' => app(CsrfTokenManager::class)->token(),
             'availabilityConfig' => $config,
         ]);
@@ -60,7 +60,7 @@ final class AvailabilityPageController
         extract($data, EXTR_SKIP);
 
         ob_start();
-        require base_path('public/ui/_templates/' . $template);
+        require base_path('public/ui/_templates/operations/' . $template);
         $html = (string) ob_get_clean();
 
         return new Response($html, $status, ['Content-Type' => 'text/html; charset=utf-8']);

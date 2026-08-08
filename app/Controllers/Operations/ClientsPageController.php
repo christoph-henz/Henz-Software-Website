@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Controllers\Admin;
+namespace App\Controllers\Operations;
 
 use App\Core\Http\Request;
 use App\Core\Http\Response;
@@ -13,6 +13,7 @@ final class ClientsPageController
     private const VIEW_CLIENTS_BIT = 8;
     private const MANAGE_CLIENTS_BIT = 16;
     private const USE_FORM_TEMPLATES_FOR_CLIENTS_BIT = 32768;
+    private const VIEW_PROJECTS_BIT = 32;
 
     public function index(Request $request): Response
     {
@@ -23,10 +24,15 @@ final class ClientsPageController
     {
         $id = (int) $request->attribute('id', 0);
         if ($id <= 0) {
-            return Response::redirect('/admin/clients', 302);
+            return Response::redirect('/clients', 302);
         }
 
         return $this->renderPage($request, $id, 'record');
+    }
+
+    public function tickets(Request $request): Response
+    {
+        return $this->renderPage($request, null, 'tickets');
     }
 
     private function renderPage(Request $request, ?int $pathClientId, string $viewMode): Response
@@ -39,16 +45,18 @@ final class ClientsPageController
         $viewBit = PermissionBits::resolve('view_clients', self::VIEW_CLIENTS_BIT);
         $manageBit = PermissionBits::resolve('manage_clients', self::MANAGE_CLIENTS_BIT);
         $useFormsBit = PermissionBits::resolve('use_form_templates_for_clients', self::USE_FORM_TEMPLATES_FOR_CLIENTS_BIT);
+        $viewProjectsBit = PermissionBits::resolve('view_projects', self::VIEW_PROJECTS_BIT);
 
         $canView = (($roleMask & $viewBit) !== 0) || (($roleMask & $manageBit) !== 0);
         $canManage = ($roleMask & $manageBit) !== 0;
         $canUseFormTemplates = ($roleMask & $useFormsBit) !== 0;
+        $canViewProjects = ($roleMask & $viewProjectsBit) !== 0;
 
         if (!$canView) {
             return $this->renderError(403, 'Zugriff verweigert', 'Ihre Rolle berechtigt nicht zur Clientverwaltung.');
         }
 
-        $config = require base_path('public/ui/_config/admin-clients.php');
+        $config = require base_path('public/ui/_config/operations/admin-clients.php');
         $queryClientId = (int) $request->query('client_id', 0);
         $initialClientId = $pathClientId ?? ($queryClientId > 0 ? $queryClientId : null);
 
@@ -60,15 +68,23 @@ final class ClientsPageController
         $config['can_view_clients'] = $canView;
         $config['can_manage_clients'] = $canManage;
         $config['can_use_form_templates_for_clients'] = $canUseFormTemplates;
+        $config['can_view_projects'] = $canViewProjects;
         $config['initial_client_id'] = $initialClientId;
         $config['initial_packages_open'] = $openPackages;
         $config['initial_invoices_open'] = $openInvoices;
         $config['view_mode'] = $viewMode;
 
+        $title = 'Clientverwaltung - Henz Software';
+        if ($viewMode === 'tickets') {
+            $config['default_sort'] = 'created_at';
+            $config['default_direction'] = 'desc';
+            $title = 'Tickets - Henz Software';
+        }
+
         return $this->render('admin-clients-page.php', [
-            'pageTitle' => 'Clientverwaltung - Getragen Begleiten',
+            'pageTitle' => $title,
             'adminUser' => $adminUser,
-            'logoutAction' => '/admin/logout',
+            'logoutAction' => '/logout',
             'csrfToken' => app(CsrfTokenManager::class)->token(),
             'clientsConfig' => $config,
         ]);
@@ -90,7 +106,7 @@ final class ClientsPageController
         extract($data, EXTR_SKIP);
 
         ob_start();
-        require base_path('public/ui/_templates/' . $template);
+        require base_path('public/ui/_templates/operations/' . $template);
         $html = (string) ob_get_clean();
 
         return new Response($html, $status, ['Content-Type' => 'text/html; charset=utf-8']);

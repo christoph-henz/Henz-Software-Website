@@ -11,7 +11,7 @@ use App\Core\Http\Response;
 use App\Services\ClientFieldEncryptionService;
 use App\Services\EmailAutomationService;
 use App\Services\PackageBookingManager;
-use App\Support\PermissionBits;
+use App\Core\Support\PermissionBits;
 use DateTimeImmutable;
 use DateTimeZone;
 use RuntimeException;

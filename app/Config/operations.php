@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 return [
     'login_path' => '/login',
-    'dashboard_path' => '/operations/calender',
+    'dashboard_path' => '/dashboard',
     'subdomain' => (string) env('OPERATIONS_SUBDOMAIN', 'operations'),
     'enforce_subdomain' => filter_var(env('OPERATIONS_ENFORCE_SUBDOMAIN', true), FILTER_VALIDATE_BOOL),
     'session_key' => 'operations_user',

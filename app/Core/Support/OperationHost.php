@@ -24,10 +24,6 @@ final class OperationHost
             return false;
         }
 
-        if (self::isLocalBypassHost($host)) {
-            return true;
-        }
-
         return $host === $subdomain || str_starts_with($host, $subdomain . '.');
     }
 
@@ -147,16 +143,5 @@ final class OperationHost
     {
         [$host] = self::splitHostAndPort($hostWithPort);
         return $host;
-    }
-
-    private static function isLocalBypassHost(string $host): bool
-    {
-        $normalized = strtolower(trim($host));
-
-        if ($normalized === 'localhost' || $normalized === '127.0.0.1' || $normalized === '::1') {
-            return true;
-        }
-
-        return str_ends_with($normalized, '.localhost');
     }
 }

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+    class="icon icon-factory">
+    <path d="M3 21V8l6 3V8l6 3V5l6 3v13"></path>
+    <path d="M3 21h18"></path>
+    <path d="M8 21v-4"></path>
+    <path d="M13 21v-3"></path>
+    <path d="M18 21v-5"></path>
+    <path d="M16 5V3"></path>
+    <path d="M18 6V2"></path>
+</svg>

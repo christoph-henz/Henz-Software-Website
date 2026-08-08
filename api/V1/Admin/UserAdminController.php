@@ -8,7 +8,7 @@ use App\Controllers\Api\BaseApiController;
 use App\Core\Database\Database;
 use App\Core\Http\Request;
 use App\Core\Http\Response;
-use App\Support\PermissionBits;
+use App\Core\Support\PermissionBits;
 
 final class UserAdminController extends BaseApiController
 {
@@ -42,8 +42,11 @@ final class UserAdminController extends BaseApiController
         }
 
         if ($search !== '') {
-            $where .= ' AND (u.first_name LIKE :q OR u.last_name LIKE :q OR u.email LIKE :q)';
-            $bindings[':q'] = '%' . $search . '%';
+            $where .= ' AND (u.first_name LIKE :q_first OR u.last_name LIKE :q_last OR u.email LIKE :q_email)';
+            $searchLike = '%' . $search . '%';
+            $bindings[':q_first'] = $searchLike;
+            $bindings[':q_last'] = $searchLike;
+            $bindings[':q_email'] = $searchLike;
         }
 
         $countStmt = $pdo->prepare("SELECT COUNT(*) FROM users u $where");
@@ -266,8 +269,8 @@ final class UserAdminController extends BaseApiController
         }
 
         $now = date('Y-m-d H:i:s');
-        $pdo->prepare('UPDATE users SET deleted_at = :da, updated_at = :ua WHERE id = :id')
-            ->execute([':da' => $now, ':ua' => $now, ':id' => $id]);
+        $pdo->prepare('UPDATE users SET deleted_at = :ua, updated_at = :ua WHERE id = :id')
+            ->execute([':ua' => $now, ':id' => $id]);
 
         return $this->ok(['deleted' => true, 'id' => $id]);
     }
@@ -305,11 +308,11 @@ final class UserAdminController extends BaseApiController
         $expiresAt = date('Y-m-d H:i:s', time() + 7200); // +2 hours
 
         $pdo->prepare(
-            'INSERT INTO invite_tokens (user_id, token, expires_at) VALUES (:uid, :token, :exp)'
+            'INSERT INTO password_resets (user_id, token, expires_at) VALUES (:uid, :token, :exp)'
         )->execute([':uid' => $userId, ':token' => $token, ':exp' => $expiresAt]);
 
         // Log invite link – email sending added in E-001/E-002
-        error_log('[D-012] Invite link for user_id=' . $userId . ': /login?token=' . $token);
+        error_log('Invite link for user_id=' . $userId . ': /login?token=' . $token);
 
         $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
         $host   = $_SERVER['HTTP_HOST'] ?? 'localhost';

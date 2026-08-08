@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-$cfg = require base_path('public/ui/_config/impressum.php');
+$cfg = require base_path('public/ui/_config/legal/impressum.php');
 $pageTitle = (string) ($cfg['page_title'] ?? 'Impressum – Henz Software Solutions');
 ?><!doctype html>
 <html lang="de">

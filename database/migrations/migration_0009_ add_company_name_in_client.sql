@@ -1,0 +1,2 @@
+ALTER TABLE clients
+ADD COLUMN company_name VARCHAR(50) DEFAULT NULL AFTER id; 

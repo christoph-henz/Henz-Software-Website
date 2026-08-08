@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Controllers\Admin;
+namespace App\Controllers\Operations;
 
 use App\Core\Http\Request;
 use App\Core\Http\Response;
@@ -27,9 +27,9 @@ final class EmailTemplatesPageController
         }
 
         return $this->render('admin-email-templates-page.php', [
-            'pageTitle' => 'E-Mail-Vorlagen - Getragen Begleiten',
+            'pageTitle' => 'E-Mail-Vorlagen - Henz Software',
             'adminUser' => $adminUser,
-            'logoutAction' => '/admin/logout',
+            'logoutAction' => '/logout',
             'csrfToken' => app(CsrfTokenManager::class)->token(),
             'templates' => $this->loadTemplates(),
             'placeholderGroups' => $this->placeholderGroups(),
@@ -46,7 +46,7 @@ final class EmailTemplatesPageController
         $id = (int) $request->attribute('id', 0);
         if ($id <= 0) {
             admin_flash('error', 'Vorlage konnte nicht gespeichert werden: ungueltige ID.');
-            return Response::redirect('/admin/email-templates');
+            return Response::redirect('/email-templates');
         }
 
         $subject = trim((string) $request->input('subject_template', ''));
@@ -55,7 +55,7 @@ final class EmailTemplatesPageController
 
         if ($subject === '' || $html === '') {
             admin_flash('error', 'Betreff und HTML-Inhalt sind Pflichtfelder.');
-            return Response::redirect('/admin/email-templates');
+            return Response::redirect('/email-templates');
         }
 
         $updated = db('email_templates')
@@ -72,7 +72,7 @@ final class EmailTemplatesPageController
             admin_flash('success', 'Vorlage wurde gespeichert.');
         }
 
-        return Response::redirect('/admin/email-templates');
+        return Response::redirect('/email-templates');
     }
 
     public function sendTest(Request $request): Response
@@ -85,7 +85,7 @@ final class EmailTemplatesPageController
         $id = (int) $request->attribute('id', 0);
         if ($id <= 0) {
             admin_flash('error', 'Testmail konnte nicht gesendet werden: ungueltige ID.');
-            return Response::redirect('/admin/email-templates');
+            return Response::redirect('/email-templates');
         }
 
         $row = db('email_templates')
@@ -95,7 +95,7 @@ final class EmailTemplatesPageController
 
         if (!is_array($row)) {
             admin_flash('error', 'Testmail konnte nicht gesendet werden: Vorlage nicht gefunden.');
-            return Response::redirect('/admin/email-templates');
+            return Response::redirect('/email-templates');
         }
 
         $subjectTemplate = trim((string) $request->input('subject_template', (string) ($row['subject_template'] ?? '')));
@@ -137,7 +137,7 @@ final class EmailTemplatesPageController
             );
         }
 
-        return Response::redirect('/admin/email-templates');
+        return Response::redirect('/email-templates');
     }
 
     public function preview(Request $request): Response
@@ -252,50 +252,47 @@ final class EmailTemplatesPageController
         return [
             'client' => [
                 '{{client.id}}',
-                '{{client.first_name}}',
-                '{{client.last_name}}',
+                '{{client.name}}',
                 '{{client.email}}',
                 '{{client.phone}}',
-                '{{client.date_of_birth}}',
-                '{{client.medical_notes}}',
+                '{{client.address}}',
                 '{{client.created_at}}',
                 '{{client.updated_at}}',
             ],
-            'request' => [
-                '{{request.id}}',
-                '{{request.client_id}}',
-                '{{request.service_slug}}',
-                '{{request.status}}',
-                '{{request.desired_at}}',
-                '{{request.contact_preference}}',
-                '{{request.notes}}',
-                '{{request.package_id}}',
-                '{{request.created_at}}',
-                '{{request.updated_at}}',
+            'appointment' => [
+                '{{appointment.id}}',
+                '{{appointment.client_id}}',
+                '{{appointment.service_slug}}',
+                '{{appointment.status}}',
+                '{{appointment.desired_at}}',
+                '{{appointment.contact_preference}}',
+                '{{appointment.notes}}',
+                '{{appointment.created_at}}',
+                '{{appointment.updated_at}}',
             ],
-            'booking' => [
-                '{{booking.id}}',
-                '{{booking.client_id}}',
-                '{{booking.service_id}}',
-                '{{booking.status}}',
-                '{{booking.payment_status}}',
-                '{{booking.scheduled_at}}',
-                '{{booking.started_at}}',
-                '{{booking.notes}}',
-                '{{booking.cancellation_reason}}',
-                '{{booking.cancelled_at}}',
-                '{{booking.package_purchase_id}}',
-                '{{booking.is_package_booking}}',
-                '{{booking.package_session_no}}',
-                '{{booking.package_session_state}}',
-                '{{booking.created_at}}',
-                '{{booking.updated_at}}',
+            'contract / projects' => [
+                '{{contract.id}}',
+                '{{contract.client_id}}',
+                '{{contract.name}}',
+                '{{contract.notes}}',
+                '{{contract.created_at}}',
+                '{{contract.updated_at}}',
+                '{{project.id}}',
+                '{{project.client_id}}',
+                '{{project.name}}',
+                '{{project.description}}',
+                '{{project.status}}',
+                '{{project.progress}}',
+                '{{project.due_date}}',
+                '{{project.created_at}}',
+                '{{project.updated_at}}',
             ],
             'invoice' => [
                 '{{invoice.id}}',
                 '{{invoice.invoice_number}}',
                 '{{invoice.client_id}}',
-                '{{invoice.booking_id}}',
+                '{{invoice.project_id}}',
+                '{{invoice.contract_id}}',
                 '{{invoice.currency_code}}',
                 '{{invoice.sub_total_amount}}',
                 '{{invoice.discount_amount}}',
@@ -397,7 +394,7 @@ final class EmailTemplatesPageController
             ],
             'payment' => $this->paymentTemplateData(20260001),
             'system' => [
-                'site_name' => (string) config('app.name', 'Getragen Begleiten'),
+                'site_name' => (string) config('app.name', 'Henz Software'),
                 'contact_email' => $this->contactMailAddress(),
                 'support_email' => $this->supportMailAddress(),
                 'profile_image_url' => $this->profileImageUrl(),
@@ -773,7 +770,7 @@ final class EmailTemplatesPageController
             $fromAddress = 'support@getragen-begleiten.com';
         }
 
-        $fromName = trim((string) config('mail.senders.support.name', 'Getragen Begleiten Support'));
+        $fromName = trim((string) config('mail.senders.support.name', 'Henz Software Support'));
         $subjectHeader = $subject;
         if (function_exists('mb_encode_mimeheader')) {
             $subjectHeader = mb_encode_mimeheader($subject, 'UTF-8', 'B', "\r\n");
@@ -1174,7 +1171,7 @@ final class EmailTemplatesPageController
         extract($data, EXTR_SKIP);
 
         ob_start();
-        require base_path('public/ui/_templates/' . $template);
+        require base_path('public/ui/_templates/operations/' . $template);
         $html = (string) ob_get_clean();
 
         return new Response($html, $status, ['Content-Type' => 'text/html; charset=utf-8']);

@@ -22,7 +22,7 @@ return [
         [
             'icon' => 'getragen-begleiten-icon.png',
             'name' => 'Jutta Strah',
-            'role' => 'Praxisinhaberin Getragen Begleiten',
+            'role' => 'Praxisinhaberin Henz Software',
             'feedback' => '',
         ],
     ],

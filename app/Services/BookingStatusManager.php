@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Support\PermissionBits;
+use App\Core\Support\PermissionBits;
 
 /**
  * BookingStatusManager

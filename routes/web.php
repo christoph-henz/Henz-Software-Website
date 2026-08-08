@@ -7,6 +7,8 @@ use App\Core\Http\Request;
 use App\Core\Routing\RouterFacade as Router;
 use App\Controllers\Api\V1\AvailabilityController;
 use App\Controllers\Api\V1\RequestController;
+use App\Controllers\Api\V1\FormStateController;
+use App\Core\Support\OperationHost;
 
 if (!function_exists('serveMediaFileFromStorage')) {
     /**
@@ -172,6 +174,13 @@ Router::get('/status.json', fn () => Response::json([
 Router::get('/favicon.ico', fn () => Response::noContent())->name('favicon');
 
 /**
+ * saves and destroys form state data for the contact form.
+ *
+ * @return Response JSON response with status details and appropriate status code.
+ */
+Router::post('/form-state', [FormStateController::class, 'store'])->name('api.v1.form-state.store');
+Router::delete('/form-state', [FormStateController::class, 'clear'])->name('api.v1.form-state.clear');
+/**
  * Renders the HTML system status page with runtime checks.
  *
  * @return Response HTML response with status details and appropriate status code.
@@ -238,6 +247,20 @@ Router::get('/status', function (): Response {
  * @return Response HTML response for the home page.
  */
 Router::get('/', function (): Response {
+    $request = Request::capture();
+
+    if (OperationHost::isOperationHost($request)) {
+        $session = $request->session();
+        $sessionKey = (string) config('admin.session_key', 'admin_user');
+        $adminUser = $session[$sessionKey] ?? null;
+
+        $target = (is_array($adminUser) && $adminUser !== [])
+            ? (string) config('admin.dashboard_path', '/dashboard')
+            : (string) config('admin.login_path', '/login');
+
+        return Response::redirect($target, 302);
+    }
+
     ob_start();
     require base_path('public/ui/_templates/home-page.php');
     $html = (string) ob_get_clean();
@@ -246,71 +269,98 @@ Router::get('/', function (): Response {
 })->name('home');
 
 /**
- * Renders the begleitung page.
+ * Renders the leistungen page.
  *
- * @return Response HTML response for the begleitung page.
+ * @return Response HTML response for the leistungen page.
  */
-Router::get('/begleitung', function (): Response {
+Router::get('/leistungen', function (): Response {
     ob_start();
-    require base_path('public/ui/_templates/begleitung-page.php');
+    require base_path('public/ui/_templates/service-page.php');
     $html = (string) ob_get_clean();
 
     return new Response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
-})->name('begleitung');
+})->name('leistungen');
 
 /**
- * Renders the ueber-mich page.
+ * Renders the referenzen page.
+ *
+ * @return Response HTML response for the referenzen page.
+ */
+/*
+Router::get('/referenzen', function (): Response {
+    ob_start();
+    require base_path('public/ui/_templates/referenzen-page.php');
+    $html = (string) ob_get_clean();
+
+    return new Response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
+})->name('referenzen');
+*/
+
+foreach (project_page_entries() as $project) {
+    $routeSlug = trim((string) ($project['route_slug'] ?? ''));
+    if ($routeSlug === '') {
+        continue;
+    }
+
+    $routeName = preg_replace('/[^a-z0-9_-]+/i', '-', $routeSlug) ?? $routeSlug;
+
+    Router::get('/' . ltrim($routeSlug, '/'), static function () use ($project): Response {
+        ob_start();
+        require base_path('public/ui/_templates/project-page.php');
+        $html = (string) ob_get_clean();
+
+        return new Response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
+    })->name('project.' . trim($routeName, '-'));
+}
+
+/**
+ * Renders the referenzen page.
+ *
+ * @return Response HTML response for the referenzen page.
+ */
+Router::get('/zielgruppen', function (): Response {
+    ob_start();
+    require base_path('public/ui/_templates/zielgruppen-page.php');
+    $html = (string) ob_get_clean();
+
+    return new Response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
+})->name('zielgruppen');
+
+/**
+ * Renders the ueber-uns page.
  *
  * @return Response HTML response for the ueber-mich page.
  */
-Router::get('/ueber-mich', function (): Response {
+/*
+Router::get('/ueber-uns', function (): Response {
     ob_start();
-    require base_path('public/ui/_templates/ueber-mich-page.php');
+    require base_path('public/ui/_templates/ueber-uns-page.php');
     $html = (string) ob_get_clean();
 
     return new Response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
 })->name('ueber-mich');
+*/
 
 /**
- * Renders the meine-geschichte page.
+ * Renders the contact page.
  *
- * @return Response HTML response for the meine-geschichte page.
+ * @return Response HTML response for the contact page.
  */
-Router::get('/meine-geschichte', function (): Response {
+Router::get('/kontakt', function (): Response {
     ob_start();
-    require base_path('public/ui/_templates/meine-geschichte-page.php');
+    require base_path('public/ui/_templates/contact-page.php');
     $html = (string) ob_get_clean();
 
     return new Response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
-})->name('meine-geschichte');
+})->name('kontakt');
 
-/**
- * Renders the prices page.
- *
- * @return Response HTML response for the prices page.
- */
-Router::get('/prices', function (): Response {
+Router::get('/kontakt/erfolg', function (): Response {
     ob_start();
-    require base_path('public/ui/_templates/prices-page.php');
+    require base_path('public/ui/_templates/contact-success-page.php');
     $html = (string) ob_get_clean();
 
     return new Response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
-})->name('prices');
-
-/**
- * Renders the booking page.
- *
- * @return Response HTML response for the booking page.
- */
-Router::get('/booking', function (): Response {
-    ob_start();
-    require base_path('public/ui/_templates/booking-page.php');
-    $html = (string) ob_get_clean();
-
-    return new Response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
-})->name('booking');
-
-require __DIR__ . '/admin.php';
+})->name('kontakt.erfolg');
 
 /**
  * Renders the impressum page.
@@ -342,7 +392,8 @@ Router::get('/datenschutz', function (): Response {
  * Renders the widerruf page.
  *
  * @return Response HTML response for the widerruf page.
- */
+ **/
+/*
 Router::get('/widerruf', function (): Response {
     ob_start();
     require base_path('public/ui/_templates/widerruf-page.php');
@@ -350,6 +401,7 @@ Router::get('/widerruf', function (): Response {
 
     return new Response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
 })->name('widerruf');
+*/
 
 /**
  * Renders the AGB page.

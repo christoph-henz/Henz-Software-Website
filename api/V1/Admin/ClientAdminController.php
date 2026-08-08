@@ -8,22 +8,28 @@ use App\Controllers\Api\BaseApiController;
 use App\Core\Database\Database;
 use App\Core\Http\Request;
 use App\Core\Http\Response;
+use App\Core\Logging\Logger;
 use App\Services\ClientFieldEncryptionService;
 use App\Services\EmailLogPrivacyService;
 use App\Services\InvoicePdfService;
-use App\Support\PermissionBits;
+use App\Core\Support\PermissionBits;
 use DateTimeImmutable;
 
 final class ClientAdminController extends BaseApiController
 {
-    private const VIEW_CLIENTS_BIT = 8;
-    private const MANAGE_CLIENTS_BIT = 16;
+    private const VIEW_CLIENTS_BIT = 32768;
+    private const MANAGE_CLIENTS_BIT = 65536;
     private ?bool $invoicePdfColumnAvailable = null;
     private ?bool $clientTimezoneColumnAvailable = null;
     private ?bool $emailLogClientRefHashColumnAvailable = null;
     private ?bool $emailLogRecipientEncryptedColumnAvailable = null;
     private ?bool $emailLogSenderColumnAvailable = null;
     private ?bool $emailLogSenderEncryptedColumnAvailable = null;
+    private ?bool $invoiceTableAvailable = null;
+    private ?bool $ticketsTableAvailable = null;
+    private ?bool $ticketProtocolsTableAvailable = null;
+    /** @var array<string, true>|null */
+    private ?array $invoiceColumnSet = null;
 
     public function index(Request $request): Response
     {
@@ -37,35 +43,35 @@ final class ClientAdminController extends BaseApiController
         $perPage = min(100, max(1, (int) $request->query('per_page', 20)));
         $offset = ($page - 1) * $perPage;
 
-        $sort = strtolower(trim((string) $request->query('sort', 'last_name')));
+        $sort = strtolower(trim((string) $request->query('sort', 'name')));
         $direction = strtolower(trim((string) $request->query('direction', 'asc')));
         $direction = in_array($direction, ['asc', 'desc'], true) ? $direction : 'asc';
 
         $sortMap = [
-            'first_name',
-            'last_name',
-            'date_of_birth',
+            'name',
             'email',
+            'phone',
+            'address',
             'created_at',
         ];
         if (!in_array($sort, $sortMap, true)) {
-            $sort = 'last_name';
+            $sort = 'name';
         }
 
         $search = trim((string) $request->query('q', ''));
 
         $pdo = app(Database::class)->connection();
-        $stmt = $pdo->query('SELECT id, first_name, last_name, date_of_birth, email, created_at FROM clients');
+        $stmt = $pdo->query('SELECT id, name, email, phone, address, created_at FROM clients');
         $rows = $stmt !== false ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
         $rows = app(ClientFieldEncryptionService::class)->decryptClientRows(is_array($rows) ? $rows : []);
 
         if ($search !== '') {
             $needle = strtolower($search);
             $rows = array_values(array_filter($rows, static function (array $row) use ($needle): bool {
-                $name = strtolower(trim((string) (($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? ''))));
+                $name = strtolower(trim((string) ($row['name'] ?? '')));
                 $email = strtolower(trim((string) ($row['email'] ?? '')));
-
-                return str_contains($name, $needle) || str_contains($email, $needle);
+                $phone = strtolower(trim((string) ($row['phone'] ?? '')));
+                return str_contains($name, $needle) || str_contains($email, $needle) || str_contains($phone, $needle);
             }));
         }
 
@@ -85,7 +91,7 @@ final class ClientAdminController extends BaseApiController
 
         return $this->ok([
             'clients' => array_map(
-                fn (array $row): array => $this->formatClientListItem($row),
+                fn(array $row): array => $this->formatClientListItem($row),
                 is_array($rows) ? $rows : []
             ),
             'meta' => [
@@ -136,14 +142,9 @@ final class ClientAdminController extends BaseApiController
         $payload = $request->all();
         $errors = [];
 
-        $firstName = trim((string) ($payload['first_name'] ?? $payload['firstname'] ?? ''));
-        if ($firstName === '') {
-            $errors['first_name'][] = 'required';
-        }
-
-        $lastName = trim((string) ($payload['last_name'] ?? $payload['lastname'] ?? ''));
-        if ($lastName === '') {
-            $errors['last_name'][] = 'required';
+        $name = trim((string) ($payload['name'] ?? $payload['name'] ?? ''));
+        if ($name === '') {
+            $errors['name'][] = 'required';
         }
 
         $email = strtolower(trim((string) ($payload['email'] ?? '')));
@@ -155,70 +156,38 @@ final class ClientAdminController extends BaseApiController
             $errors['email'][] = 'already_exists';
         }
 
-        $dobRaw = trim((string) ($payload['date_of_birth'] ?? $payload['dob'] ?? ''));
-        $dateOfBirth = null;
-        if ($dobRaw !== '') {
-            $dateOfBirth = $this->normalizeDate($dobRaw);
-            if ($dateOfBirth === null) {
-                $errors['date_of_birth'][] = 'invalid_date';
-            }
-        }
-
-        $timezone = null;
-        if ($this->isClientTimezoneColumnAvailable()) {
-            $timezoneRaw = trim((string) ($payload['timezone'] ?? $payload['time_zone'] ?? ''));
-            if ($timezoneRaw !== '') {
-                $timezone = $this->normalizeTimezone($timezoneRaw);
-                if ($timezone === null) {
-                    $errors['timezone'][] = 'invalid_timezone';
-                }
-            }
-        }
-
         if ($errors !== []) {
             return $this->fail('Validation failed', 422, $errors);
         }
 
         $phone = trim((string) ($payload['phone'] ?? ''));
-        $notes = trim((string) ($payload['notes'] ?? ''));
+        $address = trim((string) ($payload['address'] ?? ''));
         $now = date('Y-m-d H:i:s');
 
         $columns = [
-            'first_name',
-            'last_name',
-            'date_of_birth',
+            'name',
             'email',
             'phone',
-            'medical_notes',
+            'address',
             'created_at',
             'updated_at',
         ];
         $placeholders = [
-            ':first_name',
-            ':last_name',
-            ':date_of_birth',
+            ':name',
             ':email',
             ':phone',
-            ':medical_notes',
+            ':address',
             ':created_at',
             ':updated_at',
         ];
         $bindings = [
-            ':first_name' => $firstName,
-            ':last_name' => $lastName,
-            ':date_of_birth' => $dateOfBirth,
+            ':name' => $name,
             ':email' => $email,
             ':phone' => $phone !== '' ? $phone : null,
-            ':medical_notes' => $notes !== '' ? $notes : null,
+            ':address' => $address !== '' ? $address : null,
             ':created_at' => $now,
             ':updated_at' => $now,
         ];
-
-        if ($this->isClientTimezoneColumnAvailable()) {
-            $columns[] = 'timezone';
-            $placeholders[] = ':timezone';
-            $bindings[':timezone'] = $timezone;
-        }
 
         $storagePayload = [];
         foreach ($bindings as $key => $value) {
@@ -237,29 +206,45 @@ final class ClientAdminController extends BaseApiController
             $pdo = app(Database::class)->connection();
             $insertSql = 'INSERT INTO clients (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $placeholders) . ')';
             $stmt = $pdo->prepare($insertSql);
+            var_dump($insertSql, $bindings); // Debugging line to check the SQL and bindings
             $stmt->execute($bindings);
 
             $newId = (int) $pdo->lastInsertId();
+
             if ($newId <= 0) {
-                return $this->fail('Fehler', 500);
+                return $this->fail('Client could not be created', 500, [
+                    'client' => ['creation_failed'],
+                ]);
             }
 
             $created = $this->fetchClient($newId);
+
             if ($created === null) {
-                return $this->fail('Fehler', 500);
+                return $this->fail('Client created but could not be loaded', 500, [
+                    'client' => ['reload_failed'],
+                ]);
             }
 
             return $this->ok([
                 'client' => $this->formatClientDetail($created),
             ]);
         } catch (\Throwable $e) {
+
             if ($this->isDuplicateEmailConstraintViolation($e)) {
                 return $this->fail('Validation failed', 422, [
                     'email' => ['already_exists'],
                 ]);
             }
 
-            return $this->fail('Fehler', 500);
+            if ($e instanceof \PDOException) {
+                return $this->fail('Database error', 500, [
+                    'database' => ['insert_failed'],
+                ]);
+            }
+
+            return $this->fail('Unexpected error', 500, [
+                'server' => ['unexpected_error'],
+            ]);
         }
     }
 
@@ -315,23 +300,35 @@ final class ClientAdminController extends BaseApiController
         $fields = [];
         $bindings = [':id' => $id];
 
-        if (array_key_exists('first_name', $payload) || array_key_exists('firstname', $payload)) {
-            $firstName = trim((string) ($payload['first_name'] ?? $payload['firstname'] ?? ''));
-            if ($firstName === '') {
-                $errors['first_name'][] = 'required';
+        if (array_key_exists('name', $payload)) {
+            $name = trim((string) ($payload['name'] ?? ''));
+            if ($name === '') {
+                $errors['name'][] = 'required';
             } else {
-                $fields[] = 'first_name = :first_name';
-                $bindings[':first_name'] = $firstName;
+                $fields[] = 'name = :name';
+                $bindings[':name'] = $name;
             }
         }
 
-        if (array_key_exists('last_name', $payload) || array_key_exists('lastname', $payload)) {
+        // Backward compatibility for old payloads still sending first/last name.
+        if (
+            !array_key_exists('name', $payload)
+            && (
+                array_key_exists('first_name', $payload)
+                || array_key_exists('firstname', $payload)
+                || array_key_exists('last_name', $payload)
+                || array_key_exists('lastname', $payload)
+            )
+        ) {
+            $firstName = trim((string) ($payload['first_name'] ?? $payload['firstname'] ?? ''));
             $lastName = trim((string) ($payload['last_name'] ?? $payload['lastname'] ?? ''));
-            if ($lastName === '') {
-                $errors['last_name'][] = 'required';
+            $composedName = trim($firstName . ' ' . $lastName);
+
+            if ($composedName === '') {
+                $errors['name'][] = 'required';
             } else {
-                $fields[] = 'last_name = :last_name';
-                $bindings[':last_name'] = $lastName;
+                $fields[] = 'name = :name';
+                $bindings[':name'] = $composedName;
             }
         }
 
@@ -368,28 +365,11 @@ final class ClientAdminController extends BaseApiController
             $bindings[':phone'] = $phone !== '' ? $phone : null;
         }
 
-        if (array_key_exists('notes', $payload)) {
-            $notes = trim((string) ($payload['notes'] ?? ''));
-            $fields[] = 'medical_notes = :medical_notes';
-            $bindings[':medical_notes'] = $notes !== '' ? $notes : null;
-        }
-
-        if (array_key_exists('timezone', $payload) || array_key_exists('time_zone', $payload)) {
-            if ($this->isClientTimezoneColumnAvailable()) {
-                $timezone = trim((string) ($payload['timezone'] ?? $payload['time_zone'] ?? ''));
-                if ($timezone === '') {
-                    $fields[] = 'timezone = :timezone';
-                    $bindings[':timezone'] = null;
-                } else {
-                    $normalizedTimezone = $this->normalizeTimezone($timezone);
-                    if ($normalizedTimezone === null) {
-                        $errors['timezone'][] = 'invalid_timezone';
-                    } else {
-                        $fields[] = 'timezone = :timezone';
-                        $bindings[':timezone'] = $normalizedTimezone;
-                    }
-                }
-            }
+        if (array_key_exists('address', $payload)) {
+            $addressRaw = (string) ($payload['address'] ?? '');
+            $addressNormalized = str_replace(["\r\n", "\r"], "\n", $addressRaw);
+            $fields[] = 'address = :address';
+            $bindings[':address'] = trim($addressNormalized) !== '' ? $addressNormalized : null;
         }
 
         if ($errors !== []) {
@@ -437,72 +417,6 @@ final class ClientAdminController extends BaseApiController
         ]);
     }
 
-    public function packages(Request $request): Response
-    {
-        if (!$this->canViewClients($request)) {
-            return $this->fail('Forbidden', 403, [
-                'permission' => ['insufficient_role'],
-            ]);
-        }
-
-        $id = (int) $request->attribute('id', 0);
-        if ($id <= 0) {
-            return $this->fail('Validation failed', 422, [
-                'id' => ['required'],
-            ]);
-        }
-
-        $client = $this->fetchClient($id);
-        if ($client === null) {
-            return $this->fail('Client not found', 404);
-        }
-
-        $pdo = app(Database::class)->connection();
-        $stmt = $pdo->prepare(
-            'SELECT
-                pp.id,
-                pp.package_id,
-                pp.total_sessions,
-                pp.reserved_sessions,
-                pp.consumed_sessions,
-                pp.remaining_sessions,
-                pp.status,
-                pp.payment_status,
-                pp.purchased_at,
-                pp.expires_at,
-                pp.notes,
-                pp.package_name_snapshot,
-                pp.package_slug_snapshot,
-                pp.package_price_snapshot,
-                pp.service_name_snapshot,
-                pp.service_slug_snapshot,
-                pp.service_price_snapshot,
-                pp.package_session_count_snapshot,
-                sp.name AS package_name,
-                sp.slug AS package_slug,
-                s.name AS service_name
-             FROM package_purchases pp
-             LEFT JOIN service_packages sp ON sp.id = pp.package_id
-             LEFT JOIN services s ON s.id = pp.service_id
-             WHERE pp.client_id = :client_id
-               AND pp.status = :status
-             ORDER BY pp.purchased_at DESC, pp.id DESC'
-        );
-        $stmt->execute([
-            ':client_id' => $id,
-            ':status' => 'active',
-        ]);
-
-        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-
-        return $this->ok([
-            'packages' => array_map(
-                fn (array $row): array => $this->formatPackageRow($row),
-                is_array($rows) ? $rows : []
-            ),
-        ]);
-    }
-
     public function invoices(Request $request): Response
     {
         if (!$this->canViewClients($request)) {
@@ -531,44 +445,260 @@ final class ClientAdminController extends BaseApiController
 
         $stmt = $pdo->prepare(
             'SELECT
-                b.id AS booking_id,
-                b.scheduled_at AS booking_scheduled_at,
-                b.status AS booking_status,
-                b.payment_status AS booking_payment_status,
-                b.created_at AS booking_created_at,
-                inv.id AS invoice_id,
-                inv.invoice_number,
-                inv.status AS invoice_status,
-                inv.total_amount,
-                inv.currency_code,
-                inv.invoice_date,
-                inv.due_date,
-                     inv.sent_at,
-                     ' . $pdfSelect . '
-             FROM bookings b
-             LEFT JOIN invoices inv
-                ON inv.id = (
-                    SELECT i2.id
-                    FROM invoices i2
-                    WHERE i2.booking_id = b.id
-                    ORDER BY i2.id DESC
-                    LIMIT 1
-                )
-             WHERE b.client_id = :client_id
-             ORDER BY b.scheduled_at ASC, b.id ASC'
+        p.id AS project_id,
+        p.name AS project_name,
+        p.is_active AS project_is_active,
+        p.status AS project_status,
+        p.created_at AS project_created_at,
+
+        inv.id AS invoice_id,
+        inv.invoice_number,
+        inv.status AS invoice_status,
+        inv.total_amount,
+        inv.currency_code,
+        inv.invoice_date,
+        inv.due_date,
+        inv.sent_at,
+        ' . $pdfSelect . '
+
+        FROM projects p
+
+        LEFT JOIN invoices inv
+            ON inv.project_id = p.id
+
+        WHERE p.client_id = :client_id
+
+        ORDER BY
+            p.created_at DESC,
+            inv.invoice_date DESC,
+            inv.invoice_number DESC'
         );
+
         $stmt->execute([
             ':client_id' => $id,
         ]);
 
         $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
+        $contractsStmt = $pdo->prepare(
+            'SELECT c.id, c.project_id, c.start_date, c.end_date
+             FROM contracts c
+             INNER JOIN projects p ON p.id = c.project_id
+             WHERE p.client_id = :client_id
+             ORDER BY c.id DESC'
+        );
+        $contractsStmt->execute([':client_id' => $id]);
+        $contractRows = $contractsStmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        $pdfBasePath = str_starts_with($request->path(), '/v1/')
+            ? '/v1/admin/clients'
+            : '/clients/data';
+
         return $this->ok([
-            'bookings' => array_map(
-                fn (array $row): array => $this->formatInvoiceBookingRow($row, $id),
-                is_array($rows) ? $rows : []
+            'projects' => $this->formatProjectsWithInvoices(
+                is_array($rows) ? $rows : [],
+                $id,
+                is_array($contractRows) ? $contractRows : [],
+                $pdfBasePath
             ),
         ]);
+    }
+
+    public function createInvoice(Request $request): Response
+    {
+        if (!$this->canManageClients($request)) {
+            return $this->fail('Forbidden', 403, [
+                'permission' => ['insufficient_role'],
+            ]);
+        }
+
+        if (!$this->isInvoiceTableAvailable()) {
+            return $this->fail('Invoice feature not available', 503, [
+                'invoice' => ['migration_required'],
+            ]);
+        }
+
+        $clientId = (int) $request->attribute('id', 0);
+        if ($clientId <= 0) {
+            return $this->fail('Validation failed', 422, [
+                'id' => ['required'],
+            ]);
+        }
+
+        $client = $this->fetchClient($clientId);
+        if ($client === null) {
+            return $this->fail('Client not found', 404);
+        }
+
+        $payload = $request->all();
+        $projectId = (int) ($payload['project_id'] ?? 0);
+        $contractId = isset($payload['contract_id']) && $payload['contract_id'] !== '' ? (int) $payload['contract_id'] : null;
+        $invoiceDateRaw = trim((string) ($payload['invoice_date'] ?? ''));
+        $dueDateRaw = trim((string) ($payload['due_date'] ?? ''));
+        $discountAmount = isset($payload['discount_amount']) && is_numeric($payload['discount_amount'])
+            ? abs((float) $payload['discount_amount'])
+            : 0.0;
+
+        $errors = [];
+        if ($projectId <= 0) {
+            $errors['project_id'][] = 'required';
+        }
+
+        $invoiceDate = DateTimeImmutable::createFromFormat('Y-m-d', $invoiceDateRaw) ?: null;
+        if ($invoiceDateRaw === '' || !$invoiceDate instanceof DateTimeImmutable) {
+            $errors['invoice_date'][] = 'invalid_date';
+        }
+
+        $dueDate = null;
+        if ($dueDateRaw !== '') {
+            $dueDate = DateTimeImmutable::createFromFormat('Y-m-d', $dueDateRaw) ?: null;
+            if (!$dueDate instanceof DateTimeImmutable) {
+                $errors['due_date'][] = 'invalid_date';
+            }
+        }
+
+        $items = $this->normalizeManualInvoiceItems($payload['items'] ?? []);
+        if ($items === []) {
+            $errors['items'][] = 'at_least_one_item_required';
+        }
+
+        $projectRow = $projectId > 0 ? $this->fetchProjectForClient($clientId, $projectId) : null;
+        if ($projectId > 0 && $projectRow === null) {
+            $errors['project_id'][] = 'not_found';
+        }
+
+        $contractRow = null;
+        if ($contractId !== null && $contractId > 0) {
+            $contractRow = $this->fetchContractForProject($contractId, $projectId);
+            if ($contractRow === null) {
+                $errors['contract_id'][] = 'invalid_for_project';
+            }
+        }
+
+        if ($errors !== []) {
+            return $this->fail('Validation failed', 422, $errors);
+        }
+
+        $baseAmount = 0.0;
+        foreach ($items as $item) {
+            $baseAmount += ((float) $item['quantity']) * ((float) $item['unit_price']);
+        }
+        $baseAmount = round($baseAmount, 2);
+        $discountAmount = round(min($discountAmount, $baseAmount), 2);
+        $subTotal = round($baseAmount - $discountAmount, 2);
+
+        if ($subTotal <= 0.0) {
+            return $this->fail('Validation failed', 422, [
+                'total_amount' => ['must_be_positive'],
+            ]);
+        }
+
+        $currency = strtoupper(trim((string) config('mail.payment.currency', 'EUR')));
+        if ($currency === '') {
+            $currency = 'EUR';
+        }
+
+        $invoiceId = (int) app(Database::class)->transaction(function () use ($clientId, $projectId, $contractId, $invoiceDate, $dueDate, $currency, $baseAmount, $discountAmount, $subTotal, $items, $request): int {
+            $columns = $this->invoiceColumnSet();
+            $nextInvoiceNumber = $this->reserveNextInvoiceNumber();
+
+            $data = [
+                'invoice_number' => $nextInvoiceNumber,
+                'client_id' => $clientId,
+                'currency_code' => $currency,
+                'sub_total_amount' => $baseAmount,
+                'discount_amount' => $discountAmount,
+                'total_amount' => $subTotal,
+                'status' => 'created',
+                'invoice_date' => $invoiceDate instanceof DateTimeImmutable ? $invoiceDate->format('Y-m-d') : date('Y-m-d'),
+                'due_date' => $dueDate instanceof DateTimeImmutable ? $dueDate->format('Y-m-d') : ($invoiceDate instanceof DateTimeImmutable ? $invoiceDate->format('Y-m-d') : date('Y-m-d')),
+                'created_by_user_id' => $this->actorId($request),
+                'created_at' => date('Y-m-d H:i:s'),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ];
+
+            if (isset($columns['project_id'])) {
+                $data['project_id'] = $projectId;
+            }
+            if (isset($columns['contract_id'])) {
+                $data['contract_id'] = $contractId;
+            }
+
+            $insertData = [];
+            foreach ($data as $column => $value) {
+                if (isset($columns[$column])) {
+                    $insertData[$column] = $value;
+                }
+            }
+
+            $invoiceId = (int) db('invoices')->insert($insertData);
+
+            $sortOrder = 0;
+            foreach ($items as $item) {
+                $sortOrder++;
+                $quantity = (float) $item['quantity'];
+                $unitPrice = (float) $item['unit_price'];
+                db('invoice_items')->insert([
+                    'invoice_id' => $invoiceId,
+                    'item_type' => 'additional',
+                    'description' => (string) $item['description'],
+                    'quantity' => $quantity,
+                    'unit_price' => $unitPrice,
+                    'line_total' => round($quantity * $unitPrice, 2),
+                    'sort_order' => $sortOrder,
+                ]);
+            }
+
+            if ($discountAmount > 0) {
+                db('invoice_items')->insert([
+                    'invoice_id' => $invoiceId,
+                    'item_type' => 'discount',
+                    'description' => 'Rabatt',
+                    'quantity' => 1,
+                    'unit_price' => -$discountAmount,
+                    'line_total' => -$discountAmount,
+                    'sort_order' => $sortOrder + 1,
+                ]);
+            }
+
+            return $invoiceId;
+        });
+
+        $pdfMeta = null;
+        try {
+            $pdfMeta = app(InvoicePdfService::class)->generateForInvoice($invoiceId);
+            if ($this->isInvoicePdfColumnAvailable()) {
+                db('invoices')
+                    ->where('id', $invoiceId)
+                    ->update([
+                        'pdf_path' => (string) ($pdfMeta['relative_path'] ?? ''),
+                        'pdf_mime_type' => (string) ($pdfMeta['mime_type'] ?? 'application/pdf'),
+                        'pdf_file_size' => (int) ($pdfMeta['file_size'] ?? 0),
+                        'pdf_sha256' => (string) ($pdfMeta['sha256'] ?? ''),
+                        'pdf_generated_at' => (string) ($pdfMeta['generated_at'] ?? date('Y-m-d H:i:s')),
+                    ]);
+            }
+        } catch (\Throwable $e) {
+            $logger = app(Logger::class);
+            if ($logger instanceof Logger) {
+                $logger->warning('invoice.pdf_generation_failed_on_create', [
+                    'invoice_id' => $invoiceId,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+
+            // Invoice creation should remain successful even if PDF generation fails.
+        }
+
+        $invoice = db('invoices')->where('id', $invoiceId)->first();
+
+        return $this->ok([
+            'invoice' => is_array($invoice) ? $invoice : ['id' => $invoiceId],
+            'pdf_export' => [
+                'generated' => is_array($pdfMeta),
+                'relative_path' => is_array($pdfMeta) ? (string) ($pdfMeta['relative_path'] ?? '') : null,
+            ],
+        ], 201);
     }
 
     public function history(Request $request): Response
@@ -602,7 +732,7 @@ final class ClientAdminController extends BaseApiController
         ]);
     }
 
-    public function consents(Request $request): Response
+    public function appointments(Request $request): Response
     {
         if (!$this->canViewClients($request)) {
             return $this->fail('Forbidden', 403, [
@@ -625,42 +755,46 @@ final class ClientAdminController extends BaseApiController
         $pdo = app(Database::class)->connection();
         $stmt = $pdo->prepare(
             'SELECT
-                c.id,
-                c.client_request_id,
-                c.booking_id,
-                c.consent_key,
-                c.accepted,
-                c.accepted_at,
-                c.consent_version,
-                c.consent_text_snapshot,
-                c.ip_address,
-                c.user_agent,
-                c.signature_hash,
-                b.scheduled_at AS booking_scheduled_at,
-                cr.status AS request_status,
-                cr.created_at AS request_created_at
-             FROM consents c
-             LEFT JOIN bookings b ON b.id = c.booking_id
-             LEFT JOIN client_requests cr ON cr.id = c.client_request_id
-             WHERE (b.client_id = :client_id_booking OR cr.client_id = :client_id_request)
-             ORDER BY c.accepted_at DESC, c.id DESC'
+                a.id,
+                a.appointment_date,
+                a.duration_minutes,
+                a.status,
+                a.notes,
+                a.origin,
+                a.created_at,
+                a.updated_at,
+                s.name AS service_name
+             FROM appointments a
+             LEFT JOIN services s ON s.id = a.service_id
+             WHERE a.client_id = :client_id
+             ORDER BY a.appointment_date DESC, a.id DESC'
         );
-        $stmt->execute([
-            ':client_id_booking' => $id,
-            ':client_id_request' => $id,
-        ]);
-
+        $stmt->execute([':client_id' => $id]);
         $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
+        $appointments = array_map(static function (array $row): array {
+            $appointmentId = (int) ($row['id'] ?? 0);
+
+            return [
+                'id' => $appointmentId,
+                'service_name' => trim((string) ($row['service_name'] ?? '')),
+                'appointment_date' => (string) ($row['appointment_date'] ?? ''),
+                'duration_minutes' => (int) ($row['duration_minutes'] ?? 0),
+                'status' => (string) ($row['status'] ?? 'pending'),
+                'notes' => (string) ($row['notes'] ?? ''),
+                'origin' => (string) ($row['origin'] ?? ''),
+                'created_at' => (string) ($row['created_at'] ?? ''),
+                'updated_at' => (string) ($row['updated_at'] ?? ''),
+                'appointment_url' => $appointmentId > 0 ? '/appointments/' . $appointmentId : null,
+            ];
+        }, is_array($rows) ? $rows : []);
+
         return $this->ok([
-            'consents' => array_map(
-                fn (array $row): array => $this->formatConsentRow($row),
-                is_array($rows) ? $rows : []
-            ),
+            'appointments' => $appointments,
         ]);
     }
 
-    public function invoicePdf(Request $request): Response
+    public function ticketsIndex(Request $request): Response
     {
         if (!$this->canViewClients($request)) {
             return $this->fail('Forbidden', 403, [
@@ -668,9 +802,465 @@ final class ClientAdminController extends BaseApiController
             ]);
         }
 
-        if (!$this->isInvoicePdfColumnAvailable()) {
-            return $this->fail('Invoice PDF not found', 404, [
-                'invoice' => ['pdf_not_available'],
+        $page = max(1, (int) $request->query('page', 1));
+        $perPage = min(100, max(1, (int) $request->query('per_page', 20)));
+        $offset = ($page - 1) * $perPage;
+
+        $sort = strtolower(trim((string) $request->query('sort', 'created_at')));
+        $direction = strtolower(trim((string) $request->query('direction', 'desc')));
+        $direction = in_array($direction, ['asc', 'desc'], true) ? $direction : 'desc';
+
+        $sortMap = [
+            'id',
+            'ticket_type',
+            'category',
+            'priority',
+            'status',
+            'subject',
+            'created_at',
+            'updated_at',
+            'client_name',
+        ];
+        if (!in_array($sort, $sortMap, true)) {
+            $sort = 'created_at';
+        }
+
+        $search = strtolower(trim((string) $request->query('q', '')));
+
+        if (!$this->isTicketsTableAvailable()) {
+            return $this->ok([
+                'tickets' => [],
+                'meta' => [
+                    'page' => $page,
+                    'per_page' => $perPage,
+                    'total' => 0,
+                    'total_pages' => 1,
+                    'sort' => $sort,
+                    'direction' => $direction,
+                    'q' => trim((string) $request->query('q', '')),
+                ],
+            ]);
+        }
+
+        $ticketRows = db('tickets')
+            ->select([
+                'id',
+                'client_id',
+                'ticket_type',
+                'category',
+                'priority',
+                'subject',
+                'message',
+                'source',
+                'status',
+                'assigned_user_id',
+                'created_at',
+                'updated_at',
+            ])
+            ->orderBy('created_at', 'desc')
+            ->orderBy('id', 'desc')
+            ->get();
+
+        $pdo = app(Database::class)->connection();
+        $clientStmt = $pdo->query('SELECT id, name, email FROM clients');
+        $clientRows = $clientStmt !== false ? $clientStmt->fetchAll(\PDO::FETCH_ASSOC) : [];
+        $clientRows = app(ClientFieldEncryptionService::class)->decryptClientRows(is_array($clientRows) ? $clientRows : []);
+
+        $clientMap = [];
+        foreach ($clientRows as $clientRow) {
+            if (!is_array($clientRow)) {
+                continue;
+            }
+
+            $clientId = (int) ($clientRow['id'] ?? 0);
+            if ($clientId <= 0) {
+                continue;
+            }
+
+            $clientMap[$clientId] = [
+                'name' => trim((string) ($clientRow['name'] ?? '')),
+                'email' => trim((string) ($clientRow['email'] ?? '')),
+            ];
+        }
+
+        $rows = [];
+        foreach ((array) $ticketRows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $clientId = (int) ($row['client_id'] ?? 0);
+            $client = $clientMap[$clientId] ?? ['name' => '', 'email' => ''];
+
+            $item = [
+                'id' => (int) ($row['id'] ?? 0),
+                'client_id' => $clientId > 0 ? $clientId : null,
+                'client_name' => (string) ($client['name'] ?? ''),
+                'client_email' => (string) ($client['email'] ?? ''),
+                'ticket_type' => (string) ($row['ticket_type'] ?? ''),
+                'category' => (string) ($row['category'] ?? ''),
+                'priority' => $row['priority'] !== null ? (string) $row['priority'] : null,
+                'subject' => (string) ($row['subject'] ?? ''),
+                'message' => (string) ($row['message'] ?? ''),
+                'source' => (string) ($row['source'] ?? ''),
+                'status' => (string) ($row['status'] ?? ''),
+                'assigned_user_id' => $row['assigned_user_id'] !== null ? (int) $row['assigned_user_id'] : null,
+                'created_at' => (string) ($row['created_at'] ?? ''),
+                'updated_at' => (string) ($row['updated_at'] ?? ''),
+            ];
+
+            if ($search !== '') {
+                $haystack = strtolower(trim(implode(' ', [
+                    (string) ($item['client_name'] ?? ''),
+                    (string) ($item['client_email'] ?? ''),
+                    (string) ($item['ticket_type'] ?? ''),
+                    (string) ($item['category'] ?? ''),
+                    (string) ($item['priority'] ?? ''),
+                    (string) ($item['status'] ?? ''),
+                    (string) ($item['subject'] ?? ''),
+                    (string) ($item['message'] ?? ''),
+                ])));
+                if (!str_contains($haystack, $search)) {
+                    continue;
+                }
+            }
+
+            $rows[] = $item;
+        }
+
+        usort($rows, static function (array $a, array $b) use ($sort, $direction): int {
+            $aValue = strtolower(trim((string) ($a[$sort] ?? '')));
+            $bValue = strtolower(trim((string) ($b[$sort] ?? '')));
+            $cmp = $aValue <=> $bValue;
+            if ($cmp === 0) {
+                $cmp = ((int) ($a['id'] ?? 0)) <=> ((int) ($b['id'] ?? 0));
+            }
+
+            return $direction === 'asc' ? $cmp : -$cmp;
+        });
+
+        $total = count($rows);
+        $rows = array_slice($rows, $offset, $perPage);
+
+        return $this->ok([
+            'tickets' => $rows,
+            'meta' => [
+                'page' => $page,
+                'per_page' => $perPage,
+                'total' => $total,
+                'total_pages' => (int) max(1, (int) ceil($total / max(1, $perPage))),
+                'sort' => $sort,
+                'direction' => $direction,
+                'q' => trim((string) $request->query('q', '')),
+            ],
+        ]);
+    }
+
+    public function tickets(Request $request): Response
+    {
+        if (!$this->canViewClients($request)) {
+            return $this->fail('Forbidden', 403, [
+                'permission' => ['insufficient_role'],
+            ]);
+        }
+
+        $id = (int) $request->attribute('id', 0);
+        if ($id <= 0) {
+            return $this->fail('Validation failed', 422, [
+                'id' => ['required'],
+            ]);
+        }
+
+        $client = $this->fetchClient($id);
+        if ($client === null) {
+            return $this->fail('Client not found', 404);
+        }
+
+        if (!$this->isTicketsTableAvailable()) {
+            return $this->ok([
+                'tickets' => [],
+            ]);
+        }
+
+        $rows = db('tickets')
+            ->where('client_id', $id)
+            ->select([
+                'id',
+                'ticket_type',
+                'category',
+                'priority',
+                'subject',
+                'message',
+                'source',
+                'status',
+                'assigned_user_id',
+                'created_at',
+                'updated_at',
+            ])
+            ->orderBy('created_at', 'desc')
+            ->orderBy('id', 'desc')
+            ->get();
+
+        $tickets = array_map(
+            static fn(array $row): array => [
+                'id' => (int) ($row['id'] ?? 0),
+                'ticket_type' => (string) ($row['ticket_type'] ?? ''),
+                'category' => (string) ($row['category'] ?? ''),
+                'priority' => $row['priority'] !== null ? (string) $row['priority'] : null,
+                'subject' => (string) ($row['subject'] ?? ''),
+                'message' => (string) ($row['message'] ?? ''),
+                'source' => (string) ($row['source'] ?? ''),
+                'status' => (string) ($row['status'] ?? ''),
+                'assigned_user_id' => $row['assigned_user_id'] !== null ? (int) $row['assigned_user_id'] : null,
+                'created_at' => (string) ($row['created_at'] ?? ''),
+                'updated_at' => (string) ($row['updated_at'] ?? ''),
+            ],
+            is_array($rows) ? $rows : []
+        );
+
+        return $this->ok([
+            'tickets' => $tickets,
+        ]);
+    }
+
+    public function ticketDetail(Request $request): Response
+    {
+        if (!$this->canViewClients($request)) {
+            return $this->fail('Forbidden', 403, [
+                'permission' => ['insufficient_role'],
+            ]);
+        }
+
+        $ticketId = (int) $request->attribute('ticket_id', 0);
+        if ($ticketId <= 0) {
+            return $this->fail('Validation failed', 422, [
+                'ticket_id' => ['required'],
+            ]);
+        }
+
+        if (!$this->isTicketsTableAvailable()) {
+            return $this->fail('Ticket not found', 404);
+        }
+
+        $row = db('tickets')
+            ->where('id', $ticketId)
+            ->select([
+                'id',
+                'client_id',
+                'ticket_type',
+                'category',
+                'priority',
+                'subject',
+                'message',
+                'source',
+                'status',
+                'assigned_user_id',
+                'created_at',
+                'updated_at',
+            ])
+            ->first();
+
+        if (!is_array($row)) {
+            return $this->fail('Ticket not found', 404);
+        }
+
+        $clientId = (int) ($row['client_id'] ?? 0);
+        $client = $clientId > 0 ? $this->fetchClient($clientId) : null;
+
+        return $this->ok([
+            'ticket' => $this->formatTicketRow($row, $client),
+            'protocols' => $this->fetchTicketProtocols($ticketId),
+            'status_options' => $this->ticketStatusOptions(),
+            'priority_options' => $this->ticketPriorityOptions(),
+        ]);
+    }
+
+    public function updateTicket(Request $request): Response
+    {
+        if (!$this->canManageClients($request)) {
+            return $this->fail('Forbidden', 403, [
+                'permission' => ['insufficient_role'],
+            ]);
+        }
+
+        $ticketId = (int) $request->attribute('ticket_id', 0);
+        if ($ticketId <= 0) {
+            return $this->fail('Validation failed', 422, [
+                'ticket_id' => ['required'],
+            ]);
+        }
+
+        if (!$this->isTicketsTableAvailable()) {
+            return $this->fail('Ticket not found', 404);
+        }
+
+        $row = db('tickets')->where('id', $ticketId)->first();
+        if (!is_array($row)) {
+            return $this->fail('Ticket not found', 404);
+        }
+
+        $payload = $request->all();
+        $statusProvided = array_key_exists('status', $payload);
+        $priorityProvided = array_key_exists('priority', $payload);
+        $protocolNote = trim((string) ($payload['protocol_note'] ?? ''));
+
+        $updates = [];
+        $errors = [];
+        $oldStatus = (string) ($row['status'] ?? 'new');
+        $oldPriority = $row['priority'] !== null ? (string) $row['priority'] : null;
+        $newStatus = $oldStatus;
+        $newPriority = $oldPriority;
+
+        if ($statusProvided) {
+            $newStatus = strtolower(trim((string) ($payload['status'] ?? '')));
+            if (!in_array($newStatus, $this->ticketStatusOptions(), true)) {
+                $errors['status'][] = 'invalid_status';
+            } elseif ($newStatus !== $oldStatus) {
+                $updates['status'] = $newStatus;
+            }
+        }
+
+        if ($priorityProvided) {
+            $rawPriority = strtolower(trim((string) ($payload['priority'] ?? '')));
+            if ($rawPriority === '') {
+                $newPriority = null;
+            } elseif (!in_array($rawPriority, $this->ticketPriorityOptions(), true)) {
+                $errors['priority'][] = 'invalid_priority';
+            } else {
+                $newPriority = $rawPriority;
+            }
+
+            if ($newPriority !== $oldPriority) {
+                $updates['priority'] = $newPriority;
+            }
+        }
+
+        if ($errors !== []) {
+            return $this->fail('Validation failed', 422, $errors);
+        }
+
+        if ($updates === [] && $protocolNote === '') {
+            return $this->fail('Validation failed', 422, [
+                'ticket' => ['nothing_to_update'],
+            ]);
+        }
+
+        if ($updates !== []) {
+            db('tickets')
+                ->where('id', $ticketId)
+                ->update($updates);
+        }
+
+        $actorId = $this->actorId($request);
+
+        if ($protocolNote !== '') {
+            $this->createTicketProtocolEntry(
+                $ticketId,
+                'note',
+                $protocolNote,
+                null,
+                null,
+                null,
+                null,
+                $actorId
+            );
+        }
+
+        if ($oldStatus !== $newStatus) {
+            $this->createTicketProtocolEntry(
+                $ticketId,
+                'status_change',
+                sprintf('Status geändert: %s -> %s', $oldStatus, $newStatus),
+                $oldStatus,
+                $newStatus,
+                null,
+                null,
+                $actorId
+            );
+        }
+
+        if ($oldPriority !== $newPriority) {
+            $this->createTicketProtocolEntry(
+                $ticketId,
+                'priority_change',
+                sprintf(
+                    'Priorität geändert: %s -> %s',
+                    $oldPriority ?? '-',
+                    $newPriority ?? '-'
+                ),
+                null,
+                null,
+                $oldPriority,
+                $newPriority,
+                $actorId
+            );
+        }
+
+        $updated = db('tickets')->where('id', $ticketId)->first();
+        $clientId = (int) (($updated['client_id'] ?? $row['client_id'] ?? 0));
+        $client = $clientId > 0 ? $this->fetchClient($clientId) : null;
+
+        return $this->ok([
+            'ticket' => is_array($updated)
+                ? $this->formatTicketRow($updated, $client)
+                : $this->formatTicketRow($row, $client),
+            'protocols' => $this->fetchTicketProtocols($ticketId),
+        ]);
+    }
+
+    public function createTicketProtocol(Request $request): Response
+    {
+        if (!$this->canManageClients($request)) {
+            return $this->fail('Forbidden', 403, [
+                'permission' => ['insufficient_role'],
+            ]);
+        }
+
+        $ticketId = (int) $request->attribute('ticket_id', 0);
+        if ($ticketId <= 0) {
+            return $this->fail('Validation failed', 422, [
+                'ticket_id' => ['required'],
+            ]);
+        }
+
+        if (!$this->isTicketsTableAvailable()) {
+            return $this->fail('Ticket not found', 404);
+        }
+
+        $ticket = db('tickets')->where('id', $ticketId)->select(['id'])->first();
+        if (!is_array($ticket)) {
+            return $this->fail('Ticket not found', 404);
+        }
+
+        $payload = $request->all();
+        $message = trim((string) ($payload['message'] ?? ''));
+        if ($message === '') {
+            return $this->fail('Validation failed', 422, [
+                'message' => ['required'],
+            ]);
+        }
+
+        $this->createTicketProtocolEntry(
+            $ticketId,
+            'note',
+            $message,
+            null,
+            null,
+            null,
+            null,
+            $this->actorId($request)
+        );
+
+        return $this->ok([
+            'protocols' => $this->fetchTicketProtocols($ticketId),
+        ], 201);
+    }
+
+    public function invoicePdf(Request $request): Response
+    {
+        if (!$this->canViewClients($request)) {
+            return $this->fail('Forbidden', 403, [
+                'permission' => ['insufficient_role'],
             ]);
         }
 
@@ -684,20 +1274,21 @@ final class ClientAdminController extends BaseApiController
             ]);
         }
 
+        $pdfColumnsAvailable = $this->isInvoicePdfColumnAvailable();
+
         $invoice = db('invoices')
             ->where('id', $invoiceId)
             ->where('client_id', $clientId)
-            ->select(['id', 'invoice_number', 'pdf_path', 'pdf_mime_type'])
             ->first();
 
         if (!is_array($invoice)) {
             return $this->fail('Invoice not found', 404);
         }
 
-            $relativePath = trim((string) ($invoice['pdf_path'] ?? ''));
-            $absolutePath = $this->resolveInvoicePdfAbsolutePath($relativePath);
+        $relativePath = trim((string) ($invoice['pdf_path'] ?? ''));
+        $absolutePath = $this->resolveInvoicePdfAbsolutePath($relativePath);
 
-            if ($relativePath === '' || !is_file($absolutePath)) {
+        if ($relativePath === '' || !is_file($absolutePath)) {
             try {
                 $pdfMeta = app(InvoicePdfService::class)->generateForInvoice($invoiceId);
                 $relativePath = (string) ($pdfMeta['relative_path'] ?? '');
@@ -707,17 +1298,19 @@ final class ClientAdminController extends BaseApiController
                     ]);
                 }
 
-                db('invoices')
-                    ->where('id', $invoiceId)
-                    ->update([
-                        'pdf_path' => $relativePath,
-                        'pdf_mime_type' => (string) ($pdfMeta['mime_type'] ?? 'application/pdf'),
-                        'pdf_file_size' => (int) ($pdfMeta['file_size'] ?? 0),
-                        'pdf_sha256' => (string) ($pdfMeta['sha256'] ?? ''),
-                        'pdf_generated_at' => (string) ($pdfMeta['generated_at'] ?? date('Y-m-d H:i:s')),
-                    ]);
+                if ($pdfColumnsAvailable) {
+                    db('invoices')
+                        ->where('id', $invoiceId)
+                        ->update([
+                            'pdf_path' => $relativePath,
+                            'pdf_mime_type' => (string) ($pdfMeta['mime_type'] ?? 'application/pdf'),
+                            'pdf_file_size' => (int) ($pdfMeta['file_size'] ?? 0),
+                            'pdf_sha256' => (string) ($pdfMeta['sha256'] ?? ''),
+                            'pdf_generated_at' => (string) ($pdfMeta['generated_at'] ?? date('Y-m-d H:i:s')),
+                        ]);
+                }
 
-                    $absolutePath = $this->resolveInvoicePdfAbsolutePath($relativePath);
+                $absolutePath = $this->resolveInvoicePdfAbsolutePath($relativePath);
             } catch (\Throwable) {
                 return $this->fail('Invoice PDF not found', 404, [
                     'invoice' => ['pdf_missing_on_disk'],
@@ -733,39 +1326,41 @@ final class ClientAdminController extends BaseApiController
         $invoiceNumber = (int) ($invoice['invoice_number'] ?? $invoiceId);
         $fileName = 'rechnung-' . $invoiceNumber . '.pdf';
         $mimeType = trim((string) ($invoice['pdf_mime_type'] ?? 'application/pdf'));
+        $disposition = strtolower(trim((string) $request->query('disposition', 'inline')));
+        $dispositionType = in_array($disposition, ['attachment', 'download'], true) ? 'attachment' : 'inline';
         if ($mimeType === '') {
             $mimeType = 'application/pdf';
         }
 
         return new Response((string) $body, 200, [
             'Content-Type' => $mimeType,
-            'Content-Disposition' => 'inline; filename="' . $fileName . '"',
+            'Content-Disposition' => $dispositionType . '; filename="' . $fileName . '"',
             'Content-Length' => (string) filesize($absolutePath),
             'Cache-Control' => 'private, no-store',
         ]);
     }
 
-        private function resolveInvoicePdfAbsolutePath(string $relativePath): string
-        {
-            $relativePath = trim($relativePath);
-            if ($relativePath === '') {
-                return '';
-            }
-
-            $normalized = ltrim($relativePath, '/');
-            $candidates = [
-                base_path('storage/media/' . $normalized),
-                base_path('storage/media/invoices/' . $normalized),
-            ];
-
-            foreach ($candidates as $candidate) {
-                if (is_file($candidate)) {
-                    return $candidate;
-                }
-            }
-
-            return $candidates[0];
+    private function resolveInvoicePdfAbsolutePath(string $relativePath): string
+    {
+        $relativePath = trim($relativePath);
+        if ($relativePath === '') {
+            return '';
         }
+
+        $normalized = ltrim($relativePath, '/');
+        $candidates = [
+            base_path('storage/media/' . $normalized),
+            base_path('storage/media/invoices/' . $normalized),
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (is_file($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return $candidates[0];
+    }
     private function isInvoicePdfColumnAvailable(): bool
     {
         if ($this->invoicePdfColumnAvailable !== null) {
@@ -790,34 +1385,6 @@ final class ClientAdminController extends BaseApiController
             return $this->invoicePdfColumnAvailable;
         } catch (\Throwable) {
             $this->invoicePdfColumnAvailable = false;
-            return false;
-        }
-    }
-
-    private function isClientTimezoneColumnAvailable(): bool
-    {
-        if ($this->clientTimezoneColumnAvailable !== null) {
-            return $this->clientTimezoneColumnAvailable;
-        }
-
-        try {
-            $pdo = app(Database::class)->connection();
-            $statement = $pdo->prepare(
-                'SELECT 1 FROM information_schema.columns
-                 WHERE table_schema = DATABASE()
-                   AND table_name = :table_name
-                   AND column_name = :column_name
-                 LIMIT 1'
-            );
-            $statement->execute([
-                'table_name' => 'clients',
-                'column_name' => 'timezone',
-            ]);
-
-            $this->clientTimezoneColumnAvailable = $statement->fetchColumn() !== false;
-            return $this->clientTimezoneColumnAvailable;
-        } catch (\Throwable) {
-            $this->clientTimezoneColumnAvailable = false;
             return false;
         }
     }
@@ -858,47 +1425,6 @@ final class ClientAdminController extends BaseApiController
         }
 
         return $value;
-    }
-
-    private function normalizeTimezone(string $value): ?string
-    {
-        $value = trim($value);
-        if ($value === '') {
-            return null;
-        }
-
-        if (in_array($value, timezone_identifiers_list(), true)) {
-            return $value;
-        }
-
-        $normalizedInput = strtolower(str_replace(' ', '_', $value));
-
-        $aliases = [
-            'berlin' => 'Europe/Berlin',
-            'de' => 'Europe/Berlin',
-            'germany' => 'Europe/Berlin',
-            'cet' => 'Europe/Berlin',
-            'cest' => 'Europe/Berlin',
-        ];
-
-        if (isset($aliases[$normalizedInput])) {
-            return $aliases[$normalizedInput];
-        }
-
-        $candidate = 'Europe/' . ucfirst($normalizedInput);
-        if (in_array($candidate, timezone_identifiers_list(), true)) {
-            return $candidate;
-        }
-
-        static $lookup = null;
-        if (!is_array($lookup)) {
-            $lookup = [];
-            foreach (timezone_identifiers_list() as $identifier) {
-                $lookup[strtolower($identifier)] = $identifier;
-            }
-        }
-
-        return $lookup[$normalizedInput] ?? null;
     }
 
     private function isEmailAlreadyUsed(string $email, ?int $excludeId = null): bool
@@ -971,18 +1497,13 @@ final class ClientAdminController extends BaseApiController
 
         $selectColumns = [
             'id',
-            'first_name',
-            'last_name',
-            'date_of_birth',
+            'name',
             'email',
             'phone',
-            'medical_notes',
+            'address',
             'created_at',
             'updated_at',
         ];
-        if ($this->isClientTimezoneColumnAvailable()) {
-            $selectColumns[] = 'timezone';
-        }
 
         $stmt = $pdo->prepare(
             'SELECT ' . implode(', ', $selectColumns) . '
@@ -1005,9 +1526,9 @@ final class ClientAdminController extends BaseApiController
     {
         return [
             'id' => (int) ($row['id'] ?? 0),
-            'first_name' => (string) ($row['first_name'] ?? ''),
-            'last_name' => (string) ($row['last_name'] ?? ''),
-            'date_of_birth' => (string) ($row['date_of_birth'] ?? ''),
+            'name' => (string) ($row['name'] ?? ''),
+            'phone' => (string) ($row['phone'] ?? ''),
+            'address' => (string) ($row['address'] ?? ''),
             'email' => (string) ($row['email'] ?? ''),
             'created_at' => (string) ($row['created_at'] ?? ''),
         ];
@@ -1018,17 +1539,22 @@ final class ClientAdminController extends BaseApiController
     {
         return [
             'id' => (int) ($row['id'] ?? 0),
-            'first_name' => (string) ($row['first_name'] ?? ''),
-            'last_name' => (string) ($row['last_name'] ?? ''),
-            'date_of_birth' => (string) ($row['date_of_birth'] ?? ''),
-            'email' => (string) ($row['email'] ?? ''),
+            'name' => (string) ($row['name'] ?? ''),
             'phone' => (string) ($row['phone'] ?? ''),
-            'timezone' => isset($row['timezone']) ? (string) $row['timezone'] : '',
-            'notes' => (string) ($row['medical_notes'] ?? ''),
+            'address' => (string) ($row['address'] ?? ''),
+            'email' => (string) ($row['email'] ?? ''),
             'created_at' => (string) ($row['created_at'] ?? ''),
             'updated_at' => (string) ($row['updated_at'] ?? ''),
         ];
     }
+
+    /**
+     * 
+     * +----------------------------------------------------------+     
+     * |         Contracts for a given client ID.                 |
+     * +----------------------------------------------------------+
+     * 
+     */
 
     /** @param array<string, mixed> $row */
     private function formatPackageRow(array $row): array
@@ -1061,36 +1587,368 @@ final class ClientAdminController extends BaseApiController
         ];
     }
 
-    /** @param array<string, mixed> $row */
-    private function formatInvoiceBookingRow(array $row, int $clientId): array
-    {
-        $invoiceId = isset($row['invoice_id']) ? (int) $row['invoice_id'] : 0;
-        $totalAmount = isset($row['total_amount']) ? (float) $row['total_amount'] : null;
-        $pdfPath = trim((string) ($row['pdf_path'] ?? ''));
-        $pdfAvailable = $invoiceId > 0 && $pdfPath !== '';
+    /**
+     * 
+     * +----------------------------------------------------------+     
+     * | Contract        |
+     * +----------------------------------------------------------+
+     * 
+     */
 
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @param array<int, array<string, mixed>> $contracts
+     * @return array<int, array<string, mixed>>
+     */
+    private function formatProjectsWithInvoices(array $rows, int $clientId, array $contracts = [], string $pdfBasePath = '/clients/data'): array
+    {
+        $projects = [];
+
+        foreach ($rows as $row) {
+            $projectId = (int) ($row['project_id'] ?? 0);
+
+            if (!isset($projects[$projectId])) {
+                $projects[$projectId] = [
+                    'id' => $projectId,
+                    'name' => (string) ($row['project_name'] ?? ''),
+                    'is_active' => (int) ($row['project_is_active'] ?? 0) === 1,
+                    'status' => (string) ($row['project_status'] ?? ''),
+                    'created_at' => (string) ($row['project_created_at'] ?? ''),
+                    'contracts' => [],
+                    'invoices' => [],
+                ];
+            }
+
+            $invoiceId = (int) ($row['invoice_id'] ?? 0);
+
+            if ($invoiceId > 0) {
+                $pdfPath = trim((string) ($row['pdf_path'] ?? ''));
+                $pdfAvailable = $pdfPath !== '';
+                $pdfUrlBase = rtrim($pdfBasePath, '/');
+                $pdfViewUrl = $pdfUrlBase . '/' . $clientId . '/invoices/' . $invoiceId . '/pdf';
+
+                $projects[$projectId]['invoices'][] = [
+                    'id' => $invoiceId,
+                    'invoice_number' => (int) ($row['invoice_number'] ?? 0),
+                    'status' => (string) ($row['invoice_status'] ?? 'created'),
+                    'total_amount' => isset($row['total_amount'])
+                        ? (float) $row['total_amount']
+                        : null,
+                    'currency_code' => (string) ($row['currency_code'] ?? 'EUR'),
+                    'invoice_date' => $row['invoice_date'] ?? null,
+                    'due_date' => $row['due_date'] ?? null,
+                    'sent_at' => $row['sent_at'] ?? null,
+                    'pdf_available' => $pdfAvailable,
+                    'pdf_generated_at' => $row['pdf_generated_at'] ?? null,
+                    'pdf_url' => $pdfViewUrl,
+                    'pdf_download_url' => $pdfViewUrl . '?disposition=attachment',
+                ];
+            }
+        }
+
+        foreach ($contracts as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $projectId = (int) ($row['project_id'] ?? 0);
+            if ($projectId <= 0 || !isset($projects[$projectId])) {
+                continue;
+            }
+
+            $projects[$projectId]['contracts'][] = [
+                'id' => (int) ($row['id'] ?? 0),
+                'start_date' => isset($row['start_date']) ? (string) $row['start_date'] : null,
+                'end_date' => isset($row['end_date']) ? (string) $row['end_date'] : null,
+            ];
+        }
+
+        return array_values($projects);
+    }
+
+    /** @return array<string, true> */
+    private function invoiceColumnSet(): array
+    {
+        if (is_array($this->invoiceColumnSet)) {
+            return $this->invoiceColumnSet;
+        }
+
+        $pdo = app(Database::class)->connection();
+        $stmt = $pdo->query('SHOW COLUMNS FROM invoices');
+        $rows = $stmt !== false ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
+
+        $this->invoiceColumnSet = [];
+        foreach ($rows as $row) {
+            $field = (string) ($row['Field'] ?? '');
+            if ($field !== '') {
+                $this->invoiceColumnSet[$field] = true;
+            }
+        }
+
+        return $this->invoiceColumnSet;
+    }
+
+    private function isInvoiceTableAvailable(): bool
+    {
+        if ($this->invoiceTableAvailable !== null) {
+            return $this->invoiceTableAvailable;
+        }
+
+        try {
+            $pdo = app(Database::class)->connection();
+            $statement = $pdo->prepare(
+                'SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = :table_name LIMIT 1'
+            );
+            $statement->execute(['table_name' => 'invoices']);
+            $this->invoiceTableAvailable = $statement->fetchColumn() !== false;
+            return $this->invoiceTableAvailable;
+        } catch (\Throwable) {
+            $this->invoiceTableAvailable = false;
+            return false;
+        }
+    }
+
+    private function isTicketsTableAvailable(): bool
+    {
+        if ($this->ticketsTableAvailable !== null) {
+            return $this->ticketsTableAvailable;
+        }
+
+        try {
+            $pdo = app(Database::class)->connection();
+            $statement = $pdo->prepare(
+                'SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = :table_name LIMIT 1'
+            );
+            $statement->execute(['table_name' => 'tickets']);
+            $this->ticketsTableAvailable = $statement->fetchColumn() !== false;
+            return $this->ticketsTableAvailable;
+        } catch (\Throwable) {
+            $this->ticketsTableAvailable = false;
+            return false;
+        }
+    }
+
+    private function isTicketProtocolsTableAvailable(): bool
+    {
+        if ($this->ticketProtocolsTableAvailable !== null) {
+            return $this->ticketProtocolsTableAvailable;
+        }
+
+        try {
+            $pdo = app(Database::class)->connection();
+            $statement = $pdo->prepare(
+                'SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = :table_name LIMIT 1'
+            );
+            $statement->execute(['table_name' => 'ticket_protocols']);
+            $this->ticketProtocolsTableAvailable = $statement->fetchColumn() !== false;
+            return $this->ticketProtocolsTableAvailable;
+        } catch (\Throwable) {
+            $this->ticketProtocolsTableAvailable = false;
+            return false;
+        }
+    }
+
+    /** @return array<int, string> */
+    private function ticketStatusOptions(): array
+    {
+        return ['new', 'open', 'in_progress', 'resolved', 'closed'];
+    }
+
+    /** @return array<int, string> */
+    private function ticketPriorityOptions(): array
+    {
+        return ['low', 'medium', 'high', 'critical'];
+    }
+
+    /**
+     * @param array<string, mixed> $ticketRow
+     * @param array<string, mixed>|null $client
+     * @return array<string, mixed>
+     */
+    private function formatTicketRow(array $ticketRow, ?array $client = null): array
+    {
         return [
-            'booking_id' => (int) ($row['booking_id'] ?? 0),
-            'booking_scheduled_at' => (string) ($row['booking_scheduled_at'] ?? ''),
-            'booking_status' => (string) ($row['booking_status'] ?? 'pending'),
-            'booking_payment_status' => (string) ($row['booking_payment_status'] ?? 'pending'),
-            'booking_created_at' => (string) ($row['booking_created_at'] ?? ''),
-            'invoice' => $invoiceId > 0 ? [
-                'id' => $invoiceId,
-                'invoice_number' => isset($row['invoice_number']) ? (int) $row['invoice_number'] : 0,
-                'status' => (string) ($row['invoice_status'] ?? 'created'),
-                'total_amount' => $totalAmount,
-                'currency_code' => (string) ($row['currency_code'] ?? 'EUR'),
-                'invoice_date' => isset($row['invoice_date']) ? (string) $row['invoice_date'] : null,
-                'due_date' => isset($row['due_date']) ? (string) $row['due_date'] : null,
-                'sent_at' => isset($row['sent_at']) ? (string) $row['sent_at'] : null,
-                'pdf_available' => $pdfAvailable,
-                'pdf_generated_at' => isset($row['pdf_generated_at']) ? (string) $row['pdf_generated_at'] : null,
-                'pdf_url' => $pdfAvailable
-                    ? '/admin/clients/data/' . $clientId . '/invoices/' . $invoiceId . '/pdf'
-                    : null,
-            ] : null,
+            'id' => (int) ($ticketRow['id'] ?? 0),
+            'client_id' => isset($ticketRow['client_id']) && $ticketRow['client_id'] !== null
+                ? (int) $ticketRow['client_id']
+                : null,
+            'client_name' => is_array($client) ? (string) ($client['name'] ?? '') : '',
+            'client_email' => is_array($client) ? (string) ($client['email'] ?? '') : '',
+            'ticket_type' => (string) ($ticketRow['ticket_type'] ?? ''),
+            'category' => (string) ($ticketRow['category'] ?? ''),
+            'priority' => $ticketRow['priority'] !== null ? (string) $ticketRow['priority'] : null,
+            'subject' => (string) ($ticketRow['subject'] ?? ''),
+            'message' => (string) ($ticketRow['message'] ?? ''),
+            'source' => (string) ($ticketRow['source'] ?? ''),
+            'status' => (string) ($ticketRow['status'] ?? ''),
+            'assigned_user_id' => $ticketRow['assigned_user_id'] !== null ? (int) $ticketRow['assigned_user_id'] : null,
+            'created_at' => (string) ($ticketRow['created_at'] ?? ''),
+            'updated_at' => (string) ($ticketRow['updated_at'] ?? ''),
         ];
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function fetchTicketProtocols(int $ticketId): array
+    {
+        if ($ticketId <= 0 || !$this->isTicketProtocolsTableAvailable()) {
+            return [];
+        }
+
+        $rows = db('ticket_protocols')
+            ->where('ticket_id', $ticketId)
+            ->select([
+                'id',
+                'ticket_id',
+                'protocol_type',
+                'message',
+                'old_status',
+                'new_status',
+                'old_priority',
+                'new_priority',
+                'created_by_user_id',
+                'created_at',
+            ])
+            ->orderBy('created_at', 'desc')
+            ->orderBy('id', 'desc')
+            ->get();
+
+        return array_map(
+            static fn(array $row): array => [
+                'id' => (int) ($row['id'] ?? 0),
+                'ticket_id' => (int) ($row['ticket_id'] ?? 0),
+                'protocol_type' => (string) ($row['protocol_type'] ?? 'note'),
+                'message' => (string) ($row['message'] ?? ''),
+                'old_status' => $row['old_status'] !== null ? (string) $row['old_status'] : null,
+                'new_status' => $row['new_status'] !== null ? (string) $row['new_status'] : null,
+                'old_priority' => $row['old_priority'] !== null ? (string) $row['old_priority'] : null,
+                'new_priority' => $row['new_priority'] !== null ? (string) $row['new_priority'] : null,
+                'created_by_user_id' => $row['created_by_user_id'] !== null ? (int) $row['created_by_user_id'] : null,
+                'created_at' => (string) ($row['created_at'] ?? ''),
+            ],
+            is_array($rows) ? $rows : []
+        );
+    }
+
+    private function createTicketProtocolEntry(
+        int $ticketId,
+        string $type,
+        string $message,
+        ?string $oldStatus,
+        ?string $newStatus,
+        ?string $oldPriority,
+        ?string $newPriority,
+        ?int $actorId
+    ): void {
+        if ($ticketId <= 0 || !$this->isTicketProtocolsTableAvailable()) {
+            return;
+        }
+
+        db('ticket_protocols')->insert([
+            'ticket_id' => $ticketId,
+            'protocol_type' => $type,
+            'message' => $message,
+            'old_status' => $oldStatus,
+            'new_status' => $newStatus,
+            'old_priority' => $oldPriority,
+            'new_priority' => $newPriority,
+            'created_by_user_id' => $actorId,
+        ]);
+    }
+
+    private function reserveNextInvoiceNumber(): int
+    {
+        $pdo = app(Database::class)->connection();
+        $statement = $pdo->query('SELECT next_invoice_number FROM invoice_number_sequences WHERE id = 1 FOR UPDATE');
+        $nextInvoiceNumber = (int) ($statement !== false ? $statement->fetchColumn() : 0);
+
+        if ($nextInvoiceNumber <= 0) {
+            $bootstrapStatement = $pdo->query('SELECT COALESCE(MAX(invoice_number), 20260000) + 1 FROM invoices');
+            $nextInvoiceNumber = (int) ($bootstrapStatement !== false ? $bootstrapStatement->fetchColumn() : 20260001);
+            if ($nextInvoiceNumber <= 0) {
+                $nextInvoiceNumber = 20260001;
+            }
+
+            db('invoice_number_sequences')->insert([
+                'id' => 1,
+                'next_invoice_number' => $nextInvoiceNumber + 1,
+            ]);
+
+            return $nextInvoiceNumber;
+        }
+
+        db('invoice_number_sequences')
+            ->where('id', 1)
+            ->update([
+                'next_invoice_number' => $nextInvoiceNumber + 1,
+            ]);
+
+        return $nextInvoiceNumber;
+    }
+
+    private function actorId(Request $request): ?int
+    {
+        $sessionKey = (string) config('admin.session_key', 'admin_user');
+        $adminUser = $request->session()[$sessionKey] ?? [];
+
+        if (!is_array($adminUser)) {
+            return null;
+        }
+
+        $id = $adminUser['id'] ?? null;
+        return $id !== null ? (int) $id : null;
+    }
+
+    /** @return array<int, array{description: string, quantity: float, unit_price: float}> */
+    private function normalizeManualInvoiceItems(mixed $rawItems): array
+    {
+        if (!is_array($rawItems)) {
+            return [];
+        }
+
+        $items = [];
+        foreach ($rawItems as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $description = trim((string) ($item['description'] ?? ''));
+            $quantity = isset($item['quantity']) && is_numeric($item['quantity']) ? (float) $item['quantity'] : 0.0;
+            $unitPrice = isset($item['unit_price']) && is_numeric($item['unit_price']) ? (float) $item['unit_price'] : 0.0;
+
+            if ($description === '' || $quantity <= 0.0) {
+                continue;
+            }
+
+            $items[] = [
+                'description' => $description,
+                'quantity' => round($quantity, 2),
+                'unit_price' => round($unitPrice, 2),
+            ];
+        }
+
+        return $items;
+    }
+
+    /** @return array<string, mixed>|null */
+    private function fetchProjectForClient(int $clientId, int $projectId): ?array
+    {
+        $row = db('projects')
+            ->where('id', $projectId)
+            ->where('client_id', $clientId)
+            ->first();
+
+        return is_array($row) ? $row : null;
+    }
+
+    /** @return array<string, mixed>|null */
+    private function fetchContractForProject(int $contractId, int $projectId): ?array
+    {
+        $row = db('contracts')
+            ->where('id', $contractId)
+            ->where('project_id', $projectId)
+            ->first();
+
+        return is_array($row) ? $row : null;
     }
 
     /** @param array<string, mixed> $row */
@@ -1118,6 +1976,14 @@ final class ClientAdminController extends BaseApiController
             'request_created_at' => isset($row['request_created_at']) ? (string) $row['request_created_at'] : null,
         ];
     }
+
+    /**
+     * 
+     * +----------------------------------------------------------+     
+     * | Fetch History events for a given client ID.        |
+     * +----------------------------------------------------------+
+     * 
+     */
 
     /** @return array<int, array<string, mixed>> */
     private function fetchHistoryEvents(int $clientId): array
@@ -1271,6 +2137,16 @@ final class ClientAdminController extends BaseApiController
             return [];
         }
     }
+
+
+
+    /**
+     * 
+     * +----------------------------------------------------------+     
+     * | Fetch email history events for a given client ID.        |
+     * +----------------------------------------------------------+
+     * 
+     */
 
     /** @return array<int, array<string, mixed>> */
     private function fetchEmailHistoryEvents(int $clientId): array

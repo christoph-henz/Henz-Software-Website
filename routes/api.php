@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Controllers\Api\V1\ConsentController;
 use App\Controllers\Api\V1\AvailabilityController;
+use App\Controllers\Api\V1\ContactRequestController;
 use App\Controllers\Api\V1\Admin\RequestAdminController;
 use App\Controllers\Api\V1\Admin\BookingAdminController;
 use App\Controllers\Api\V1\Admin\BookingStatusController;
@@ -80,7 +81,7 @@ Router::group('/swagger', function (RouterInstance $router): void {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Swagger UI - Getragen Begleiten API</title>
+    <title>Swagger UI - Henz Software API</title>
     <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
     <style>
         html, body { margin: 0; padding: 0; height: 100%; }
@@ -172,15 +173,16 @@ HTML;
 Router::group('/v1', function (RouterInstance $router): void {
     Router::get('/availability/slots', [AvailabilityController::class, 'slots'])->name('api.v1.availability.slots');
     Router::get('/availability/days', [AvailabilityController::class, 'days'])->name('api.v1.availability.days');
+    Router::post('/contact-request', [ContactRequestController::class, 'store'])->name('api.v1.contact_request.store');
     Router::post('/request', [RequestController::class, 'store'])->name('api.v1.request.store');
     Router::post('/consents', [ConsentController::class, 'store'])->name('api.v1.consents.store');
-
     Router::group('/admin/requests', function (RouterInstance $router): void {
         Router::get('/', [RequestAdminController::class, 'index'])->name('api.v1.admin.requests.index');
         Router::get('/{id}', [RequestAdminController::class, 'show'])->name('api.v1.admin.requests.show');
         Router::patch('/{id}', [RequestAdminController::class, 'update'])->name('api.v1.admin.requests.update');
     }, ['admin_session']);
 
+    /*
     Router::group('/admin/bookings', function (RouterInstance $router): void {
         Router::get('/', [BookingAdminController::class, 'index'])->name('api.v1.admin.bookings.index');
         Router::get('/summary', [BookingAdminController::class, 'summary'])->name('api.v1.admin.bookings.summary');
@@ -191,6 +193,7 @@ Router::group('/v1', function (RouterInstance $router): void {
         Router::post('/{id}/invoice', [BookingAdminController::class, 'createInvoice'])->name('api.v1.admin.bookings.create_invoice');
         Router::get('/{id}/status-audit', [BookingStatusController::class, 'auditLog'])->name('api.v1.admin.bookings.audit_log');
     }, ['admin_session']);
+    */
 
     Router::group('/admin/clients', function (RouterInstance $router): void {
         Router::get('/', [ClientAdminController::class, 'index'])->name('api.v1.admin.clients.index');
@@ -199,10 +202,20 @@ Router::group('/v1', function (RouterInstance $router): void {
         Router::get('/{id}', [ClientAdminController::class, 'show'])->name('api.v1.admin.clients.show');
         Router::patch('/{id}', [ClientAdminController::class, 'update'])->name('api.v1.admin.clients.update');
         Router::get('/{id}/history', [ClientAdminController::class, 'history'])->name('api.v1.admin.clients.history');
+        Router::get('/{id}/appointments', [ClientAdminController::class, 'appointments'])->name('api.v1.admin.clients.appointments');
         Router::get('/{id}/consents', [ClientAdminController::class, 'consents'])->name('api.v1.admin.clients.consents');
+        Router::get('/{id}/tickets', [ClientAdminController::class, 'tickets'])->name('api.v1.admin.clients.tickets');
         Router::get('/{id}/packages', [ClientAdminController::class, 'packages'])->name('api.v1.admin.clients.packages');
         Router::get('/{id}/invoices', [ClientAdminController::class, 'invoices'])->name('api.v1.admin.clients.invoices');
+        Router::post('/{id}/invoices', [ClientAdminController::class, 'createInvoice'])->name('api.v1.admin.clients.invoices.create');
         Router::get('/{id}/invoices/{invoice_id}/pdf', [ClientAdminController::class, 'invoicePdf'])->name('api.v1.admin.clients.invoices.pdf');
+    }, ['admin_session']);
+
+    Router::group('/admin/tickets', function (RouterInstance $router): void {
+        Router::get('/', [ClientAdminController::class, 'ticketsIndex'])->name('api.v1.admin.tickets.index');
+        Router::get('/{ticket_id}', [ClientAdminController::class, 'ticketDetail'])->name('api.v1.admin.tickets.show');
+        Router::patch('/{ticket_id}', [ClientAdminController::class, 'updateTicket'])->name('api.v1.admin.tickets.update');
+        Router::post('/{ticket_id}/protocols', [ClientAdminController::class, 'createTicketProtocol'])->name('api.v1.admin.tickets.protocols.create');
     }, ['admin_session']);
 
     Router::group('/admin/services', function (RouterInstance $router): void {
@@ -220,11 +233,11 @@ Router::group('/v1', function (RouterInstance $router): void {
         Router::delete('/blocked/{id}', [AvailabilityAdminController::class, 'deleteBlockedTime'])->name('api.v1.admin.availability.blocked.delete');
     }, ['admin_session']);
 
-    Router::group('/admin/packages', function (RouterInstance $router): void {
-        Router::get('/', [ServiceAdminController::class, 'packages'])->name('api.v1.admin.packages.index');
-        Router::post('/', [ServiceAdminController::class, 'storePackage'])->name('api.v1.admin.packages.store');
-        Router::get('/{id}', [ServiceAdminController::class, 'showPackage'])->name('api.v1.admin.packages.show');
-        Router::patch('/{id}', [ServiceAdminController::class, 'updatePackage'])->name('api.v1.admin.packages.update');
+    Router::group('/admin/referenced-projects', function (RouterInstance $router): void {
+        Router::get('/', [ServiceAdminController::class, 'referencedProjects'])->name('api.v1.admin.referenced_projects.index');
+        Router::post('/', [ServiceAdminController::class, 'storeReferencedProject'])->name('api.v1.admin.referenced_projects.store');
+        Router::get('/{id}', [ServiceAdminController::class, 'showReferencedProject'])->name('api.v1.admin.referenced_projects.show');
+        Router::patch('/{id}', [ServiceAdminController::class, 'updateReferencedProject'])->name('api.v1.admin.referenced_projects.update');
     }, ['admin_session']);
 
     Router::group('/admin/media', function (RouterInstance $router): void {

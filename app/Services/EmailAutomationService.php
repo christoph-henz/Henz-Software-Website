@@ -517,7 +517,7 @@ final class EmailAutomationService
         $now = new DateTimeImmutable('now', new DateTimeZone('Europe/Berlin'));
 
         return [
-            'site_name' => (string) config('app.name', 'Getragen Begleiten'),
+            'site_name' => (string) config('app.name', 'Henz Software'),
             'contact_email' => $this->contactMailAddress(),
             'support_email' => $this->supportMailAddress(),
             'profile_image_url' => $this->profileImageUrl(),
@@ -813,7 +813,7 @@ final class EmailAutomationService
             $fromAddress = 'support@getragen-begleiten.com';
         }
 
-        $fromName = trim((string) config($senderConfigKey . '.name', 'Getragen Begleiten'));
+        $fromName = trim((string) config($senderConfigKey . '.name', 'Henz Software'));
         $subjectHeader = $subject;
         if (function_exists('mb_encode_mimeheader')) {
             $subjectHeader = mb_encode_mimeheader($subject, 'UTF-8', 'B', "\r\n");

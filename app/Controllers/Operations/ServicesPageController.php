@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Controllers\Admin;
+namespace App\Controllers\Operations;
 
 use App\Core\Http\Request;
 use App\Core\Http\Response;
@@ -38,14 +38,14 @@ final class ServicesPageController
             return $this->renderError(403, 'Zugriff verweigert', 'Ihre Rolle berechtigt nicht zur Serviceverwaltung.');
         }
 
-        $config = require base_path('public/ui/_config/admin-services.php');
+        $config = require base_path('public/ui/_config/operations/admin-services.php');
         $config['can_manage_services'] = $canManage;
         $config['initial_service_id'] = $pathServiceId;
 
         return $this->render('admin-services-page.php', [
-            'pageTitle' => 'Leistungen - Getragen Begleiten',
+            'pageTitle' => 'Leistungen - Henz Software',
             'adminUser' => $adminUser,
-            'logoutAction' => '/admin/logout',
+            'logoutAction' => '/logout',
             'csrfToken' => app(CsrfTokenManager::class)->token(),
             'servicesConfig' => $config,
         ]);
@@ -67,7 +67,7 @@ final class ServicesPageController
         extract($data, EXTR_SKIP);
 
         ob_start();
-        require base_path('public/ui/_templates/' . $template);
+        require base_path('public/ui/_templates/operations/' . $template);
         $html = (string) ob_get_clean();
 
         return new Response($html, $status, ['Content-Type' => 'text/html; charset=utf-8']);

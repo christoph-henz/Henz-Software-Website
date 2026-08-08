@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash VARCHAR(255) NOT NULL,
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
-    permissions INT NOT NULL DEFAULT 0,
+    role_mask INT NOT NULL DEFAULT 0,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     last_login_at DATETIME,
     is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
@@ -88,22 +88,6 @@ CREATE TABLE IF NOT EXISTS clients (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
--- Client Inquiries: Contact form submissions linked to a patient record
-CREATE TABLE IF NOT EXISTS client_inquiries (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    client_id INT NOT NULL,
-    message TEXT NOT NULL,
-    status ENUM('new', 'read', 'responded') DEFAULT 'new',
-    internal_notes TEXT,
-    responded_by_user_id INT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    responded_at DATETIME,
-    FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE ON UPDATE CASCADE,
-    FOREIGN KEY (responded_by_user_id) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE,
-    INDEX idx_client_id (client_id),
-    INDEX idx_status (status),
-    INDEX idx_created_at (created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 -- ============================================================================

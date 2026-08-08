@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Core\Database\Database;
 use DateTimeImmutable;
 use DateTimeZone;
 use Dompdf\Dompdf;
@@ -12,6 +13,8 @@ use Dompdf\Options;
 final class InvoicePdfService
 {
     private const STORAGE_PATH = 'storage/media/invoices';
+    private ?bool $bookingsTableAvailable = null;
+    private ?bool $invoiceHasBookingIdColumn = null;
 
     /**
      * @return array{relative_path: string, mime_type: string, file_size: int, sha256: string, generated_at: string}
@@ -36,15 +39,21 @@ final class InvoicePdfService
 
         $client = app(ClientFieldEncryptionService::class)->decryptClientRow($client);
 
-        $booking = db('bookings')
-            ->where('id', (int) ($invoice['booking_id'] ?? 0))
-            ->first();
+        $booking = null;
+        $bookingId = isset($invoice['booking_id']) ? (int) $invoice['booking_id'] : 0;
+        if ($bookingId > 0 && $this->isBookingsTableAvailable() && $this->invoiceHasBookingIdColumn()) {
+            $candidate = db('bookings')
+                ->where('id', $bookingId)
+                ->first();
+            $booking = is_array($candidate) ? $candidate : null;
+        }
 
         $items = db('invoice_items')
             ->where('invoice_id', $invoiceId)
             ->orderBy('sort_order', 'asc')
             ->orderBy('id', 'asc')
             ->get();
+
 
         $html = $this->renderHtml($invoice, $client, is_array($booking) ? $booking : [], is_array($items) ? $items : []);
         $pdf = $this->renderPdf($html);
@@ -75,6 +84,58 @@ final class InvoicePdfService
             'sha256' => hash('sha256', $pdf),
             'generated_at' => (new DateTimeImmutable('now', new DateTimeZone('Europe/Berlin')))->format('Y-m-d H:i:s'),
         ];
+    }
+
+    private function isBookingsTableAvailable(): bool
+    {
+        if ($this->bookingsTableAvailable !== null) {
+            return $this->bookingsTableAvailable;
+        }
+
+        try {
+            $pdo = app(Database::class)->connection();
+            $statement = $pdo->prepare(
+                'SELECT 1 FROM information_schema.tables
+                 WHERE table_schema = DATABASE()
+                   AND table_name = :table_name
+                 LIMIT 1'
+            );
+            $statement->execute(['table_name' => 'bookings']);
+
+            $this->bookingsTableAvailable = $statement->fetchColumn() !== false;
+            return $this->bookingsTableAvailable;
+        } catch (\Throwable) {
+            $this->bookingsTableAvailable = false;
+            return false;
+        }
+    }
+
+    private function invoiceHasBookingIdColumn(): bool
+    {
+        if ($this->invoiceHasBookingIdColumn !== null) {
+            return $this->invoiceHasBookingIdColumn;
+        }
+
+        try {
+            $pdo = app(Database::class)->connection();
+            $statement = $pdo->prepare(
+                'SELECT 1 FROM information_schema.columns
+                 WHERE table_schema = DATABASE()
+                   AND table_name = :table_name
+                   AND column_name = :column_name
+                 LIMIT 1'
+            );
+            $statement->execute([
+                'table_name' => 'invoices',
+                'column_name' => 'booking_id',
+            ]);
+
+            $this->invoiceHasBookingIdColumn = $statement->fetchColumn() !== false;
+            return $this->invoiceHasBookingIdColumn;
+        } catch (\Throwable) {
+            $this->invoiceHasBookingIdColumn = false;
+            return false;
+        }
     }
 
     private function renderPdf(string $html): string
@@ -108,8 +169,45 @@ final class InvoicePdfService
         if ($currency === '') {
             $currency = 'EUR';
         }
+        $address = trim((string)($client['address'] ?? ''));
+
+        $street = '';
+        $city = '';
+
+        if (preg_match(
+            '/^(?<street>.+?\s+\d+[a-zA-Z]?(?:[-\/]\d+[a-zA-Z]?)?)\s*,?\s*(?<zip>\d{5})\s+(?<city>.+)$/u',
+            $address,
+            $matches
+        )) {
+            $street = trim($matches['street']);
+            $city = trim($matches['zip'] . ' ' . $matches['city']);
+        }
+
+        $database = app(Database::class);
+        $pdo = $database->connection();
+
+        $sql = "
+            SELECT `key`, `value`
+            FROM settings
+            WHERE `key` IN (
+                '19_ust_true',
+                'bank_data_name',
+                'bank_data_iban',
+                'bank_data_bic',
+                'ust_id'
+            )";
+
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute();
+
+        $bank_data = [];
+
+        foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            $bank_data[$row['key']] = $row['value'];
+        }
 
         $rowsHtml = '';
+        $position = 1;
         foreach ($items as $item) {
             if (!is_array($item)) {
                 continue;
@@ -121,11 +219,14 @@ final class InvoicePdfService
             $lineTotal = $this->formatMoney((float) ($item['line_total'] ?? 0.0));
 
             $rowsHtml .= '<tr>'
-                . '<td style="border-bottom:1px solid #ddd;padding:8px;">' . $description . '</td>'
-                . '<td style="border-bottom:1px solid #ddd;padding:8px;text-align:center;">' . $quantity . '</td>'
-                . '<td style="border-bottom:1px solid #ddd;padding:8px;text-align:right;">' . $unitPrice . ' ' . $currency . '</td>'
-                . '<td style="border-bottom:1px solid #ddd;padding:8px;text-align:right;">' . $lineTotal . ' ' . $currency . '</td>'
+                . '<td style="padding:5px; text-align:center;">' . $position . '</td>'
+                . '<td style="padding:5px; text-align:center;">' . $quantity . '</td>'
+                . '<td style="padding:5px 5px 5px 10px; text-align:left;">' . $description . '</td>'
+                . '<td style="padding:5px; text-align:right;">' . $unitPrice . ' ' . $currency . '</td>'
+                . '<td style="padding:5px; text-align:right;">' . $lineTotal . ' ' . $currency . '</td>'
                 . '</tr>';
+
+            $position++;
         }
 
         $scheduledAt = trim((string) ($booking['scheduled_at'] ?? ''));
@@ -135,43 +236,222 @@ final class InvoicePdfService
             ? $this->formatDate($dueDateRaw)
             : 'Keine Faelligkeit (Zahlung vor Termin erforderlich)';
         $paymentNotice = $dueDateRaw === ''
-            ? 'Wichtiger Hinweis: Die Leistung wird nur erbracht, wenn der Betrag vor Antritt des Termins vollstaendig beglichen wurde.'
-            : 'Hinweis: Der Termin gilt erst nach Zahlungseingang als verbindlich bestaetigt.';
+            ? 'Wichtiger Hinweis: Die Leistung wird nur erbracht, wenn der Betrag vor Leistungsantritt des vollständig beglichen wurde.'
+            : 'Hinweis: Die Leistung wird erst nach vollständigem Zahlungseingang erbracht.';
 
-        return '<!DOCTYPE html>'
-            . '<html lang="de"><head><meta charset="UTF-8"><title>Invoice #' . $invoiceNumber . '</title></head>'
-            . '<body style="font-family: DejaVu Sans, sans-serif; color:#1f2937; font-size:12px; line-height:1.5;">'
-            . '<div style="margin-bottom:20px;">'
-            . '<h1 style="margin:0 0 8px; font-size:24px;">Rechnung #' . $invoiceNumber . '</h1>'
-            . '<div>Getragen Begleiten</div>'
-            . '<div>' . htmlspecialchars((string) config('mail.senders.communication.address', ''), ENT_QUOTES, 'UTF-8') . '</div>'
+        $html = '<!DOCTYPE html>'
+            . '<html lang="de"><head><meta charset="UTF-8"><title>Rechnung #' . $invoiceNumber . '</title>'
+            . '<style>
+                @page {
+                    size: A4 portrait;
+                    margin: 12mm 15mm 25mm 20mm;
+                }
+
+                body {
+                    margin: 0;
+                    font-family: "DejaVu Sans", sans-serif;
+                    color: #151f3b;
+                    font-size: 12px;
+                }
+
+                .invoice-content {
+                    padding-bottom: 8mm;
+                }
+
+                .invoice-footer {
+                    position: fixed;
+                    left: 0;
+                    right: 0;
+                    bottom: -23mm;
+                    width: 100%;
+                    padding-top: 12px;
+                    border-top: 1px solid #d1d5db;
+                    color: #6b7280;
+                    font-size: 10px;
+                    line-height: 1.45;
+                }
+            </style></head>'
+            . '<body>'
+            . '<div class="invoice-content">'
+            . '<div style="margin-top: 20px; margin-bottom: 1cm; display: flex; justify-content:flex-end;">'
+            . '<div class="flex items-right gap-2"
+                style="background-color:#c2c2cd; border-radius: 10px 0 0 10px; padding: 20px;"
+                data-fg-d3bl14="0.8:1.32440:/src/app/App.tsx:178:11:6104:397:e:div:ete" data-fgid-d3bl14=":r3:"><svg
+                xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                class="lucide lucide-terminal w-5 h-5"
+                data-fg-d3bl15="0.8:1.32440:node_modules/lucide-react:179:13:6158:61:e:Terminal::::::DcQ8"
+                data-fgid-d3bl15=":r4:" style="color: #0288ae;">
+                <polyline points="4 17 10 11 4 5"></polyline>
+                <line x1="12" x2="20" y1="19" y2="19"></line>
+                </svg><span class="text-lg font-bold tracking-tight"
+                data-fg-d3bl16="0.8:1.32440:/src/app/App.tsx:180:13:6232:252:e:span:te" data-fgid-d3bl16=":r5:"
+                style="font-family: &quot;JetBrains Mono&quot;, monospace; color: #151f3b;"><span
+                style="color: #0288ae;">&gt;_</span> Henz Software
+                <span data-fg-d3bl18="0.8:1.32440:/src/app/App.tsx:184:23:6419:45:e:span:t" data-fgid-d3bl18=":r6:"
+                style="color: #0288ae;">Solutions</span></span></div>'
             . '</div>'
-            . '<table width="100%" cellspacing="0" cellpadding="0" style="margin-bottom:16px;">'
-            . '<tr><td width="50%" style="vertical-align:top;">'
-            . '<strong>Empfaenger</strong><br>'
-            . htmlspecialchars($clientName, ENT_QUOTES, 'UTF-8') . '<br>'
-            . htmlspecialchars((string) ($client['email'] ?? ''), ENT_QUOTES, 'UTF-8')
-            . '</td><td width="50%" style="vertical-align:top; text-align:right;">'
-            . '<div>Rechnungsdatum: ' . htmlspecialchars($this->formatDate((string) ($invoice['invoice_date'] ?? '')), ENT_QUOTES, 'UTF-8') . '</div>'
-            . '<div>Faellig bis: ' . htmlspecialchars($dueDateLabel, ENT_QUOTES, 'UTF-8') . '</div>'
-            . '<div>Termin: ' . htmlspecialchars($scheduledLabel, ENT_QUOTES, 'UTF-8') . '</div>'
-            . '</td></tr></table>'
-            . '<table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse; margin-bottom:16px;">'
-            . '<thead><tr>'
-            . '<th style="border-bottom:2px solid #222;padding:8px;text-align:left;">Beschreibung</th>'
-            . '<th style="border-bottom:2px solid #222;padding:8px;text-align:center;">Menge</th>'
-            . '<th style="border-bottom:2px solid #222;padding:8px;text-align:right;">Einzelpreis</th>'
-            . '<th style="border-bottom:2px solid #222;padding:8px;text-align:right;">Betrag</th>'
-            . '</tr></thead><tbody>'
-            . $rowsHtml
-            . '</tbody></table>'
-            . '<div style="text-align:right;">Zwischensumme: ' . $this->formatMoney((float) ($invoice['sub_total_amount'] ?? 0.0)) . ' ' . $currency . '</div>'
-            . '<div style="text-align:right;">Rabatt: ' . $this->formatMoney((float) ($invoice['discount_amount'] ?? 0.0)) . ' ' . $currency . '</div>'
-            . '<div style="text-align:right; font-weight:bold; font-size:14px; margin-top:4px;">Gesamt: '
-            . $this->formatMoney((float) ($invoice['total_amount'] ?? 0.0)) . ' ' . $currency . '</div>'
-                . '<p style="margin-top:18px; color:#374151;">' . htmlspecialchars($paymentNotice, ENT_QUOTES, 'UTF-8') . '</p>'
-            . '<p style="margin-top:24px; color:#4b5563;">Umsatzsteuerfreie Heilbehandlung gemaess Paragraf 4 Nr. 14 UStG.</p>'
-            . '</body></html>';
+            . '<table cellspacing="0" cellpadding="0" style="width:100%; margin:0 0 4mm 0; border-collapse:collapse; table-layout:fixed;">
+                <!-- Absenderzeile über dem Empfänger -->
+               <tr>'
+            . '<td colspan="2" style="font-size:9px; color:#303030; padding:1cm 2mm 10px 0;">
+                Henz Software Solutions · Güterberg 30a · 63739 Aschaffenburg
+               </td>
+               <tr>'
+            . '<tr>
+                    <td width="55%" style="vertical-align:top; padding-right:4mm;">';
+            // TODO: Add company_name processing in frontend and backend
+            $html .= '
+                        <div>' . htmlspecialchars($client['company_name']) . '</div>
+                        <div>' . htmlspecialchars($client['name']) . '</div>
+                        <div>' . htmlspecialchars($street) . '</div>
+                        <div>' . htmlspecialchars($city) . '</div>
+                    </td>
+                    <td width="45%" style="vertical-align:top; text-align:right; padding-right:2mm;">
+                        <div style=" margin-top:-2cm;">
+                            <strong style="font-size:15px;">Henz Software Solutions</strong><br>
+                            Inhaber Christoph Henz<br>
+                            Güterberg 30a<br>
+                            63739 Aschaffenburg
+                        </div>
+                    </td>
+                </tr>'
+            . '<!-- Abstand -->
+                <tr>
+                    <td></td>
+                    <td style="height:25px;"></td>
+                </tr>'
+            . '<!-- Rechnungsdaten -->
+                <tr>
+                    <td></td>'
+            . '<td style="text-align:right; vertical-align:top; padding-right:2mm;">'
+            . '<table align="right" cellspacing="0" cellpadding="2" style="display:inline-table; margin-top: -1cm; max-width:100%;">
+                    <tr>
+                        <td style="font-weight:bold;">Kundennummer: </td>
+                        <td style="text-align:left;">&nbsp;0' . $client['id'] . '0</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight:bold;">Rechnungsnummer: </td>
+                        <td style="text-align:left;">&nbsp;' . $invoiceNumber . '</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight:bold;">Rechnungsdatum: </td>
+                        <td style="text-align:left;">&nbsp;' . date('d.M.Y') . '</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight:bold;">Leistungsdatum: </td>
+                        <td style="text-align:left;">&nbsp;' . '</td>
+                    </tr>
+                </table>'
+            . '</td>
+                    </tr>
+                </table>';
+
+            $html .= '<h1 style="font-size:24px; margin-bottom:20px;">Rechnung</h1>'
+            .   '<div>
+                    <p>Vielen Dank für Ihren Auftrag und das mir entgegengebrachte Vertrauen. Vereinbarungsgemäß berechne ich Ihnen hiermit folgende Leistungen:</p>
+                    <br>
+                </div>'
+            . '<table style="width:100%; border-collapse:collapse; margin-bottom:20px;" cellspacing="0" cellpadding="0">
+                <thead>
+                    <tr style="background:#dddddd; color:black;">'
+            .  '<th style="padding:10px; text-align:left; width: 2%;">Pos.</th>
+                <th style="padding:10px;text-align:center; width: 2%;">Menge</th>
+                <th style="padding:10px;text-align:left;" width:auto>Beschreibung</th>
+                <th style="padding:10px;text-align:right; width:7%;">Einzelpreis</th>
+                <th style="padding:10px;text-align:right; width:15%;">Betrag</th>
+            '
+            . '</tr>
+            </thead>
+            <tbody>';
+            $html .= $rowsHtml;
+            $html .= '<tr>
+                <td colspan="5" style="border-bottom:1px solid #151f3b;"></td>
+            </tr>';
+            if (!($bank_data['19_ust_true'] ?? false)) {
+            $html .= '<tr>
+                <td colspan="2" style="padding:10px; text-align:left;">Nettopreis:</td>
+                <td></td>
+                <td></td>
+                <td style="padding:10px; text-align:right;">150,00 €</td>
+            </tr>';
+            $html .= '<tr>
+                        <td colspan="2" style="padding:10px; text-align:left;">MwSt. (19%):</td>
+                        <td></td>
+                        <td></td>
+                        <td style="padding:10px; text-align:right;">' . $this->formatMoney((float) ($invoice['ust_amount'] ?? 0.0)) . ' ' . $currency . '</td>
+                    </tr>';
+            }
+            $html .= '<tr style="background:#dddddd; color:black;">
+                    <td colspan="3" style="padding:10px; text-align:left; font-weight:bold;">Rechnungsbetrag:</td>
+                    <td></td>
+                    <td style="padding:10px 5px 10px; text-align:right; font-weight:bold;">' . $this->formatMoney((float) ($invoice['total_amount'] ?? 0.0)) . ' ' . $currency . '</td>
+                </tr>'
+            . '</tbody>
+               </table>';
+        if ($bank_data['19_ust_true'] ?? false) {
+            $html .= '<div><p>Es wird die Kleinunternehmerregelung nach § 19 UStG in Anspruch genommen.</p>';
+        }
+        else {
+            $html .= '<div>';
+        }
+        $html .= '<p>Bitte überweisen Sie den Rechnungsbetrag bis zum ' . $dueDateLabel . ' mit Angabe der Rechnungsnummer auf das unten genannte Konto.</p>
+                <p>Für weitere Fragen stehe ich Ihnen sehr gerne zur Verfügung. </p>
+                <br>
+                <p>Mit freundlichen Grüßen</p>
+                <br>
+                <p>Christoph Henz</p>
+                </div>
+            </div>';
+        
+        $html .= '</div>';
+
+        $html .= '<footer class="invoice-footer">
+                <table width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse; table-layout:fixed;">
+
+                    <tr>
+
+                        <td width="33%" style="vertical-align:top; text-align:center; padding:0 10px;">
+
+                            <strong style="display:block; color:#374151; margin-bottom:6px;">
+                                Henz Software Solutions
+                            </strong>
+
+                            Güterberg 30a<br>
+                            63739 Aschaffenburg<br>
+                            Tel.: +49 1522 7434327<br>
+                            E-Mail: info@henz-software.de
+
+                        </td>'
+        .'<td width="33%" style="vertical-align:top; text-align:center; padding:0 10px;">
+
+                    <strong style="display:block; color:#374151; margin-bottom:6px;">
+                        Bankverbindung
+                    </strong>'
+        . $bank_data['bank_data_name'] .'<br>'
+        . 'IBAN: ' . $bank_data['bank_data_iban'] .'<br>'
+        . 'BIC: ' . $bank_data['bank_data_bic'] .'<br>'
+        . 'Kontoinhaber: Christoph Henz'
+        . '</td>
+
+                <td width="34%" style="vertical-align:top; text-align:center; padding:0 10px;">
+
+                    <strong style="display:block; color:#374151; margin-bottom:6px;">
+                        Unternehmensdaten
+                    </strong>'
+        //. 'USt-IdNr: ' . $bank_data['ust_id'] .'<br>'
+        . 'USt-IdNr: wird nachgetragen<br>'
+        . 'Amtsgericht: Aschaffenburg<br>
+                    Inhaber: Christoph Henz<br>
+                    www.henz-software.de'
+        . '</td>
+                        </tr>
+                    </table>
+                </footer>
+            </body>
+            </html>';
+
+        return $html;
     }
 
     private function formatDate(string $value): string

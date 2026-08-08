@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-$cfg = require base_path('public/ui/_config/agb.php');
+$cfg = require base_path('public/ui/_config/legal/agb.php');
 $pageTitle = (string) ($cfg['page_title'] ?? 'AGB – Henz Software Solutions');
 ?><!doctype html>
 <html lang="de">

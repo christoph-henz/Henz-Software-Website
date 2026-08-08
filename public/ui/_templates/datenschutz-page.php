@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-$cfg = require base_path('public/ui/_config/datenschutz.php');
+$cfg = require base_path('public/ui/_config/legal/datenschutz.php');
 $pageTitle = (string) ($cfg['page_title'] ?? 'Datenschutz – Henz Software Solutions');
 ?><!doctype html>
 <html lang="de">

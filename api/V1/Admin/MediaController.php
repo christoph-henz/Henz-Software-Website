@@ -7,7 +7,7 @@ namespace App\Controllers\Api\V1\Admin;
 use App\Core\Http\Response;
 use App\Core\Http\Request;
 use App\Controllers\Api\BaseApiController;
-use App\Support\PermissionBits;
+use App\Core\Support\PermissionBits;
 
 class MediaController extends BaseApiController
 {

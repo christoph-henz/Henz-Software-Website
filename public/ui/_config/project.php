@@ -7,27 +7,18 @@ declare(strict_types=1);
  * Loads services from the database
  */
 
-$services = [];
-try {
-    $services = db('henz_software_main.referenced_projects')
-        ->where('is_active', true)
-        ->select(['id','slug','title','description','project_image_path','project_slug','project_url'])
-        ->orderBy('sort_order', 'asc')
-        ->get();
-} catch (Exception $e) {
-    // Fallback if DB is not available
-}
+$projects = project_page_entries();
 
 $rows = [];
-foreach ($services as $service) {
+foreach ($projects as $project) {
     $rows[] = [
-        'id' => $service['id'] ?? null,
-        'slug' => $service['slug'] ?? '',
-        'title' => $service['title'] ?? '',
-        'description' => $service['description'] ?? '',
-        'project_media_path' => $service['project_image_path'] ?? '',
-        'project_slug' => $service['project_slug'] ?? '',
-        'project_url' => $service['project_url'] ?? '#',
+        'id' => $project['id'] ?? null,
+        'slug' => $project['slug'] ?? '',
+        'title' => $project['title'] ?? '',
+        'description' => $project['description'] ?? '',
+        'project_media_path' => $project['project_media_path'] ?? '',
+        'project_slug' => $project['route_slug'] ?? '',
+        'project_url' => $project['project_url'] ?? '#',
     ];
 }
 

@@ -181,3 +181,18 @@
   }
 }
 
+.gb-submenu {
+    display: none;
+}
+
+.has-submenu.nav-is-open > .gb-submenu {
+    display: block;
+}
+
+@media (min-width: 768px) {
+    .has-submenu:hover > .gb-submenu,
+    .has-submenu:focus-within > .gb-submenu {
+        display: block;
+    }
+}
+
