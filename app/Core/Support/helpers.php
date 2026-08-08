@@ -190,13 +190,22 @@ if (!function_exists('service_page_sections')) {
                     continue;
                 }
 
-                $slug = trim((string) ($row['cta_url'] ?? ''));
+                // Media assignments for services use services.slug as section_key.
+                // Keep cta_url hash as legacy fallback for older records.
+                $slug = trim((string) ($row['slug'] ?? ''));
+
+                if ($slug === '') {
+                    $ctaUrl = trim((string) ($row['cta_url'] ?? ''));
+
+                    if ($ctaUrl !== '') {
+                        $hash = (string) strrchr($ctaUrl, '#');
+                        $slug = ltrim($hash, '#');
+                    }
+                }
 
                 if ($slug === '') {
                     continue;
                 }
-
-                $slug = ltrim((string) strrchr($slug, '#'), '#');
 
                 $structureRaw = $row['structure'] ?? '[]';
                 $dataRaw = $row['data'] ?? '{}';
@@ -225,7 +234,7 @@ if (!function_exists('service_page_sections')) {
                         'service',
                         $slug,
                         $slotKey,
-                        '/ui/_assets/images/hero-image.png'
+                        '/ui/_assets/images/profile-placeholder.svg'
                     );
                 }
 

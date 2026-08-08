@@ -282,6 +282,27 @@ Router::get('/leistungen', function (): Response {
 })->name('leistungen');
 
 /**
+ * Renders the technology page.
+ *
+ * @return Response HTML response for the technology page.
+ */
+Router::get('/technology', function (): Response {
+    ob_start();
+    require base_path('public/ui/_templates/technology-page.php');
+    $html = (string) ob_get_clean();
+
+    return new Response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
+})->name('technology');
+
+Router::get('/technologien', function (): Response {
+    ob_start();
+    require base_path('public/ui/_templates/technology-page.php');
+    $html = (string) ob_get_clean();
+
+    return new Response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
+})->name('technologien');
+
+/**
  * Renders the referenzen page.
  *
  * @return Response HTML response for the referenzen page.
