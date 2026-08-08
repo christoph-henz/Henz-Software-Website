@@ -215,7 +215,7 @@ CREATE TABLE IF NOT EXISTS appointments (
     FOREIGN KEY (service_id) REFERENCES services (id) ON DELETE CASCADE
 );
 
-CREATE TABLE availability_rules (
+CREATE TABLE IF NOT EXISTS availability_rules (
     id INT AUTO_INCREMENT PRIMARY KEY,
     rule_key VARCHAR(100) NOT NULL,
     rule_value VARCHAR(255) NULL,
@@ -225,7 +225,7 @@ CREATE TABLE availability_rules (
     UNIQUE KEY uq_availability_rules_rule_key (rule_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE recurring_availability (
+CREATE TABLE IF NOT EXISTS recurring_availability (
     id INT AUTO_INCREMENT PRIMARY KEY,
     day_of_week TINYINT NOT NULL,
     start_time TIME NOT NULL,
@@ -239,7 +239,7 @@ CREATE TABLE recurring_availability (
     INDEX idx_recurring_availability_active (is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE blocked_times (
+CREATE TABLE IF NOT EXISTS blocked_times (
     id INT AUTO_INCREMENT PRIMARY KEY,
     starts_at DATETIME NOT NULL,
     ends_at DATETIME NOT NULL,
@@ -265,7 +265,7 @@ CREATE TABLE IF NOT EXISTS consents (
     user_agent VARCHAR(512) NOT NULL,
     signature_hash VARCHAR(255) NOT NULL,
     FOREIGN KEY (contract_id) REFERENCES contracts(id) ON DELETE RESTRICT ON UPDATE CASCADE,
-    FOREIGN KEY (client_request_id) REFERENCES client_inquiries(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    FOREIGN KEY (client_request_id) REFERENCES appointments(id) ON DELETE RESTRICT ON UPDATE CASCADE,
     INDEX idx_contract_id (contract_id),
     INDEX idx_client_request_id (client_request_id),
     INDEX idx_consent_key (consent_key),
@@ -365,35 +365,4 @@ CREATE TABLE IF NOT EXISTS referenced_projects (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_slug (slug),
     INDEX idx_is_active (is_active)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-USE henz_software_logging;
-
-CREATE TABLE IF NOT EXISTS logs (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT,
-    action VARCHAR(255) NOT NULL,
-    details TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES henz_software_main.users (id) ON DELETE SET NULL
-);
-
-CREATE TABLE IF NOT EXISTS consent_audit_log (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    consent_id INT NULL,
-    contract_id INT NULL,
-    client_request_id INT NULL,
-    action ENUM('created', 'update_attempted', 'delete_attempted') NOT NULL,
-    old_signature_hash VARCHAR(255) NULL,
-    new_signature_hash VARCHAR(255) NULL,
-    attempted_by VARCHAR(255) NULL,
-    error_message TEXT NULL,
-    attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (contract_id) REFERENCES henz_software_main.contracts(id) ON DELETE CASCADE ON UPDATE CASCADE,
-    FOREIGN KEY (client_request_id) REFERENCES henz_software_main.client_inquiries(id) ON DELETE CASCADE ON UPDATE CASCADE,
-    INDEX idx_contract_id (contract_id),
-    INDEX idx_client_request_id (client_request_id),
-    INDEX idx_consent_id (consent_id),
-    INDEX idx_action (action),
-    INDEX idx_attempted_at (attempted_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

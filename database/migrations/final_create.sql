@@ -101,7 +101,6 @@ CREATE TABLE IF NOT EXISTS email_templates (
     INDEX idx_email_templates_is_active (is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-USE `henz_software_main`;
 CREATE TABLE IF NOT EXISTS form_templates (
     id INT AUTO_INCREMENT PRIMARY KEY,
     template_key VARCHAR(150) NOT NULL,
@@ -211,7 +210,7 @@ CREATE TABLE IF NOT EXISTS form_attachments (
     INDEX idx_form_attachments_uploaded_at (uploaded_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE projects (
+CREATE TABLE IF NOT EXISTS projects (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `name` VARCHAR(255) NOT NULL,
     `description` TEXT,
@@ -240,7 +239,7 @@ CREATE TABLE projects (
     INDEX idx_client_id (`client_id`)
 );
 
-CREATE TABLE project_phase (
+CREATE TABLE IF NOT EXISTS project_phase (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `project_id` INT NOT NULL,
     `phase_name` VARCHAR(255) NOT NULL,
@@ -262,7 +261,7 @@ CREATE TABLE project_phase (
     INDEX idx_project_id (`project_id`)
 );
 
-CREATE TABLE project_members (
+CREATE TABLE IF NOT EXISTS project_members (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `project_id` INT NOT NULL,
     `user_id` INT NOT NULL,

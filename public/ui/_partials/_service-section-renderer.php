@@ -190,18 +190,20 @@ $sectionId = $stringFromData($data, 'slug');
 				$reverse = (bool) ($node['reverse'] ?? false);
 				?>
 				<div class="grid lg:grid-cols-2 gap-px rounded-[2rem] overflow-hidden max-w-6xl mx-auto items-stretch" style="background: rgba(0, 200, 255, 0.08);">
-					<div class="p-8 lg:p-12 flex flex-col justify-center space-y-5 <?= $reverse ? 'lg:order-2' : ''; ?>" style="background: rgb(6, 10, 15);">
+					<div class="min-w-0 p-8 lg:p-12 flex flex-col justify-center space-y-5 <?= $reverse ? 'lg:order-2' : ''; ?>" style="background: rgb(6, 10, 15);">
 						<?php if ($slug !== ''): ?>
 							<div class="text-xs uppercase tracking-[0.28em] mb-5" style="color: rgb(0, 200, 255); font-family: 'JetBrains Mono', monospace;">// <?= $escape($slug); ?></div>
 						<?php endif; ?>
-						<h3 class="text-3xl lg:text-4xl font-bold leading-tight" style="font-family: 'JetBrains Mono', monospace; color: rgb(232, 237, 245);">
+						<h3 class="text-2xl sm:text-3xl lg:text-4xl font-bold leading-tight" style="font-family: 'JetBrains Mono', monospace; color: rgb(232, 237, 245); overflow-wrap: anywhere; word-break: normal; hyphens: auto;">
 							<?= $escape($title); ?>
 							<?php if ($accent !== ''): ?>
 								<span style="color: rgb(0, 200, 255);"> <?= $escape($accent); ?></span>
 							<?php endif; ?>
 						</h3>
 						<?php if ($body !== ''): ?>
-							<p class="text-base leading-relaxed" style="color: rgb(90, 116, 148);"><?= $escape($body); ?></p>
+							<p class="text-base leading-relaxed" style="color: rgb(90, 116, 148); overflow-wrap: anywhere; word-break: normal; hyphens: auto;">
+								<?= $escape($body); ?>
+							</p>
 						<?php endif; ?>
 						<?php if (!empty($points)): ?>
 							<div class="space-y-4">

@@ -43,7 +43,7 @@ return [
     ],
     [
         'label' => 'Technologien',
-        'href' => '/technologien',
+        'href' => '/technology',
     ],
     [
         'label' => 'Kontakt',

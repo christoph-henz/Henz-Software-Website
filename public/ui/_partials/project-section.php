@@ -52,7 +52,7 @@ if (empty($rows)) {
     data-fgid-d3bl155=":r53:" style="border-top: 1px solid rgba(0, 200, 255, 0.08);">
     <div class="max-w-7xl mx-auto px-6" data-fg-d3bl156="0.8:1.32440:/src/app/App.tsx:501:9:19673:4150:e:div:ete"
         data-fgid-d3bl156=":r54:">
-        <div class="flex items-end justify-between mb-16"
+        <div class="mb-12 flex flex-col items-start justify-between gap-6 md:mb-16 md:flex-row md:items-end"
             data-fg-d3bl157="0.8:1.32440:/src/app/App.tsx:502:11:19724:1436:e:div:ete" data-fgid-d3bl157=":r55:">
             <div data-fg-d3bl158="0.8:1.32440:/src/app/App.tsx:503:13:19791:586:e:div:ete" data-fgid-d3bl158=":r56:">
                 <div class="text-xs uppercase tracking-widest mb-4"
@@ -108,23 +108,23 @@ if (empty($rows)) {
                             style="background: linear-gradient(135deg, rgba(0, 200, 255, 0.12) 0%, transparent 60%);">
                         </div>
                     </div>
-                    <div class="p-10 flex flex-col justify-between"
+                    <div class="min-w-0 flex flex-col justify-between p-6 sm:p-8 lg:p-10"
                         data-fg-d3bl175="0.8:1.32440:/src/app/App.tsx:560:17:22469:1285:e:div:ete" data-fgid-d3bl175=":r5i:"
                         style="background: rgb(12, 21, 32);">
                         <div data-fg-d3bl176="0.8:1.32440:/src/app/App.tsx:564:19:22627:701:e:div:etete"
                             data-fgid-d3bl176=":r5j:">
-                            <div class="text-xs mb-4 uppercase tracking-widest"
+                            <div class="mb-4 text-xs uppercase tracking-widest break-words [overflow-wrap:anywhere] hyphens-auto"
                                 data-fg-d3bl177="0.8:1.32440:/src/app/App.tsx:565:21:22653:253:e:div:x"
                                 data-fgid-d3bl177=":r5k:"
                                 style="color: rgb(0, 200, 255); font-family: &quot;JetBrains Mono&quot;, monospace;">
                                 <?= $row['slug'] ?? '' ?></div>
-                            <h3 class="text-2xl font-bold mb-4"
+                            <h3 class="mb-4 text-xl sm:text-2xl font-bold break-words [overflow-wrap:anywhere] hyphens-auto leading-tight"
                                 data-fg-d3bl179="0.8:1.32440:/src/app/App.tsx:571:21:22927:233:e:h3:x"
                                 data-fgid-d3bl179=":r5l:"
                                 style="font-family: &quot;JetBrains Mono&quot;, monospace; color: rgb(232, 237, 245);">
                                 <?= $row['title'] ?? 'No title available' ?>
                             </h3>
-                            <p class="text-sm leading-relaxed"
+                            <p class="text-sm leading-relaxed break-words [overflow-wrap:anywhere] hyphens-auto"
                                 data-fg-d3bl181="0.8:1.32440:/src/app/App.tsx:577:21:23181:122:e:p:x"
                                 data-fgid-d3bl181=":r5m:" style="color: rgb(90, 116, 148);">
                                 <?= $row['description'] ?? 'No description available' ?></p>

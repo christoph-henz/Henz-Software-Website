@@ -185,8 +185,12 @@
     display: none;
 }
 
-.has-submenu.nav-is-open > .gb-submenu {
+.has-submenu.is-open > .gb-submenu {
     display: block;
+}
+
+.has-submenu.is-open > .gb-submenu-toggle .gb-caret {
+  transform: rotate(180deg);
 }
 
 @media (min-width: 768px) {
