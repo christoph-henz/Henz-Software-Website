@@ -229,35 +229,6 @@
   transform: rotate(180deg);
 }
 
-.gb-nav-link {
-  color: var(--muted-foreground);
-}
-
-.gb-nav-link:hover,
-.gb-nav-link:focus-visible {
-  color: var(--foreground);
-}
-
-.gb-nav-surface {
-  border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent);
-  background: color-mix(in srgb, var(--card) 95%, transparent);
-}
-
-.gb-submenu-panel {
-  border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
-  background: color-mix(in srgb, var(--card) 95%, transparent);
-}
-
-.gb-submenu-link {
-  color: var(--muted-foreground);
-}
-
-.gb-submenu-link:hover,
-.gb-submenu-link:focus-visible {
-  color: var(--foreground);
-  background: color-mix(in srgb, var(--primary) 10%, transparent);
-}
-
 @media (min-width: 768px) {
     .gb-nav-surface {
         border: 0;

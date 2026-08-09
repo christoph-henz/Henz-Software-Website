@@ -180,7 +180,7 @@ $ssoButton = htmlspecialchars($cfg['sso_button'] ?? 'Mit SSO anmelden');
     if (loginForm && loginButton) {
         loginForm.addEventListener('submit', function () {
             loginButton.disabled = true;
-            loginButton.style.opacity = "0.65";
+            loginButton.style.background = "rgba(0,200,255,0.5)";
             loginButton.style.cursor = "not-allowed";
             loginButton.innerHTML = `
         <span class="flex items-center justify-center gap-2">
