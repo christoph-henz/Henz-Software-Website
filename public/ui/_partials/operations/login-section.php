@@ -12,7 +12,7 @@ $ssoButton = htmlspecialchars($cfg['sso_button'] ?? 'Mit SSO anmelden');
 
 ?>
 <div class="min-h-screen flex items-center justify-center relative overflow-hidden"
-    style="min-height:100vh; display:flex; align-items:center; justify-content:center; font-family:'Inter',sans-serif; background:#060a0f;">
+    style="min-height:100vh; display:flex; align-items:center; justify-content:center; font-family:'Inter',sans-serif; background:var(--background);">
     <div class="absolute inset-0 pointer-events-none">
         <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] rounded-full" style="
                 opacity:.15;
@@ -39,27 +39,27 @@ $ssoButton = htmlspecialchars($cfg['sso_button'] ?? 'Mit SSO anmelden');
                     <polyline points="4 17 10 11 4 5"></polyline>
                     <line x1="12" y1="19" x2="20" y2="19"></line>
                 </svg>
-                <span class="text-base font-bold" style="font-family:'JetBrains Mono', monospace;color:#e8edf5;">
+                <span class="text-base font-bold" style="font-family:'JetBrains Mono', monospace;color:var(--foreground);">
                     <?= $slug; ?><span style="color:#00c8ff;">.com</span>
                 </span>
             </div>
         </div>
         <div class="rounded-2xl p-8 border" style="
-                background:rgba(12,21,32,.85);
+                background:color-mix(in srgb, var(--card) 85%, transparent);
                 backdrop-filter:blur(24px);
-                border-color:rgba(0,200,255,.15);
+                border-color:var(--border);
                 box-shadow:0 0 60px rgba(0,200,255,.05),0 32px 64px rgba(0,0,0,.5);">
             <div class="mb-8">
                 <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded text-xs mb-5 border" style="
                         font-family:'JetBrains Mono', monospace;
-                        color:#00c8ff;
-                        border-color:rgba(0,200,255,.2);
-                        background:rgba(0,200,255,.05);"><?= $pageTitle; ?>
+                    color:var(--primary);
+                    border-color:color-mix(in srgb, var(--primary) 20%, transparent);
+                    background:color-mix(in srgb, var(--primary) 8%, transparent);\"><?= $pageTitle; ?>
                 </div>
-                <h1 class="text-3xl font-bold mb-2" style="font-family:'JetBrains Mono', monospace;color:#e8edf5;">
+                <h1 class="text-3xl font-bold mb-2" style="font-family:'JetBrains Mono', monospace;color:var(--foreground);">
                     <?= $welcome; ?>
                 </h1>
-                <p class="text-sm" style="color:#5a7494;"><?= $subtitle; ?>
+                <p class="text-sm" style="color:var(--muted-foreground);"><?= $subtitle; ?>
                 </p>
             </div>
             <form id="loginForm" method="post" action="/login" class="flex flex-col gap-5">
@@ -67,42 +67,42 @@ $ssoButton = htmlspecialchars($cfg['sso_button'] ?? 'Mit SSO anmelden');
                 <input type="hidden" name="redirect" value="<?= htmlspecialchars($redirectTo) ?>">
                 <div class="flex flex-col gap-1.5">
                     <label class="text-xs uppercase tracking-widest"
-                        style="color:#5a7494;font-family:'JetBrains Mono', monospace;">
+                        style="color:var(--muted-foreground);font-family:'JetBrains Mono', monospace;">
                         <?= htmlspecialchars($field1['name'] ?? 'E-Mail'); ?>
                     </label>
                     <div class="flex items-center gap-3 px-4 py-3.5 rounded-lg border focus-within:ring-2 focus-within:ring-cyan-500/30"
                         style="
-                            background:rgba(6,10,15,.6);
-                            border-color:rgba(0,200,255,.12);">
-                        <span style="color:#5a7494;"><?= htmlspecialchars($field1['icon'] ?? ''); ?></span>
+                            background:color-mix(in srgb, var(--input-background) 80%, transparent);
+                            border-color:var(--border);">
+                        <span style="color:var(--muted-foreground);"><?= htmlspecialchars($field1['icon'] ?? ''); ?></span>
                         <input type="email" name="email" value="<?= htmlspecialchars($email) ?>"
                             placeholder="<?= htmlspecialchars($field1['placeholder'] ?? 'support@henz-software.com'); ?>"
                             autocomplete="email"
-                            class="bg-transparent outline-none w-full text-sm placeholder:text-[#2d4258]"
-                            style="color:#e8edf5; font-family:'JetBrains Mono', monospace;">
+                            class="bg-transparent outline-none w-full text-sm placeholder:text-muted-foreground"
+                            style="color:var(--foreground); font-family:'JetBrains Mono', monospace;">
                     </div>
                 </div>
                 <div class="flex flex-col gap-1.5">
                     <div class="flex items-center justify-between">
                         <label class="text-xs uppercase tracking-widest"
-                            style="color:#5a7494;font-family:'JetBrains Mono', monospace;">
+                            style="color:var(--muted-foreground);font-family:'JetBrains Mono', monospace;">
                             <?= htmlspecialchars($field2['name'] ?? 'Passwort'); ?>
                         </label>
                         <a href="/passwort-vergessen" class="text-xs transition-colors duration-200 hover:text-cyan-400"
-                            style="color:#5a7494;font-family:'JetBrains Mono', monospace;">
+                            style="color:var(--muted-foreground);font-family:'JetBrains Mono', monospace;">
                             <?= htmlspecialchars($forgetPassword ?? 'Vergessen?'); ?>
                         </a>
                     </div>
                     <div class="flex items-center gap-3 px-4 py-3.5 rounded-lg border focus-within:ring-2 focus-within:ring-cyan-500/30"
-                        style="background:rgba(6,10,15,.6); border-color:rgba(0,200,255,.12);">
-                        <span style="color:#5a7494;"><?= htmlspecialchars($field2['icon'] ?? ''); ?></span>
+                        style="background:color-mix(in srgb, var(--input-background) 80%, transparent); border-color:var(--border);">
+                        <span style="color:var(--muted-foreground);"><?= htmlspecialchars($field2['icon'] ?? ''); ?></span>
                         <input id="password" name="password" type="password"
                             placeholder="<?= htmlspecialchars($field2['placeholder'] ?? '••••••••••••'); ?>"
                             autocomplete="current-password"
-                            class="bg-transparent outline-none w-full text-sm flex-1 placeholder:text-[#2d4258]"
-                            style="color:#e8edf5; font-family:'JetBrains Mono', monospace;">
+                            class="bg-transparent outline-none w-full text-sm flex-1 placeholder:text-muted-foreground"
+                            style="color:var(--foreground); font-family:'JetBrains Mono', monospace;">
                         <button id="togglePassword" type="button"
-                            class="text-[#5a7494] hover:text-cyan-400 transition-colors">👁
+                            class="hover:text-cyan-400 transition-colors" style="color:var(--muted-foreground);">👁
                         </button>
                     </div>
                 </div>
@@ -110,7 +110,7 @@ $ssoButton = htmlspecialchars($cfg['sso_button'] ?? 'Mit SSO anmelden');
                 <?php if (!empty($errorMessage)): ?>
 
                     <div class="flex items-center gap-2.5 px-4 py-3 rounded-lg border text-sm"
-                        style="color:#ff6b7a; border-color:rgba(255,71,87,.25); background:rgba(255,71,87,.06);">
+                        style="color:var(--destructive); border-color:color-mix(in srgb, var(--destructive) 25%, transparent); background:color-mix(in srgb, var(--destructive) 8%, transparent);">
                         <span>⚠</span>
                         <span style="font-family:'JetBrains Mono', monospace;font-size:12px;">
                             <?= htmlspecialchars($errorMessage) ?>
@@ -120,7 +120,7 @@ $ssoButton = htmlspecialchars($cfg['sso_button'] ?? 'Mit SSO anmelden');
 
                 <button id="loginButton" type="submit"
                     class="relative w-full py-3.5 rounded-lg font-bold text-sm transition-all duration-200 mt-1 overflow-hidden"
-                    style="background:#00c8ff; color:#060a0f; font-family:'JetBrains Mono', monospace;">
+                    style="background:var(--primary); color:var(--primary-foreground); font-family:'JetBrains Mono', monospace;">
                     <span class="button-content flex items-center justify-center gap-2">
                         <?= htmlspecialchars($loginButton ?? 'Anmelden'); ?>
                         <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -130,17 +130,17 @@ $ssoButton = htmlspecialchars($cfg['sso_button'] ?? 'Mit SSO anmelden');
                 </button>
 
                 <div class="flex items-center gap-3 my-7">
-                    <div class="flex-1 h-px" style="background:rgba(0,200,255,.08);"></div>
-                    <span class="text-xs" style="color:#2d4258;font-family:'JetBrains Mono', monospace;">oder</span>
-                    <div class="flex-1 h-px" style="background:rgba(0,200,255,.08);"></div>
+                    <div class="flex-1 h-px" style="background:var(--border);"></div>
+                    <span class="text-xs" style="color:var(--muted-foreground);font-family:'JetBrains Mono', monospace;">oder</span>
+                    <div class="flex-1 h-px" style="background:var(--border);"></div>
                 </div>
 
                 <button type="button" class="w-full h-14 rounded-lg border transition-all duration-200
            flex items-center justify-center gap-3
            hover:text-cyan-400 hover:border-cyan-400/30" style="
-        color:#8a9db5;
-        border-color:rgba(0,200,255,.12);
-        background:rgba(0,200,255,.03);
+        color:var(--muted-foreground);
+        border-color:var(--border);
+        background:color-mix(in srgb, var(--primary) 8%, transparent);
         font-family:'JetBrains Mono', monospace;
     ">
 
@@ -152,7 +152,7 @@ $ssoButton = htmlspecialchars($cfg['sso_button'] ?? 'Mit SSO anmelden');
 
                 </button>
 
-                <p class="text-center text-xs mt-8" style="color:#2d4258; font-family:'JetBrains Mono', monospace;">
+                <p class="text-center text-xs mt-8" style="color:var(--muted-foreground); font-family:'JetBrains Mono', monospace;">
                     Nur für autorisierte Mitarbeiter · <?= htmlspecialchars($slug ?? 'henz-software'); ?>.com © <?= date('Y'); ?>
                 </p>
             </form>
@@ -180,7 +180,7 @@ $ssoButton = htmlspecialchars($cfg['sso_button'] ?? 'Mit SSO anmelden');
     if (loginForm && loginButton) {
         loginForm.addEventListener('submit', function () {
             loginButton.disabled = true;
-            loginButton.style.background = "rgba(0,200,255,0.5)";
+            loginButton.style.opacity = "0.65";
             loginButton.style.cursor = "not-allowed";
             loginButton.innerHTML = `
         <span class="flex items-center justify-center gap-2">

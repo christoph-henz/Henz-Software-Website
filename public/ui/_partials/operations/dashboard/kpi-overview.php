@@ -5,7 +5,7 @@ declare(strict_types=1);
 $kpiCards = is_array($kpiCards ?? null) ? $kpiCards : [];
 
 $colorMap = [
-    'cyan' => ['icon' => 'text-[#00c8ff]', 'bg' => 'bg-cyan-400/10', 'delta' => 'text-[#00c8ff]'],
+    'cyan' => ['icon' => 'text-primary', 'bg' => 'bg-primary/10', 'delta' => 'text-primary'],
     'amber' => ['icon' => 'text-amber-400', 'bg' => 'bg-amber-400/10', 'delta' => 'text-amber-400'],
     'emerald' => ['icon' => 'text-emerald-400', 'bg' => 'bg-emerald-400/10', 'delta' => 'text-emerald-400'],
     'violet' => ['icon' => 'text-violet-400', 'bg' => 'bg-violet-400/10', 'delta' => 'text-violet-400'],
@@ -17,9 +17,9 @@ $colorMap = [
         $colorKey = (string) ($card['color'] ?? 'cyan');
         $palette = $colorMap[$colorKey] ?? $colorMap['cyan'];
         ?>
-        <article class="rounded-xl border border-[#00c8ff]/10 bg-[#0c1520] p-5">
+        <article class="rounded-xl border border-border bg-card p-5">
             <div class="mb-4 flex items-center justify-between">
-                <p class="text-xs text-[#5a7494]"><?= htmlspecialchars((string) ($card['label'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></p>
+            <p class="text-xs text-muted-foreground"><?= htmlspecialchars((string) ($card['label'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></p>
                 <a href="<?= htmlspecialchars((string) ($card['url'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" class="inline-flex h-8 w-8 items-center justify-center rounded-lg <?= $palette['bg']; ?> <?= $palette['icon']; ?>">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M4 12h16" />
@@ -27,7 +27,7 @@ $colorMap = [
                     </svg>
                 </a>
             </div>
-            <p class="text-2xl font-bold text-[#e8edf5]" style="font-family: 'JetBrains Mono', monospace;">
+            <p class="text-2xl font-bold text-foreground" style="font-family: 'JetBrains Mono', monospace;">
                 <?= htmlspecialchars((string) ($card['value'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
             </p>
             <p class="mt-1 text-xs <?= $palette['delta']; ?>" style="font-family: 'JetBrains Mono', monospace;">

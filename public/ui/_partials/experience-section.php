@@ -24,7 +24,7 @@ $items = $cfg['items'] ?? [];
                 </div>
                 <div class="text-xs uppercase tracking-widest"
                     data-fg-d3bl126="0.8:1.32440:/src/app/App.tsx:417:17:16341:129:e:div:x" data-fgid-d3bl126=":r2r:"
-                    style="color: rgb(90, 116, 148);">
+                    style="color: var(--muted-foreground);">
                     <?= $description; ?>
                 </div>
             </div>

@@ -168,13 +168,13 @@ ob_start();
     </div>
 </div>
 
-<section class="rounded-2xl border border-cyan-500/15 bg-slate-950/80 p-5 shadow-[0_24px_60px_rgba(0,0,0,0.22)] backdrop-blur">
+<section class="rounded-2xl border border-border bg-card p-5 shadow-[0_24px_60px_color-mix(in_srgb,var(--background)_28%,transparent)] backdrop-blur">
     <h2 class="admin-email-templates-hint-title">Verfügbare Platzhalter</h2>
     <p class="admin-email-templates-hint-text">Alle Felder koennen als Platzhalter mit doppelten geschweiften Klammern verwendet werden, z. B. {{client.first_name}}.</p>
 
-    <div class="admin-email-templates-placeholder-grid text-sm text-slate-400">
+    <div class="admin-email-templates-placeholder-grid text-sm text-muted-foreground">
         <?php foreach ($placeholderGroups as $groupName => $placeholders): ?>
-        <div class="admin-email-templates-placeholder-group rounded-lg border border-slate-700/50 bg-slate-950/80 p-4 shadow-[0_24px_60px_rgba(0,0,0,0.22)] backdrop-blur">
+        <div class="admin-email-templates-placeholder-group rounded-lg border border-border bg-input-background/70 p-4 shadow-[0_24px_60px_color-mix(in_srgb,var(--background)_24%,transparent)] backdrop-blur">
             <h3><?= htmlspecialchars((string) $groupName, ENT_QUOTES, 'UTF-8'); ?></h3>
             <ul>
                 <?php foreach ((array) $placeholders as $placeholder): ?>

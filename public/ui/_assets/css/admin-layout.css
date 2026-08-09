@@ -1,4 +1,5 @@
 :root {
+  color-scheme: dark;
   --admin-bg: #060a0f;
   --admin-surface: #0c1520;
   --admin-surface-2: #080d14;
@@ -6,6 +7,71 @@
   --admin-muted: #5a7494;
   --admin-accent: #00c8ff;
   --admin-border: rgba(0, 200, 255, 0.12);
+  --admin-overlay: rgba(6, 10, 15, 0.65);
+  --admin-topbar-bg: color-mix(in srgb, var(--admin-bg) 82%, transparent);
+  --admin-modal-backdrop: rgba(6, 10, 15, 0.72);
+  --admin-modal-bg: var(--admin-surface);
+  --admin-card-bg: color-mix(in srgb, var(--admin-surface) 94%, var(--admin-surface-2) 6%);
+  --admin-card-bg-soft: color-mix(in srgb, var(--admin-surface) 72%, transparent);
+  --admin-input-bg: color-mix(in srgb, var(--admin-bg) 82%, transparent);
+  --admin-soft-bg: color-mix(in srgb, var(--admin-surface) 70%, transparent);
+  --admin-soft-bg-2: color-mix(in srgb, var(--admin-surface) 52%, transparent);
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --admin-bg: #f4f8fc;
+    --admin-surface: #ffffff;
+    --admin-surface-2: #eaf1f8;
+    --admin-fg: #0d1b2a;
+    --admin-muted: #45617f;
+    --admin-accent: #009dce;
+    --admin-border: rgba(13, 27, 42, 0.12);
+    --admin-overlay: rgba(13, 27, 42, 0.25);
+    --admin-topbar-bg: color-mix(in srgb, var(--admin-bg) 88%, transparent);
+    --admin-modal-backdrop: rgba(13, 27, 42, 0.28);
+    --admin-modal-bg: var(--admin-surface);
+    --admin-card-bg: color-mix(in srgb, var(--admin-surface) 96%, var(--admin-surface-2) 4%);
+    --admin-card-bg-soft: color-mix(in srgb, var(--admin-surface-2) 64%, var(--admin-surface) 36%);
+    --admin-input-bg: color-mix(in srgb, var(--admin-surface-2) 78%, var(--admin-surface) 22%);
+    --admin-soft-bg: color-mix(in srgb, var(--admin-surface-2) 58%, var(--admin-surface) 42%);
+    --admin-soft-bg-2: color-mix(in srgb, var(--admin-surface-2) 42%, var(--admin-surface) 58%);
+  }
+
+  .admin-overlay {
+    background: var(--admin-overlay);
+  }
+
+  .admin-topbar {
+    background: var(--admin-topbar-bg);
+  }
+
+  .admin-sidebar-nav-item:hover {
+    background: rgba(13, 27, 42, 0.06);
+  }
+
+  .admin-sidebar-nav-item.is-active {
+    background: rgba(0, 157, 206, 0.14);
+    border-color: rgba(0, 157, 206, 0.3);
+  }
+
+  .admin-sidebar-nav-children {
+    border-left-color: rgba(13, 27, 42, 0.12);
+  }
+
+  .admin-toast {
+    background: #ffffff;
+    box-shadow: 0 10px 25px rgba(13, 27, 42, 0.14);
+  }
+
+  .admin-modal-backdrop {
+    background: var(--admin-modal-backdrop);
+  }
+
+  .admin-modal {
+    background: var(--admin-modal-bg);
+  }
 }
 
 body.admin-page {
@@ -18,7 +84,7 @@ body.admin-page {
 .admin-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(6, 10, 15, 0.65);
+  background: var(--admin-overlay);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s ease;
@@ -176,7 +242,7 @@ body.admin-page {
 .admin-topbar {
   height: 56px;
   border-bottom: 1px solid var(--admin-border);
-  background: rgba(6, 10, 15, 0.9);
+  background: var(--admin-topbar-bg);
   backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
@@ -279,7 +345,7 @@ body.admin-page {
   border: 1px solid var(--admin-border);
   border-left-width: 4px;
   border-radius: 10px;
-  background: #0b141f;
+  background: var(--admin-card-bg);
   color: var(--admin-fg);
   padding: 10px 12px;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
@@ -299,7 +365,7 @@ body.admin-page {
   align-items: center;
   justify-content: center;
   padding: 16px;
-  background: rgba(6, 10, 15, 0.72);
+  background: var(--admin-modal-backdrop);
 }
 
 .admin-modal-backdrop.is-open {
@@ -312,7 +378,7 @@ body.admin-page {
   overflow: auto;
   border: 1px solid var(--admin-border);
   border-radius: 14px;
-  background: #0b1622;
+  background: var(--admin-modal-bg);
 }
 
 .admin-modal-header,
@@ -373,7 +439,7 @@ body.admin-page {
 .admin-dashboard-card {
   border: 1px solid var(--admin-border);
   border-radius: 14px;
-  background: linear-gradient(180deg, rgba(12, 21, 32, 0.94), rgba(8, 13, 20, 0.9));
+  background: var(--admin-card-bg);
   padding: 14px;
 }
 
@@ -429,7 +495,7 @@ body.admin-page {
 .admin-appointments-input {
   border: 1px solid var(--admin-border);
   border-radius: 10px;
-  background: rgba(6, 10, 15, 0.82);
+  background: var(--admin-input-bg);
   color: var(--admin-fg);
   padding: 7px 10px;
   font-size: 0.8rem;
@@ -445,7 +511,7 @@ body.admin-page {
 .admin-calendar-details-card {
   border: 1px solid var(--admin-border);
   border-radius: 12px;
-  background: rgba(8, 13, 20, 0.95);
+  background: var(--admin-card-bg);
 }
 
 .admin-calendar-details {
@@ -512,7 +578,7 @@ body.admin-page {
   display: grid;
   align-content: flex-start;
   gap: 6px;
-  background: rgba(12, 21, 32, 0.65);
+  background: var(--admin-card-bg-soft);
 }
 
 .admin-calendar-day.is-other {
@@ -610,7 +676,7 @@ body.admin-page {
 .admin-week-day-col {
   border: 1px solid rgba(90, 116, 148, 0.2);
   border-radius: 10px;
-  background: rgba(12, 21, 32, 0.55);
+  background: var(--admin-soft-bg);
   overflow: hidden;
 }
 
@@ -665,7 +731,7 @@ body.admin-page {
   border: 1px solid var(--admin-border);
   border-radius: 10px;
   padding: 10px;
-  background: rgba(12, 21, 32, 0.7);
+  background: var(--admin-soft-bg);
   cursor: pointer;
 }
 
@@ -715,7 +781,7 @@ body.admin-page {
 .admin-appointments-detail-card {
   border: 1px solid var(--admin-border);
   border-radius: 14px;
-  background: linear-gradient(180deg, rgba(12, 21, 32, 0.94), rgba(8, 13, 20, 0.9));
+  background: var(--admin-card-bg);
   padding: 14px;
 }
 
@@ -748,7 +814,7 @@ body.admin-page {
   width: 100%;
   border: 1px solid rgba(90, 116, 148, 0.3);
   border-radius: 10px;
-  background: rgba(8, 13, 20, 0.78);
+  background: var(--admin-soft-bg-2);
   color: var(--admin-fg);
   padding: 10px;
   display: flex;
@@ -924,8 +990,8 @@ body.admin-page {
   border: 1px solid var(--admin-border);
   border-radius: 20px;
   background:
-    radial-gradient(circle at top right, rgba(0, 200, 255, 0.12), transparent 28%),
-    linear-gradient(180deg, rgba(12, 21, 32, 0.98), rgba(8, 13, 20, 0.98));
+    radial-gradient(circle at top right, color-mix(in srgb, var(--admin-accent) 20%, transparent), transparent 28%),
+    var(--admin-card-bg);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.26);
   overflow: hidden;
 }
@@ -945,7 +1011,7 @@ body.admin-page {
   min-height: 44px;
   border: 1px solid rgba(90, 116, 148, 0.24);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--admin-soft-bg-2);
   color: var(--admin-fg);
   padding: 0 14px;
   font: inherit;
@@ -965,7 +1031,7 @@ body.admin-page {
 .admin-users-search:focus,
 .admin-users-input:focus {
   border-color: rgba(0, 200, 255, 0.4);
-  background: rgba(255, 255, 255, 0.035);
+  background: var(--admin-soft-bg);
   box-shadow: 0 0 0 4px rgba(0, 200, 255, 0.09);
 }
 
@@ -990,7 +1056,7 @@ body.admin-page {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--admin-muted);
-  background: rgba(255, 255, 255, 0.015);
+  background: var(--admin-soft-bg-2);
   border-bottom: 1px solid rgba(0, 200, 255, 0.08);
 }
 
@@ -1007,7 +1073,7 @@ body.admin-page {
 }
 
 .admin-users-table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--admin-soft-bg-2);
 }
 
 .admin-users-badge {
@@ -1126,7 +1192,7 @@ body.admin-page {
 .admin-users-permission-helper,
 .admin-users-permission-locked {
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--admin-soft-bg-2);
 }
 
 .admin-users-invite-link-box {
@@ -1168,7 +1234,7 @@ body.admin-page {
   padding: 12px 14px;
   border: 1px solid rgba(90, 116, 148, 0.16);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--admin-soft-bg-2);
 }
 
 .admin-users-permission-item--locked {
@@ -1214,8 +1280,8 @@ body.admin-page {
   border: 1px solid var(--admin-border);
   border-radius: 20px;
   background:
-    radial-gradient(circle at top right, rgba(0, 200, 255, 0.12), transparent 28%),
-    linear-gradient(180deg, rgba(12, 21, 32, 0.98), rgba(8, 13, 20, 0.98));
+    radial-gradient(circle at top right, color-mix(in srgb, var(--admin-accent) 20%, transparent), transparent 28%),
+    var(--admin-card-bg);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.26);
   overflow: hidden;
 }
@@ -1270,7 +1336,7 @@ body.admin-page {
 .admin-projects-entry {
   border: 1px solid rgba(90, 116, 148, 0.2);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--admin-soft-bg-2);
   padding: 14px;
   display: grid;
   gap: 10px;
@@ -1279,7 +1345,7 @@ body.admin-page {
 
 .admin-projects-entry:hover {
   border-color: rgba(0, 200, 255, 0.25);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--admin-soft-bg);
   transform: translateY(-1px);
 }
 
@@ -1368,7 +1434,7 @@ body.admin-page {
   font-size: 0.79rem;
   padding: 4px 8px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--admin-soft-bg-2);
   border: 1px solid rgba(90, 116, 148, 0.16);
 }
 
@@ -1424,7 +1490,7 @@ body.admin-page {
   appearance: none;
   border: 1px solid rgba(90, 116, 148, 0.24);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--admin-soft-bg-2);
   color: var(--admin-fg);
   min-width: 36px;
   height: 34px;

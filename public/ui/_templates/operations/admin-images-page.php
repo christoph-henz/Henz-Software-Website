@@ -16,10 +16,10 @@ $extraScripts .= '<script src="/ui/_assets/js/admin-images.js" defer></script>';
 
 ob_start();
 ?>
-<div class="mb-6 flex flex-col gap-3 rounded-2xl border border-cyan-500/15 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-5 shadow-[0_24px_60px_rgba(0,0,0,0.28)] lg:flex-row lg:items-end lg:justify-between">
+<div class="mb-6 flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 shadow-[0_24px_60px_color-mix(in_srgb,var(--background)_32%,transparent)] lg:flex-row lg:items-end lg:justify-between">
     <div class="max-w-3xl">
-        <h1 class="text-3xl font-semibold tracking-tight text-slate-50">Bilderverwaltung</h1>
-        <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-400">Upload, Aktiv/Inaktiv, Alt-Text und Seitenzuweisung in einem Bereich.</p>
+        <h1 class="text-3xl font-semibold tracking-tight text-foreground">Bilderverwaltung</h1>
+        <p class="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Upload, Aktiv/Inaktiv, Alt-Text und Seitenzuweisung in einem Bereich.</p>
     </div>
 </div>
 

@@ -43,7 +43,7 @@ if (empty($rows)) {
                 // <?= $slug ?></div>
             <h2 class="text-4xl lg:text-5xl font-bold max-w-2xl"
                 data-fg-d3bl134="0.8:1.32440:/src/app/App.tsx:436:13:16946:296:e:h2:tete" data-fgid-d3bl134=":r39:"
-                style="font-family: &quot;JetBrains Mono&quot;, monospace; color: rgb(232, 237, 245);">
+                style="font-family: &quot;JetBrains Mono&quot;, monospace; color: var(--foreground);">
                 <?= $header1 ?><br data-fg-d3bl136="0.8:1.32440:/src/app/App.tsx:441:15:17153:6:e:br"
                     data-fgid-d3bl136=":r3a:"><span
                     data-fg-d3bl137="0.8:1.32440:/src/app/App.tsx:442:15:17174:50:e:span:t" data-fgid-d3bl137=":r3b:"
@@ -57,7 +57,7 @@ if (empty($rows)) {
             <?php $iconSrc = $resolveIconPath(is_array($row) ? $row : []); ?>
             <div class="group h-full p-8 transition-all duration-300 cursor-pointer flex flex-col"
                 data-fg-d3bl141="0.8:1.32440:/src/app/App.tsx:448:15:17458:2031:e:div:etetete" data-fgid-d3bl141=":r3d:"
-                style="background: rgb(6, 10, 15);">
+                style="background: var(--background);">
                 <div class="flex items-start justify-between mb-6"
                     data-fg-d3bl142="0.8:1.32440:/src/app/App.tsx:459:17:17932:810:e:div:ete" data-fgid-d3bl142=":r3e:">
                     <div class="p-3 rounded" data-fg-d3bl143="0.8:1.32440:/src/app/App.tsx:460:19:18006:280:e:div:e"
@@ -69,13 +69,13 @@ if (empty($rows)) {
                     </div><span class="text-xs px-2 py-1 rounded"
                         data-fg-d3bl145="0.8:1.32440:/src/app/App.tsx:466:19:18305:414:e:span:x"
                         data-fgid-d3bl145=":r3h:"
-                        style="font-family: &quot;JetBrains Mono&quot;, monospace; color: rgb(90, 116, 148); background: rgba(90, 116, 148, 0.1); border: 1px solid rgba(90, 116, 148, 0.2);"><?= htmlspecialchars($row['slug'] ?? '', ENT_QUOTES, 'UTF-8'); ?></span>
+                        style="font-family: &quot;JetBrains Mono&quot;, monospace; color: var(--muted-foreground); background: color-mix(in srgb, var(--muted) 30%, transparent); border: 1px solid var(--border);"><?= htmlspecialchars($row['slug'] ?? '', ENT_QUOTES, 'UTF-8'); ?></span>
                 </div>
                 <h3 class="text-lg font-bold mb-3 group-hover:text-[#00c8ff] transition-colors duration-200"
                     data-fg-d3bl147="0.8:1.32440:/src/app/App.tsx:478:17:18759:227:e:h3:x" data-fgid-d3bl147=":r3i:"
-                    style="color: rgb(232, 237, 245);"><?= htmlspecialchars($row['name'] ?? '', ENT_QUOTES, 'UTF-8'); ?></h3>
+                    style="color: var(--foreground);"><?= htmlspecialchars($row['name'] ?? '', ENT_QUOTES, 'UTF-8'); ?></h3>
                 <p class="text-sm leading-relaxed" data-fg-d3bl149="0.8:1.32440:/src/app/App.tsx:484:17:19003:114:e:p:x"
-                    data-fgid-d3bl149=":r3j:" style="color: rgb(90, 116, 148);"><?= htmlspecialchars($row['description'] ?? '', ENT_QUOTES, 'UTF-8'); ?></p>
+                    data-fgid-d3bl149=":r3j:" style="color: var(--muted-foreground);"><?= htmlspecialchars($row['description'] ?? '', ENT_QUOTES, 'UTF-8'); ?></p>
                 <a class="flex items-center gap-1 mt-auto pt-6 text-xs opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                     data-fg-d3bl151="0.8:1.32440:/src/app/App.tsx:487:17:19134:334:e:div:te" data-fgid-d3bl151=":r3k:"
                     style="color: rgb(0, 200, 255); font-family: &quot;JetBrains Mono&quot;, monospace;" href="<?= htmlspecialchars($row['cta_url'] ?? '#', ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($cta_text ?? 'Learn more', ENT_QUOTES, 'UTF-8'); ?><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"

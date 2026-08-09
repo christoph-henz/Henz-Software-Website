@@ -59,8 +59,8 @@ ob_start();
     <?php endif; ?>
 
     <?php if (!$canViewKpiSection && !$canViewRevenueSection && !$canViewActivitySection && !$canViewProjects): ?>
-        <section class="rounded-xl border border-white/10 bg-[#0c1520] p-5">
-            <p class="text-xs text-[#5a7494]">Keine Berechtigung fuer Dashboard-Sektionen.</p>
+        <section class="rounded-xl border border-border bg-card p-5">
+            <p class="text-xs text-muted-foreground">Keine Berechtigung fuer Dashboard-Sektionen.</p>
         </section>
     <?php endif; ?>
 </div>
