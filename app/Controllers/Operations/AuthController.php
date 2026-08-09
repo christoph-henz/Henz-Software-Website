@@ -59,7 +59,7 @@ final class AuthController
                 'redirectTo' => $redirectTo,
                 'errorMessage' => 'Ungültige Sitzung. Bitte laden Sie die Seite neu.',
                 'email' => $email,
-            ], 422);
+            ]);
         }
 
         if ($email === '' || $password === '') {
@@ -69,7 +69,7 @@ final class AuthController
                 'redirectTo' => $redirectTo,
                 'errorMessage' => 'Bitte E-Mail und Passwort ausfüllen.',
                 'email' => $email,
-            ], 422);
+            ]);
         }
 
         $user = db('users')
@@ -85,7 +85,7 @@ final class AuthController
                 'redirectTo' => $redirectTo,
                 'errorMessage' => $loginErrorMessage,
                 'email' => $email,
-            ], 422);
+            ]);
         }
 
         session_regenerate_id(true);

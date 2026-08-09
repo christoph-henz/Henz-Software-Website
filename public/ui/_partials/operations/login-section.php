@@ -62,7 +62,7 @@ $ssoButton = htmlspecialchars($cfg['sso_button'] ?? 'Mit SSO anmelden');
                 <p class="text-sm" style="color:#5a7494;"><?= $subtitle; ?>
                 </p>
             </div>
-            <form method="post" action="/login" class="flex flex-col gap-5">
+            <form id="loginForm" method="post" action="/login" class="flex flex-col gap-5">
                 <input type="hidden" name="_token" value="<?= htmlspecialchars($csrfToken) ?>">
                 <input type="hidden" name="redirect" value="<?= htmlspecialchars($redirectTo) ?>">
                 <div class="flex flex-col gap-1.5">
@@ -160,31 +160,34 @@ $ssoButton = htmlspecialchars($cfg['sso_button'] ?? 'Mit SSO anmelden');
     </div>
 </div>
 <script>
-    document.getElementById('togglePassword').addEventListener('click', function () {
-        const input = document.getElementById('password');
+    const passwordInput = document.getElementById('password');
+    const togglePasswordButton = document.getElementById('togglePassword');
+    const loginForm = document.getElementById('loginForm');
+    const loginButton = document.getElementById('loginButton');
 
-        if (input.type === 'password') {
-            input.type = 'text';
-            this.textContent = '🙈';
-        } else {
-            input.type = 'password';
-            this.textContent = '👁';
-        }
-    });
-    document.getElementById('loginForm').addEventListener('submit', function () {
+    if (togglePasswordButton && passwordInput) {
+        togglePasswordButton.addEventListener('click', function () {
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                this.textContent = '🙈';
+            } else {
+                passwordInput.type = 'password';
+                this.textContent = '👁';
+            }
+        });
+    }
 
-        const button = document.getElementById('loginButton');
-
-        button.disabled = true;
-
-        button.style.background = "rgba(0,200,255,0.5)";
-        button.style.cursor = "not-allowed";
-
-        button.innerHTML = `
+    if (loginForm && loginButton) {
+        loginForm.addEventListener('submit', function () {
+            loginButton.disabled = true;
+            loginButton.style.background = "rgba(0,200,255,0.5)";
+            loginButton.style.cursor = "not-allowed";
+            loginButton.innerHTML = `
         <span class="flex items-center justify-center gap-2">
             <span class="spinner"></span>
             Authentifizierung…
         </span>
     `;
-    });
+        });
+    }
 </script>
