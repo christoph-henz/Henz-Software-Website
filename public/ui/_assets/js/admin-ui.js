@@ -117,22 +117,22 @@
 
     const typeStyles = {
       success: {
-        toast: 'border-emerald-400 bg-emerald-950/70',
+        toast: 'border-emerald-400/40 bg-emerald-400/14',
         iconWrap: 'bg-emerald-400/20 text-emerald-300 border-emerald-300/30',
         icon: '✓',
       },
       error: {
-        toast: 'border-rose-400 bg-rose-950/70',
+        toast: 'border-rose-400/40 bg-rose-400/14',
         iconWrap: 'bg-rose-400/20 text-rose-300 border-rose-300/30',
         icon: '!',
       },
       warning: {
-        toast: 'border-amber-400 bg-amber-950/70',
+        toast: 'border-amber-400/40 bg-amber-400/14',
         iconWrap: 'bg-amber-400/20 text-amber-300 border-amber-300/30',
         icon: '!',
       },
       info: {
-        toast: 'border-sky-400 bg-sky-950/70',
+        toast: 'border-sky-400/40 bg-sky-400/14',
         iconWrap: 'bg-sky-400/20 text-sky-300 border-sky-300/30',
         icon: 'i',
       },
@@ -147,7 +147,7 @@
       const style = typeStyles[safeType] ?? typeStyles.info;
 
       const toast = document.createElement('div');
-      toast.className = `pointer-events-auto w-full rounded-xl border px-4 py-3 text-sm text-slate-100 shadow-lg backdrop-blur transition-all duration-200 ${style.toast}`;
+      toast.className = `pointer-events-auto w-full rounded-xl border px-4 py-3 text-sm text-foreground shadow-lg backdrop-blur transition-all duration-200 ${style.toast}`;
       toast.setAttribute('role', 'status');
 
       const row = document.createElement('div');

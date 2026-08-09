@@ -3,6 +3,12 @@
 declare(strict_types=1);
 
 $attachmentMaxBytes = 5 * 1024 * 1024;
+$paymentSettings = [
+    'bank_data_name' => '',
+    'bank_data_iban' => '',
+    'bank_data_bic' => '',
+];
+
 try {
     $row = db('settings')
         ->where('`key`', 'media_max_file_size')
@@ -21,6 +27,23 @@ try {
     $attachmentMaxBytes = 5 * 1024 * 1024;
 }
 
+try {
+    foreach (array_keys($paymentSettings) as $settingKey) {
+        $row = db('settings')
+            ->where('`key`', $settingKey)
+            ->select(['value'])
+            ->first();
+
+        $paymentSettings[$settingKey] = trim((string) ($row['value'] ?? ''));
+    }
+} catch (\Throwable) {
+    $paymentSettings = [
+        'bank_data_name' => '',
+        'bank_data_iban' => '',
+        'bank_data_bic' => '',
+    ];
+}
+
 return [
     'default_sort' => 'last_name',
     'default_direction' => 'asc',
@@ -36,6 +59,7 @@ return [
     'initial_invoices_open' => false,
     'session_record_attachment_max_bytes' => $attachmentMaxBytes,
     'session_record_attachment_chunk_size_bytes' => 500 * 1024,
+    'payment_settings' => $paymentSettings,
     'api' => [
         'list' => '/clients/data',
         'create' => '/clients/data',
@@ -51,6 +75,11 @@ return [
         'ticket_update' => '/tickets/data/{ticket_id}',
         'ticket_protocol_create' => '/tickets/data/{ticket_id}/protocols',
         'packages' => '/clients/data/{id}/packages',
+        'contracts' => '/clients/data/{id}/contracts',
+        'contracts_create' => '/clients/data/{id}/contracts',
+        'contracts_upload' => '/clients/data/{id}/contracts/upload',
+        'contract_update' => '/clients/data/{id}/contracts/{contract_id}',
+        'contract_download' => '/clients/data/{id}/contracts/{contract_id}/download',
         'invoices' => '/clients/data/{id}/invoices',
         'invoices_create' => '/clients/data/{id}/invoices',
         'project_detail' => '/projects/data/{id}',

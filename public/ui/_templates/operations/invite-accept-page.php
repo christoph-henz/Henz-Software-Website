@@ -28,7 +28,7 @@ $errorMessage = (string) ($errorMessage ?? '');
 
     <main class="gb-main gb-home-main">
         <div class="min-h-screen flex items-center justify-center relative overflow-hidden"
-            style="min-height:100vh; display:flex; align-items:center; justify-content:center; font-family:'Inter',sans-serif; background:#060a0f;">
+            style="min-height:100vh; display:flex; align-items:center; justify-content:center; font-family:'Inter',sans-serif; background:var(--background);">
             <div class="absolute inset-0 pointer-events-none">
                 <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] rounded-full" style="
                 opacity:.15;
@@ -56,15 +56,15 @@ $errorMessage = (string) ($errorMessage ?? '');
                             <line x1="12" y1="19" x2="20" y2="19"></line>
                         </svg>
                         <span class="text-base font-bold"
-                            style="font-family:'JetBrains Mono', monospace;color:#e8edf5;">
+                            style="font-family:'JetBrains Mono', monospace;color:var(--foreground);">
                             <?= $slug; ?><span style="color:#00c8ff;">.com</span>
                         </span>
                     </div>
                 </div>
                 <div class="rounded-2xl p-8 border" style="
-                background:rgba(12,21,32,.85);
+                background:color-mix(in srgb, var(--card) 85%, transparent);
                 backdrop-filter:blur(24px);
-                border-color:rgba(0,200,255,.15);
+                border-color:var(--border);
                 box-shadow:0 0 60px rgba(0,200,255,.05),0 32px 64px rgba(0,0,0,.5);">
                     <div class="mb-8">
                         <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded text-xs mb-5 border" style="
@@ -74,10 +74,10 @@ $errorMessage = (string) ($errorMessage ?? '');
                         background:rgba(0,200,255,.05);"><?= $pageTitle; ?>
                         </div>
                         <h1 class="text-3xl font-bold mb-2"
-                            style="font-family:'JetBrains Mono', monospace;color:#e8edf5;">
+                            style="font-family:'JetBrains Mono', monospace;color:var(--foreground);">
                             <?= $welcome; ?>
                         </h1>
-                        <p class="text-sm" style="color:#5a7494;"><?= $subtitle; ?>
+                        <p class="text-sm" style="color:var(--muted-foreground);"><?= $subtitle; ?>
                         </p>
                     </div>
                     <form method="post"
@@ -86,58 +86,58 @@ $errorMessage = (string) ($errorMessage ?? '');
                         <input type="hidden" name="_token" value="<?= htmlspecialchars($csrfToken) ?>">
                         <div class="flex flex-col gap-1.5">
                             <label class="text-xs uppercase tracking-widest"
-                                style="color:#5a7494;font-family:'JetBrains Mono', monospace;">
+                                style="color:var(--muted-foreground);font-family:'JetBrains Mono', monospace;">
                                 <?= htmlspecialchars($field1['name'] ?? 'E-Mail'); ?>
                             </label>
                             <div class="flex items-center gap-3 px-4 py-3.5 rounded-lg border focus-within:ring-2 focus-within:ring-cyan-500/30"
                                 style="
-                            background:rgba(6,10,15,.6);
-                            border-color:rgba(0,200,255,.12);">
-                                <span style="color:#5a7494;">
+                            background:color-mix(in srgb, var(--input-background) 80%, transparent);
+                            border-color:var(--border);">
+                                <span style="color:var(--muted-foreground);">
                                     <?= htmlspecialchars($field1['icon'] ?? ''); ?>
                                 </span>
                                 <input type="email" name="email" value="<?= htmlspecialchars($email) ?>"
                                     placeholder="<?= htmlspecialchars($field1['placeholder'] ?? 'support@henz-software.com'); ?>"
                                     autocomplete="email"
-                                    class="bg-transparent outline-none w-full text-sm placeholder:text-[#2d4258]"
-                                    style="color:#e8edf5; font-family:'JetBrains Mono', monospace;">
+                                    class="bg-transparent outline-none w-full text-sm placeholder:text-muted-foreground"
+                                    style="color:var(--foreground); font-family:'JetBrains Mono', monospace;">
                             </div>
                         </div>
                         <div class="flex flex-col gap-1.5">
                             <div class="flex items-center justify-between">
                                 <label class="text-xs uppercase tracking-widest"
-                                    style="color:#5a7494;font-family:'JetBrains Mono', monospace;">
+                                    style="color:var(--muted-foreground);font-family:'JetBrains Mono', monospace;">
                                     <?= htmlspecialchars($field2['name'] ?? 'Passwort'); ?>
                                 </label>
                             </div>
                             <div class="flex items-center gap-3 px-4 py-3.5 rounded-lg border focus-within:ring-2 focus-within:ring-cyan-500/30"
-                                style="background:rgba(6,10,15,.6); border-color:rgba(0,200,255,.12);">
-                                <span style="color:#5a7494;"><?= htmlspecialchars($field2['icon'] ?? ''); ?></span>
+                                style="background:color-mix(in srgb, var(--input-background) 80%, transparent); border-color:var(--border);">
+                                <span style="color:var(--muted-foreground);"><?= htmlspecialchars($field2['icon'] ?? ''); ?></span>
                                 <input id="password" name="password" type="password"
                                     placeholder="<?= htmlspecialchars($field2['placeholder'] ?? '••••••••••••'); ?>"
                                     autocomplete="current-password"
-                                    class="bg-transparent outline-none w-full text-sm flex-1 placeholder:text-[#2d4258]"
-                                    style="color:#e8edf5; font-family:'JetBrains Mono', monospace;">
+                                    class="bg-transparent outline-none w-full text-sm flex-1 placeholder:text-muted-foreground"
+                                    style="color:var(--foreground); font-family:'JetBrains Mono', monospace;">
                                 <button id="togglePassword" type="button"
-                                    class="text-[#5a7494] hover:text-cyan-400 transition-colors">👁
+                                    class="hover:text-cyan-400 transition-colors" style="color:var(--muted-foreground);">👁
                                 </button>
                             </div>
                         </div>
                         <div class="flex flex-col gap-1.5">
                             <div class="flex items-center justify-between">
                                 <label class="text-xs uppercase tracking-widest"
-                                    style="color:#5a7494;font-family:'JetBrains Mono', monospace;">
+                                    style="color:var(--muted-foreground);font-family:'JetBrains Mono', monospace;">
                                     <?= htmlspecialchars($field3['name'] ?? 'Passwort bestätigen'); ?>
                                 </label>
                             </div>
                             <div class="flex items-center gap-3 px-4 py-3.5 rounded-lg border focus-within:ring-2 focus-within:ring-cyan-500/30"
-                                style="background:rgba(6,10,15,.6); border-color:rgba(0,200,255,.12);">
-                                <span style="color:#5a7494;"><?= htmlspecialchars($field3['icon'] ?? ''); ?></span>
+                                style="background:color-mix(in srgb, var(--input-background) 80%, transparent); border-color:var(--border);">
+                                <span style="color:var(--muted-foreground);"><?= htmlspecialchars($field3['icon'] ?? ''); ?></span>
                                 <input name="password_confirm" type="password"
                                     placeholder="<?= htmlspecialchars($field3['placeholder'] ?? '••••••••••••'); ?>"
                                     autocomplete="current-password"
-                                    class="bg-transparent outline-none w-full text-sm flex-1 placeholder:text-[#2d4258]"
-                                    style="color:#e8edf5; font-family:'JetBrains Mono', monospace;">
+                                    class="bg-transparent outline-none w-full text-sm flex-1 placeholder:text-muted-foreground"
+                                    style="color:var(--foreground); font-family:'JetBrains Mono', monospace;">
                             </div>
                         </div>
 
@@ -154,7 +154,7 @@ $errorMessage = (string) ($errorMessage ?? '');
 
                         <button id="loginButton" type="submit"
                             class="relative w-full py-3.5 rounded-lg font-bold text-sm transition-all duration-200 mt-1 overflow-hidden"
-                            style="background:#00c8ff; color:#060a0f; font-family:'JetBrains Mono', monospace;">
+                            style="background:var(--primary); color:var(--primary-foreground); font-family:'JetBrains Mono', monospace;">
                             <span class="button-content flex items-center justify-center gap-2">
                                 <?= htmlspecialchars($loginButton ?? 'Anmelden'); ?>
                                 <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -163,7 +163,7 @@ $errorMessage = (string) ($errorMessage ?? '');
                             </span>
                         </button>
                         <p class="text-center text-xs mt-8"
-                            style="color:#2d4258; font-family:'JetBrains Mono', monospace;">
+                            style="color:var(--muted-foreground); font-family:'JetBrains Mono', monospace;">
                             Nur für autorisierte Mitarbeiter · <?= htmlspecialchars($slug ?? 'henz-software'); ?>.com ©
                             <?= date('Y'); ?>
                         </p>

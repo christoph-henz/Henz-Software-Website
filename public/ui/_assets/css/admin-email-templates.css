@@ -1,7 +1,14 @@
+.admin-email-templates-list {
+  --admin-text: var(--foreground, #0d1b2a);
+  --admin-muted: var(--muted-foreground, #45617f);
+  --admin-border: var(--border, rgba(13, 27, 42, 0.12));
+  --admin-bg: var(--card, #ffffff);
+}
+
 .admin-email-templates-hint-box {
   border: 1px solid var(--admin-border);
   border-radius: var(--admin-radius, 10px);
-  background: rgba(255, 255, 255, 0.82);
+  background: color-mix(in srgb, var(--admin-bg) 86%, transparent);
   padding: 1rem;
   margin-bottom: 1rem;
 }
@@ -100,15 +107,15 @@
 }
 
 .admin-email-templates-status.is-active {
-  background: #8af695;
-  border-color: #5aa865;
-  color: #184f20;
+  background: color-mix(in srgb, #00b37a 22%, transparent);
+  border-color: color-mix(in srgb, #00b37a 46%, var(--admin-border));
+  color: color-mix(in srgb, #00b37a 76%, var(--admin-text));
 }
 
 .admin-email-templates-status.is-inactive {
-  background: #ff9797;
-  border-color: #d05656;
-  color: #7f1d1d;
+  background: color-mix(in srgb, var(--color-destructive, #d8293c) 20%, transparent);
+  border-color: color-mix(in srgb, var(--color-destructive, #d8293c) 46%, var(--admin-border));
+  color: color-mix(in srgb, var(--color-destructive, #d8293c) 82%, var(--admin-text));
 }
 
 .admin-email-templates-form {
@@ -142,9 +149,9 @@
 
 .admin-email-templates-editor-wrap {
   position: relative;
-  border: 1px solid #2a313a;
+  border: 1px solid var(--admin-border);
   border-radius: 10px;
-  background: #0f1318;
+  background: color-mix(in srgb, var(--admin-bg) 84%, transparent);
   overflow: hidden;
 }
 
@@ -155,7 +162,7 @@
   padding: 0.55rem 0.65rem;
   overflow: hidden;
   pointer-events: none;
-  color: #d7dde5;
+  color: var(--admin-text);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   font-size: 0.86rem;
   line-height: 1.45;
@@ -172,7 +179,7 @@
   border-radius: 0;
   background: transparent;
   color: transparent;
-  caret-color: #e2e8f0;
+  caret-color: var(--admin-text);
   line-height: 1.45;
 }
 
@@ -186,19 +193,19 @@
 }
 
 .admin-email-templates-code-tok-comment {
-  color: #94a3b8;
+  color: color-mix(in srgb, var(--admin-muted) 88%, transparent);
 }
 
 .admin-email-templates-code-tok-tag {
-  color: #7dd3fc;
+  color: color-mix(in srgb, var(--admin-accent, #00c8ff) 82%, var(--admin-text));
 }
 
 .admin-email-templates-code-tok-attr {
-  color: #f9a8d4;
+  color: color-mix(in srgb, #d946ef 62%, var(--admin-text));
 }
 
 .admin-email-templates-code-tok-value {
-  color: #86efac;
+  color: color-mix(in srgb, #00b37a 72%, var(--admin-text));
 }
 
 .admin-email-templates-checkbox-label {
@@ -264,17 +271,17 @@
 }
 
 .admin-email-templates-preview-status.is-success {
-  color: #184f20;
+  color: color-mix(in srgb, #00b37a 76%, var(--admin-text));
 }
 
 .admin-email-templates-preview-status.is-error {
-  color: #7f1d1d;
+  color: color-mix(in srgb, var(--color-destructive, #d8293c) 82%, var(--admin-text));
 }
 
 .admin-email-templates-preview-warnings {
-  border: 1px solid #670303 ;
+  border: 1px solid color-mix(in srgb, var(--color-destructive, #d8293c) 54%, var(--admin-border));
   border-radius: 8px;
-  background: #e30000;
+  background: color-mix(in srgb, var(--color-destructive, #d8293c) 22%, transparent);
   padding: 0.55rem 0.65rem;
   display: grid;
   gap: 0.3rem;
@@ -288,13 +295,13 @@
   margin: 0;
   font-size: 0.78rem;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--admin-text);
 }
 
 .admin-email-templates-preview-warnings-list {
   margin: 0;
   font-size: 0.8rem;
-  color: #ffffff;
+  color: var(--admin-text);
   word-break: break-word;
 }
 

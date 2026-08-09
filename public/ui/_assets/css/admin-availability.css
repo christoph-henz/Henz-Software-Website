@@ -1,4 +1,7 @@
 .admin-availability-root {
+  --availability-card: color-mix(in srgb, var(--admin-surface, #0c1520) 94%, var(--admin-surface-2, #080d14) 6%);
+  --availability-soft: color-mix(in srgb, var(--admin-surface, #0c1520) 60%, transparent);
+  --availability-input: color-mix(in srgb, var(--admin-surface-2, #080d14) 72%, var(--admin-surface, #0c1520) 28%);
   display: grid;
   gap: 16px;
 }
@@ -16,7 +19,7 @@
 .admin-availability-card {
   border: 1px solid var(--admin-border);
   border-radius: 14px;
-  background: linear-gradient(180deg, rgba(12, 21, 32, 0.94), rgba(8, 13, 20, 0.9));
+  background: var(--availability-card);
   padding: 14px;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
 }
@@ -51,7 +54,7 @@
   min-height: 36px;
   border: 1px solid rgba(90, 116, 148, 0.35);
   border-radius: 10px;
-  background: rgba(6, 10, 15, 0.82);
+  background: var(--availability-input);
   color: var(--admin-fg);
   padding: 7px 10px;
   font-size: 0.82rem;
@@ -113,7 +116,7 @@
   color: var(--admin-muted);
   padding: 9px 10px;
   border-bottom: 1px solid rgba(90, 116, 148, 0.28);
-  background: rgba(6, 10, 15, 0.5);
+  background: var(--availability-soft);
 }
 
 .admin-availability-table tbody td {

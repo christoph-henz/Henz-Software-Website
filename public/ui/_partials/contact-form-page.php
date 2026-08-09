@@ -130,7 +130,8 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
                     ?>
 
                     <input
-                        class="peer w-full rounded-xl border border-cyan-400/10 bg-[#0b1119] text-slate-100 px-5 pt-7 pb-3 focus:outline-none focus:border-cyan-400 transition-colors"
+                        class="peer w-full rounded-xl border px-5 pt-7 pb-3 focus:outline-none transition-colors"
+                        style="border-color: var(--border); background: var(--card); color: var(--foreground);"
                         type="<?= htmlspecialchars($type) ?>" id="<?= htmlspecialchars($fieldId) ?>"
                         name="<?= htmlspecialchars($fieldId) ?>" placeholder="<?= $placeholderAttr ?>"
                         value="<?= htmlspecialchars((string) $value) ?>" data-validators='<?= htmlspecialchars(
@@ -140,7 +141,8 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
                            ) ?>'>
                     <div class="validation-errors mt-2"></div>
                     <label
-                        class="absolute left-5 top-5 text-slate-500 transition-all pointer-events-none peer-placeholder-shown:text-base peer-placeholder-shown:top-5 peer-focus:text-xs peer-focus:-translate-y-3 peer-focus:text-cyan-400 peer-not-placeholder-shown:text-xs peer-not-placeholder-shown:-translate-y-3"
+                        class="absolute left-5 top-5 transition-all pointer-events-none peer-placeholder-shown:text-base peer-placeholder-shown:top-5 peer-focus:text-xs peer-focus:-translate-y-3 peer-not-placeholder-shown:text-xs peer-not-placeholder-shown:-translate-y-3"
+                        style="color: var(--muted-foreground);"
                         for="<?= htmlspecialchars($fieldId) ?>">
                         <?= htmlspecialchars($label) ?>
                     </label>
@@ -151,7 +153,8 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
                     ?>
 
                     <input
-                        class="peer w-full rounded-xl border border-cyan-400/10 bg-[#0b1119] text-slate-100 px-5 pt-7 pb-3 focus:outline-none focus:border-cyan-400 transition-colors"
+                        class="peer w-full rounded-xl border px-5 pt-7 pb-3 focus:outline-none transition-colors"
+                        style="border-color: var(--border); background: var(--card); color: var(--foreground);"
                         type="<?= htmlspecialchars($type) ?>" id="<?= htmlspecialchars($fieldId) ?>"
                         name="<?= htmlspecialchars($fieldId) ?>" placeholder="<?= $placeholderAttr ?>"
                         value="<?= htmlspecialchars((string) $value) ?>" data-validators='<?= htmlspecialchars(
@@ -161,7 +164,8 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
                            ) ?>'>
                     <div class="validation-errors mt-2"></div>
                     <label
-                        class="absolute left-5 top-5 text-slate-500 transition-all pointer-events-none peer-placeholder-shown:text-base peer-placeholder-shown:top-5 peer-focus:text-xs peer-focus:-translate-y-3 peer-focus:text-cyan-400 peer-not-placeholder-shown:text-xs peer-not-placeholder-shown:-translate-y-3"
+                        class="absolute left-5 top-5 transition-all pointer-events-none peer-placeholder-shown:text-base peer-placeholder-shown:top-5 peer-focus:text-xs peer-focus:-translate-y-3 peer-not-placeholder-shown:text-xs peer-not-placeholder-shown:-translate-y-3"
+                        style="color: var(--muted-foreground);"
                         for="<?= htmlspecialchars($fieldId) ?>">
                         <?= htmlspecialchars($label) ?>
                     </label>
@@ -172,7 +176,8 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
                     ?>
 
                     <input
-                        class="peer w-full rounded-xl border border-cyan-400/10 bg-[#0b1119] text-slate-100 px-5 pt-7 pb-3 focus:outline-none focus:border-cyan-400 transition-colors"
+                        class="peer w-full rounded-xl border px-5 pt-7 pb-3 focus:outline-none transition-colors"
+                        style="border-color: var(--border); background: var(--card); color: var(--foreground);"
                         type="<?= htmlspecialchars($type) ?>" id="<?= htmlspecialchars($fieldId) ?>"
                         name="<?= htmlspecialchars($fieldId) ?>" placeholder="<?= $placeholderAttr ?>"
                         value="<?= htmlspecialchars((string) $value) ?>" data-validators='<?= htmlspecialchars(
@@ -182,7 +187,8 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
                            ) ?>'>
                     <div class="validation-errors mt-2"></div>
                     <label
-                        class="absolute left-5 top-5 text-slate-500 transition-all pointer-events-none peer-placeholder-shown:text-base peer-placeholder-shown:top-5 peer-focus:text-xs peer-focus:-translate-y-3 peer-focus:text-cyan-400 peer-not-placeholder-shown:text-xs peer-not-placeholder-shown:-translate-y-3"
+                        class="absolute left-5 top-5 transition-all pointer-events-none peer-placeholder-shown:text-base peer-placeholder-shown:top-5 peer-focus:text-xs peer-focus:-translate-y-3 peer-not-placeholder-shown:text-xs peer-not-placeholder-shown:-translate-y-3"
+                        style="color: var(--muted-foreground);"
                         for="<?= htmlspecialchars($fieldId) ?>">
                         <?= htmlspecialchars($label) ?>
                     </label>
@@ -194,7 +200,8 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
                     ?>
 
                     <textarea
-                        class="peer min-h-[180px] w-full rounded-xl border border-cyan-400/10 bg-[#0b1119] text-slate-100 px-5 pt-7 pb-3 resize-y focus:outline-none focus:border-cyan-400 transition-colors"
+                        class="peer min-h-[180px] w-full rounded-xl border px-5 pt-7 pb-3 resize-y focus:outline-none transition-colors"
+                        style="border-color: var(--border); background: var(--card); color: var(--foreground);"
                         id="<?= htmlspecialchars($fieldId) ?>" name="<?= htmlspecialchars($fieldId) ?>"
                         placeholder="<?= $placeholderAttr ?>" data-validators='<?= htmlspecialchars(
                               json_encode($validators, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '[]',
@@ -203,7 +210,8 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
                           ) ?>'><?= htmlspecialchars((string) $value) ?></textarea>
                     <div class="validation-errors mt-2"></div>
                     <label
-                        class="absolute left-5 top-5 text-slate-500 transition-all pointer-events-none peer-placeholder-shown:text-base peer-placeholder-shown:top-5 peer-focus:text-xs peer-focus:-translate-y-3 peer-focus:text-cyan-400 peer-not-placeholder-shown:text-xs peer-not-placeholder-shown:-translate-y-3"
+                        class="absolute left-5 top-5 transition-all pointer-events-none peer-placeholder-shown:text-base peer-placeholder-shown:top-5 peer-focus:text-xs peer-focus:-translate-y-3 peer-not-placeholder-shown:text-xs peer-not-placeholder-shown:-translate-y-3"
+                        style="color: var(--muted-foreground);"
                         for="<?= htmlspecialchars($fieldId) ?>">
                         <?= htmlspecialchars($label) ?>
                     </label>
@@ -216,7 +224,8 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
                     ?>
 
                     <select
-                        class="peer w-full rounded-xl border border-cyan-400/10 bg-[#0b1119] text-slate-100 px-5 pt-7 pb-3 appearance-none focus:outline-none focus:border-cyan-400 transition-colors"
+                        class="peer w-full rounded-xl border px-5 pt-7 pb-3 appearance-none focus:outline-none transition-colors"
+                        style="border-color: var(--border); background: var(--card); color: var(--foreground);"
                         id="<?= htmlspecialchars($fieldId) ?>" name="<?= htmlspecialchars($fieldId) ?>" data-validators='<?= htmlspecialchars(
                                 json_encode($validators, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '[]',
                                 ENT_QUOTES,
@@ -240,7 +249,8 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
                     <div class="validation-errors mt-2"></div>
 
                     <label
-                        class="absolute left-5 top-5 text-slate-500 transition-all pointer-events-none peer-placeholder-shown:text-base peer-placeholder-shown:top-5 peer-focus:text-xs peer-focus:-translate-y-3 peer-focus:text-cyan-400 peer-not-placeholder-shown:text-xs peer-not-placeholder-shown:-translate-y-3"><?= htmlspecialchars($label) ?></label>
+                        class="absolute left-5 top-5 transition-all pointer-events-none peer-placeholder-shown:text-base peer-placeholder-shown:top-5 peer-focus:text-xs peer-focus:-translate-y-3 peer-not-placeholder-shown:text-xs peer-not-placeholder-shown:-translate-y-3"
+                        style="color: var(--muted-foreground);"><?= htmlspecialchars($label) ?></label>
 
                     <?php
                     break;
@@ -292,9 +302,9 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
         <div class="text-xs uppercase tracking-[0.35em]
         text-cyan-400 font-mono"><?= htmlspecialchars((string) ($hero['tag'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></div>
         <h1 class="mt-5 text-5xl lg:text-7xl
-        font-bold leading-tight text-slate-100
-        font-mono"><?= htmlspecialchars((string) ($hero['title'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></h1>
-        <p class="sp-intro mt-8 text-lg leading-relaxed text-slate-400">
+        font-bold leading-tight
+        font-mono" style="color: var(--foreground);"><?= htmlspecialchars((string) ($hero['title'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></h1>
+        <p class="sp-intro mt-8 text-lg leading-relaxed" style="color: var(--muted-foreground);">
             <?= htmlspecialchars((string) ($hero['text'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
         </p>
     </div>
@@ -315,8 +325,8 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
     <div class="relative z-10 max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-8 items-start">
 
         <!-- Info sidebar -->
-        <aside class="sp-booking-info rounded-[28px] border border-cyan-400/10 bg-[#060a0f] p-8 space-y-8">
-            <h2 class="font-mono text-2xl font-bold text-slate-100">
+        <aside class="sp-booking-info rounded-[28px] border p-8 space-y-8" style="border-color: var(--border); background: var(--card);">
+            <h2 class="font-mono text-2xl font-bold" style="color: var(--foreground);">
                 <?= htmlspecialchars((string) ($process['title'] ?? 'So geht es weiter'), ENT_QUOTES, 'UTF-8'); ?>
             </h2>
             <ol class="sp-booking-steps space-y-4">
@@ -324,8 +334,8 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
                     <li><?= htmlspecialchars((string) $step, ENT_QUOTES, 'UTF-8'); ?></li>
                 <?php endforeach; ?>
             </ol>
-            <div class="sp-booking-note text-sm text-slate-400 leading-relaxed">
-                <strong class="text-slate-200">Kostenlos & unverbindlich:</strong> Das Kennenlerngespräch ist kostenfrei
+            <div class="sp-booking-note text-sm leading-relaxed" style="color: var(--muted-foreground);">
+                <strong style="color: var(--foreground);">Kostenlos & unverbindlich:</strong> Das Kennenlerngespräch ist kostenfrei
                 und verpflichtet Sie
                 zu nichts.
             </div>
@@ -334,7 +344,8 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
         <!-- Form -->
 
         <div
-            class="sp-booking-form-wrap rounded-[32px] border border-cyan-400/10 bg-[#060a0f] shadow-2xl shadow-cyan-500/5 overflow-hidden p-8 lg:p-10">
+            class="sp-booking-form-wrap rounded-[32px] border shadow-2xl overflow-hidden p-8 lg:p-10"
+            style="border-color: var(--border); background: var(--card); box-shadow: 0 24px 60px color-mix(in srgb, var(--primary) 12%, transparent);">
             <form class="gap-6" id="booking-form" action="<?= htmlspecialchars($action, ENT_QUOTES, 'UTF-8'); ?>"
                 method="<?= htmlspecialchars($method, ENT_QUOTES, 'UTF-8'); ?>"
                 data-success-url="<?= htmlspecialchars($successRedirectUrl, ENT_QUOTES, 'UTF-8'); ?>"
@@ -365,23 +376,25 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
                         ?>
                         <label class="gb-checkflex flex gap-3 items-start cursor-pointer">
                             <input
-                                class="mt-1 w-5 h-5 shrink-0 rounded border-cyan-400/30 bg-[#0b1119] text-cyan-400 focus:ring-cyan-400"
+                                class="mt-1 w-5 h-5 shrink-0 rounded"
+                                style="border-color: color-mix(in srgb, var(--primary) 30%, transparent); background: var(--card); color: var(--primary);"
                                 type="checkbox"
                                 name="consent_check_<?= htmlspecialchars($consentKey, ENT_QUOTES, 'UTF-8'); ?>"
                                 data-consent-key="<?= htmlspecialchars($consentKey, ENT_QUOTES, 'UTF-8'); ?>" required />
                             <span
-                                class="text-slate-300 text-sm leading-relaxed"><?= htmlspecialchars($consentLabel, ENT_QUOTES, 'UTF-8'); ?></span>
+                                class="text-sm leading-relaxed" style="color: var(--foreground);"><?= htmlspecialchars($consentLabel, ENT_QUOTES, 'UTF-8'); ?></span>
                         </label>
                     <?php endforeach; ?>
                 </div>
 
                 <button type="submit"
-                    class="sp-submit-btn md:col-span-2 mt-2 group inline-flex items-center justify-center gap-3 w-full rounded-xl px-8 py-5 font-semibold font-mono bg-cyan-400 text-[#060a0f] transition-all duration-200 hover:translate-y-[-2px] hover:shadow-xl hover:shadow-cyan-400/30">
+                    class="sp-submit-btn md:col-span-2 mt-2 group inline-flex items-center justify-center gap-3 w-full rounded-xl px-8 py-5 font-semibold font-mono transition-all duration-200 hover:translate-y-[-2px]"
+                    style="background: var(--primary); color: var(--primary-foreground); box-shadow: 0 12px 30px color-mix(in srgb, var(--primary) 34%, transparent);">
                     <?= htmlspecialchars($submitLabel, ENT_QUOTES, 'UTF-8'); ?>
                 </button>
 
                 <?php if ($legalHint !== ''): ?>
-                    <p class="sp-legal-hint md:col-span-2 text-xs text-slate-500 leading-relaxed">
+                    <p class="sp-legal-hint md:col-span-2 text-xs leading-relaxed" style="color: var(--muted-foreground);">
 
 
                         <?= $legalHint; /* intentionally not escaped – contains <a> tag */ ?>

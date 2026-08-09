@@ -112,26 +112,26 @@ $sectionId = $stringFromData($data, 'slug');
 						<?php endif; ?>
 						<div class="space-y-5 lg:space-y-6">
 							<?php if ($eyebrow !== ''): ?>
-								<p class="text-sm uppercase tracking-[0.28em]" style="color: rgb(90, 116, 148);"><?= $escape($eyebrow); ?></p>
+								<p class="text-sm uppercase tracking-[0.28em]" style="color: var(--muted-foreground);"><?= $escape($eyebrow); ?></p>
 							<?php endif; ?>
-							<h2 class="text-4xl lg:text-6xl font-bold leading-[1.05] tracking-tight" style="font-family: 'JetBrains Mono', monospace; color: rgb(232, 237, 245);">
+							<h2 class="text-4xl lg:text-6xl font-bold leading-[1.05] tracking-tight" style="font-family: 'JetBrains Mono', monospace; color: var(--foreground);">
 								<?= $escape($title); ?>
 								<?php if ($accent !== ''): ?>
 									<span style="color: rgb(0, 200, 255);"> <?= $escape($accent); ?></span>
 								<?php endif; ?>
 							</h2>
 							<?php if ($lead !== ''): ?>
-								<p class="text-lg leading-relaxed max-w-2xl" style="color: rgb(90, 116, 148);"><?= $escape($lead); ?></p>
+								<p class="text-lg leading-relaxed max-w-2xl" style="color: var(--muted-foreground);"><?= $escape($lead); ?></p>
 							<?php endif; ?>
 						</div>
 						<?php if (!empty($points)): ?>
 							<div class="grid sm:grid-cols-2 gap-4 max-w-2xl">
 								<?php foreach ($points as $point): ?>
 									<?php if (!is_scalar($point) || trim((string) $point) === '') { continue; } ?>
-									<div class="rounded-xl border p-4 h-full" style="border-color: rgba(0, 200, 255, 0.12); background: rgba(6, 10, 15, 0.9);">
+									<div class="rounded-xl border p-4 h-full" style="border-color: var(--border); background: color-mix(in srgb, var(--card) 92%, transparent);">
 										<div class="flex items-start gap-3">
 											<span class="mt-1 w-2 h-2 rounded-full shrink-0" style="background: rgb(0, 200, 255);"></span>
-											<p class="text-sm leading-relaxed" style="color: rgb(232, 237, 245);"><?= $escape(trim((string) $point)); ?></p>
+											<p class="text-sm leading-relaxed" style="color: var(--foreground);"><?= $escape(trim((string) $point)); ?></p>
 										</div>
 									</div>
 								<?php endforeach; ?>
@@ -139,13 +139,13 @@ $sectionId = $stringFromData($data, 'slug');
 						<?php endif; ?>
 						<div class="flex flex-wrap items-center gap-4 sm:gap-5 pt-2 sm:pt-4">
 							<?php if (is_array($primaryCta) && trim((string) ($primaryCta['label'] ?? '')) !== ''): ?>
-								<a href="<?= $escape((string) ($primaryCta['href'] ?? '#')); ?>" class="group inline-flex min-h-[3.5rem] items-center justify-center gap-2.5 px-8 py-4 rounded font-semibold text-sm transition-all duration-200" style="background: rgb(0, 200, 255); color: rgb(6, 10, 15); font-family: 'JetBrains Mono', monospace;">
+								<a href="<?= $escape((string) ($primaryCta['href'] ?? '#')); ?>" class="group inline-flex min-h-[3.5rem] items-center justify-center gap-2.5 px-8 py-4 rounded font-semibold text-sm transition-all duration-200" style="background: var(--primary); color: var(--primary-foreground); font-family: 'JetBrains Mono', monospace;">
 									<?= $escape((string) $primaryCta['label']); ?>
 									<span class="transition-transform duration-200 group-hover:translate-x-1">&rarr;</span>
 								</a>
 							<?php endif; ?>
 							<?php if (is_array($secondaryCta) && trim((string) ($secondaryCta['label'] ?? '')) !== ''): ?>
-								<a href="<?= $escape((string) ($secondaryCta['href'] ?? '#')); ?>" class="inline-flex min-h-[3.5rem] items-center justify-center gap-2.5 px-8 py-4 rounded font-medium text-sm border transition-all duration-200" style="color: rgb(232, 237, 245); border-color: rgba(232, 237, 245, 0.15); background: transparent;">
+								<a href="<?= $escape((string) ($secondaryCta['href'] ?? '#')); ?>" class="inline-flex min-h-[3.5rem] items-center justify-center gap-2.5 px-8 py-4 rounded font-medium text-sm border transition-all duration-200" style="color: var(--foreground); border-color: var(--border); background: transparent;">
 									<?= $escape((string) $secondaryCta['label']); ?>
 								</a>
 							<?php endif; ?>
@@ -153,9 +153,9 @@ $sectionId = $stringFromData($data, 'slug');
 					</div>
 					<div class="relative w-full max-w-[36rem] mx-auto lg:mx-0 py-2">
 						<div class="absolute -inset-5 rounded-[2rem] opacity-60" style="background: linear-gradient(135deg, rgba(0, 200, 255, 0.18), rgba(0, 102, 255, 0.08)); filter: blur(30px);"></div>
-						<div class="relative rounded-[2rem] border overflow-hidden" style="border-color: rgba(0, 200, 255, 0.14); background: linear-gradient(180deg, rgba(8, 13, 20, 0.96), rgba(6, 10, 15, 0.96));">
+						<div class="relative rounded-[2rem] border overflow-hidden" style="border-color: color-mix(in srgb, var(--primary) 22%, transparent); background: color-mix(in srgb, var(--card) 94%, var(--background) 6%);">
 							<div class="flex items-center justify-between px-5 py-4 border-b" style="border-color: rgba(0, 200, 255, 0.12);">
-								<span class="text-xs uppercase tracking-[0.3em]" style="color: rgb(90, 116, 148); font-family: 'JetBrains Mono', monospace;">software.blueprint</span>
+								<span class="text-xs uppercase tracking-[0.3em]" style="color: var(--muted-foreground); font-family: 'JetBrains Mono', monospace;">software.blueprint</span>
 								<span class="w-2.5 h-2.5 rounded-full bg-green-400"></span>
 							</div>
 							<img src="<?= $escape($imageSrc); ?>" alt="<?= $escape($imageAlt); ?>" class="w-full h-full object-cover aspect-[4/3]">
@@ -170,9 +170,9 @@ $sectionId = $stringFromData($data, 'slug');
 							<?php if (!is_array($item)) { continue; } ?>
 							<?php $value = trim((string) ($item['value'] ?? '')); $label = trim((string) ($item['label'] ?? '')); ?>
 							<?php if ($value !== '' || $label !== ''): ?>
-								<div class="text-center rounded-xl px-4 py-5 h-full flex flex-col justify-center" style="background: rgba(6, 10, 15, 0.45); border: 1px solid rgba(0, 200, 255, 0.08);">
+								<div class="text-center rounded-xl px-4 py-5 h-full flex flex-col justify-center" style="background: color-mix(in srgb, var(--card) 82%, transparent); border: 1px solid var(--border);">
 									<div class="text-3xl font-bold mb-1" style="font-family: 'JetBrains Mono', monospace; color: rgb(0, 200, 255);"><?= $escape($value); ?></div>
-									<div class="text-xs uppercase tracking-widest" style="color: rgb(90, 116, 148);"><?= $escape($label); ?></div>
+									<div class="text-xs uppercase tracking-widest" style="color: var(--muted-foreground);"><?= $escape($label); ?></div>
 								</div>
 							<?php endif; ?>
 						<?php endforeach; ?>
@@ -211,13 +211,13 @@ $sectionId = $stringFromData($data, 'slug');
 									<?php if (!is_scalar($point) || trim((string) $point) === '') { continue; } ?>
 									<div class="flex items-start gap-3">
 										<span class="mt-2 w-2 h-2 rounded-full shrink-0" style="background: rgb(0, 200, 255);"></span>
-										<p class="text-sm leading-relaxed" style="color: rgb(232, 237, 245);"><?= $escape(trim((string) $point)); ?></p>
+										<p class="text-sm leading-relaxed" style="color: var(--foreground);"><?= $escape(trim((string) $point)); ?></p>
 									</div>
 								<?php endforeach; ?>
 							</div>
 						<?php endif; ?>
 					</div>
-					<div class="relative min-h-[320px] lg:min-h-[100%] <?= $reverse ? 'lg:order-1' : ''; ?>" style="background: linear-gradient(180deg, rgba(8, 13, 20, 0.96), rgba(6, 10, 15, 0.96));">
+					<div class="relative min-h-[320px] lg:min-h-[100%] <?= $reverse ? 'lg:order-1' : ''; ?>" style="background: color-mix(in srgb, var(--card) 94%, var(--background) 6%);">
 						<div class="absolute inset-0 bg-gradient-to-br from-cyan-400/10 to-transparent"></div>
 						<img src="<?= $escape($imageSrc); ?>" alt="<?= $escape($imageAlt); ?>" class="relative w-full h-full min-h-[320px] object-cover">
 					</div>
@@ -236,26 +236,26 @@ $sectionId = $stringFromData($data, 'slug');
 							<?php if ($slug !== ''): ?>
 								<div class="text-xs uppercase tracking-[0.28em]" style="color: rgb(0, 200, 255); font-family: 'JetBrains Mono', monospace;">// <?= $escape($slug); ?></div>
 							<?php endif; ?>
-							<h3 class="text-3xl lg:text-5xl font-bold leading-tight" style="font-family: 'JetBrains Mono', monospace; color: rgb(232, 237, 245);">
+							<h3 class="text-3xl lg:text-5xl font-bold leading-tight" style="font-family: 'JetBrains Mono', monospace; color: var(--foreground);">
 								<?= $escape($title); ?>
 								<?php if ($accent !== ''): ?>
 									<span style="color: rgb(0, 200, 255);"> <?= $escape($accent); ?></span>
 								<?php endif; ?>
 							</h3>
 							<?php if ($lead !== ''): ?>
-								<p class="text-base lg:text-lg leading-relaxed" style="color: rgb(90, 116, 148);"><?= $escape($lead); ?></p>
+								<p class="text-base lg:text-lg leading-relaxed" style="color: var(--muted-foreground);"><?= $escape($lead); ?></p>
 							<?php endif; ?>
 						</div>
-						<div class="grid md:grid-cols-2 xl:grid-cols-3 gap-4 max-w-6xl mx-auto" style="background: rgba(0, 200, 255, 0.08);">
+						<div class="grid md:grid-cols-2 xl:grid-cols-3 gap-4 max-w-6xl mx-auto" style="background: color-mix(in srgb, var(--primary) 14%, transparent);">
 							<?php foreach ($items as $item): ?>
 								<?php if (!is_array($item)) { continue; } ?>
 								<?php $itemSlug = trim((string) ($item['slug'] ?? '')); $itemTitle = trim((string) ($item['title'] ?? '')); $itemDescription = trim((string) ($item['description'] ?? '')); ?>
-								<div class="p-8 h-full flex flex-col justify-start rounded-[1.5rem]" style="background: rgb(6, 10, 15);">
+								<div class="p-8 h-full flex flex-col justify-start rounded-[1.5rem]" style="background: var(--card);">
 									<?php if ($itemSlug !== ''): ?>
-										<div class="inline-flex text-xs px-3 py-1 rounded-full mb-5" style="font-family: 'JetBrains Mono', monospace; color: rgb(90, 116, 148); background: rgba(90, 116, 148, 0.1); border: 1px solid rgba(90, 116, 148, 0.2);"><?= $escape($itemSlug); ?></div>
+										<div class="inline-flex text-xs px-3 py-1 rounded-full mb-5" style="font-family: 'JetBrains Mono', monospace; color: var(--muted-foreground); background: color-mix(in srgb, var(--muted) 30%, transparent); border: 1px solid var(--border);"><?= $escape($itemSlug); ?></div>
 									<?php endif; ?>
-									<h4 class="text-xl font-bold mb-3" style="color: rgb(232, 237, 245);"><?= $escape($itemTitle); ?></h4>
-									<p class="text-sm leading-relaxed" style="color: rgb(90, 116, 148);"><?= $escape($itemDescription); ?></p>
+									<h4 class="text-xl font-bold mb-3" style="color: var(--foreground);"><?= $escape($itemTitle); ?></h4>
+									<p class="text-sm leading-relaxed" style="color: var(--muted-foreground);"><?= $escape($itemDescription); ?></p>
 								</div>
 							<?php endforeach; ?>
 						</div>

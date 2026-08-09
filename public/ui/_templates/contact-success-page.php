@@ -18,17 +18,17 @@ $pageTitle = 'Anfrage erfolgreich gesendet - Henz Software';
     <main class="gb-main sp-main">
         <section class="relative py-24">
             <div class="mx-auto max-w-4xl px-6">
-                <div class="rounded-3xl border border-cyan-400/20 bg-[#060a0f] p-8 md:p-10 shadow-2xl shadow-cyan-500/10">
-                    <div class="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-full bg-cyan-400/15 text-3xl text-cyan-300">✓</div>
-                    <h1 class="text-3xl md:text-4xl font-bold text-slate-100 mb-3">Vielen Dank für Ihre Anfrage</h1>
-                    <p class="text-slate-300 mb-8">Ihre Angaben wurden erfolgreich übermittelt. Unten sehen Sie eine Übersicht Ihrer Eingaben.</p>
+                <div class="rounded-3xl border border-border bg-card p-8 md:p-10 shadow-2xl shadow-[color-mix(in_srgb,var(--primary)_18%,transparent)]">
+                    <div class="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-full bg-primary/15 text-3xl text-primary">✓</div>
+                    <h1 class="text-3xl md:text-4xl font-bold text-foreground mb-3">Vielen Dank für Ihre Anfrage</h1>
+                    <p class="text-muted-foreground mb-8">Ihre Angaben wurden erfolgreich übermittelt. Unten sehen Sie eine Übersicht Ihrer Eingaben.</p>
 
-                    <div id="contactSuccessMeta" class="mb-6 rounded-xl border border-cyan-400/10 bg-[#0b1119] p-4 text-sm text-slate-300"></div>
+                    <div id="contactSuccessMeta" class="mb-6 rounded-xl border border-border bg-background/35 p-4 text-sm text-muted-foreground"></div>
                     <div id="contactSuccessSummary" class="space-y-3"></div>
 
                     <div class="mt-10 flex flex-wrap gap-3">
-                        <a href="/kontakt" class="inline-flex items-center justify-center rounded-xl px-6 py-3 font-semibold font-mono bg-cyan-400 text-[#060a0f] hover:translate-y-[-1px] transition-transform">Neue Anfrage senden</a>
-                        <a href="/" class="inline-flex items-center justify-center rounded-xl px-6 py-3 font-semibold font-mono border border-slate-500/40 text-slate-200 hover:border-cyan-300/60 hover:text-cyan-200 transition-colors">Zur Startseite</a>
+                        <a href="/kontakt" class="inline-flex items-center justify-center rounded-xl px-6 py-3 font-semibold font-mono bg-primary text-primary-foreground hover:translate-y-[-1px] transition-transform">Neue Anfrage senden</a>
+                        <a href="/" class="inline-flex items-center justify-center rounded-xl px-6 py-3 font-semibold font-mono border border-border text-foreground hover:border-primary/50 hover:text-primary transition-colors">Zur Startseite</a>
                     </div>
                 </div>
             </div>
@@ -71,7 +71,7 @@ $pageTitle = 'Anfrage erfolgreich gesendet - Henz Software';
 
             var items = Array.isArray(data && data.items) ? data.items : [];
             if (!items.length) {
-                summaryEl.innerHTML = '<p class="text-slate-400">Es wurden keine anzeigbaren Felder gespeichert.</p>';
+                summaryEl.innerHTML = '<p class="text-muted-foreground">Es wurden keine anzeigbaren Felder gespeichert.</p>';
                 return;
             }
 
@@ -79,9 +79,9 @@ $pageTitle = 'Anfrage erfolgreich gesendet - Henz Software';
                 var label = escapeHtml(item && item.label ? String(item.label) : '-');
                 var value = escapeHtml(item && item.value ? String(item.value) : '-').replace(/\n/g, '<br>');
                 return '' +
-                    '<article class="rounded-xl border border-cyan-400/10 bg-[#0b1119] p-4">' +
-                    '  <h2 class="text-sm font-semibold text-cyan-300 mb-2">' + label + '</h2>' +
-                    '  <p class="text-slate-200 leading-relaxed">' + value + '</p>' +
+                    '<article class="rounded-xl border border-border bg-background/35 p-4">' +
+                    '  <h2 class="text-sm font-semibold text-primary mb-2">' + label + '</h2>' +
+                    '  <p class="text-foreground leading-relaxed">' + value + '</p>' +
                     '</article>';
             }).join('');
 

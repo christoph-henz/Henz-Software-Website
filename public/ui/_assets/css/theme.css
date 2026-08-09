@@ -1,6 +1,7 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  color-scheme: dark;
   --font-size: 16px;
   --background: #060a0f;
   --foreground: #e8edf5;
@@ -39,6 +40,41 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --background: #f4f8fc;
+    --foreground: #0d1b2a;
+    --card: #ffffff;
+    --card-foreground: #0d1b2a;
+    --popover: #ffffff;
+    --popover-foreground: #0d1b2a;
+    --primary: #009dce;
+    --primary-foreground: #ffffff;
+    --secondary: #e8f0f8;
+    --secondary-foreground: #0d1b2a;
+    --muted: #e8f0f8;
+    --muted-foreground: #45617f;
+    --accent: #009dce;
+    --accent-foreground: #ffffff;
+    --destructive: #d8293c;
+    --destructive-foreground: #ffffff;
+    --border: rgba(13, 27, 42, 0.12);
+    --input: transparent;
+    --input-background: #edf3f9;
+    --switch-background: #c7d6e5;
+    --ring: rgba(0, 157, 206, 0.35);
+    --sidebar: #ffffff;
+    --sidebar-foreground: #0d1b2a;
+    --sidebar-primary: #009dce;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #e8f0f8;
+    --sidebar-accent-foreground: #0d1b2a;
+    --sidebar-border: rgba(13, 27, 42, 0.12);
+    --sidebar-ring: rgba(0, 157, 206, 0.35);
+  }
 }
 
 .dark {
@@ -194,6 +230,11 @@
 }
 
 @media (min-width: 768px) {
+    .gb-nav-surface {
+        border: 0;
+        background: transparent;
+    }
+
     .has-submenu:hover > .gb-submenu,
     .has-submenu:focus-within > .gb-submenu {
         display: block;

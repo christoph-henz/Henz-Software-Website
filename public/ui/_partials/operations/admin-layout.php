@@ -40,7 +40,8 @@ $extraScripts = (string) ($extraScripts ?? '');
     
     <!-- PWA Manifest and Mobile Web App -->
     <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#2c3e50" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#060a0f" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f8fc" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />

@@ -61,7 +61,7 @@ if (empty($rows)) {
                     // <?= $slug ?></div>
                 <h2 class="text-4xl lg:text-5xl font-bold"
                     data-fg-d3bl161="0.8:1.32440:/src/app/App.tsx:510:15:20055:303:e:h2:tete" data-fgid-d3bl161=":r58:"
-                    style="font-family: &quot;JetBrains Mono&quot;, monospace; color: rgb(232, 237, 245);">
+                    style="font-family: &quot;JetBrains Mono&quot;, monospace; color: var(--foreground);">
                     <?= $header1 ?><br data-fg-d3bl163="0.8:1.32440:/src/app/App.tsx:515:17:20263:6:e:br"
                         data-fgid-d3bl163=":r59:"><span
                         data-fg-d3bl164="0.8:1.32440:/src/app/App.tsx:516:17:20286:52:e:span:t"
@@ -70,7 +70,7 @@ if (empty($rows)) {
             </div><button
                 class="hidden md:flex items-center gap-2 text-sm border px-5 py-2.5 rounded transition-all duration-200"
                 data-fg-d3bl166="0.8:1.32440:/src/app/App.tsx:519:13:20390:753:e:button:te" data-fgid-d3bl166=":r5b:"
-                style="color: rgb(90, 116, 148); border-color: rgba(90, 116, 148, 0.2);"><?= $projects_cta['text'] ?><svg
+                style="color: var(--muted-foreground); border-color: var(--border);"><?= $projects_cta['text'] ?><svg
                     xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
                     stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
                     class="lucide lucide-arrow-right w-4 h-4"
@@ -87,9 +87,9 @@ if (empty($rows)) {
                 <div class="group grid md:grid-cols-2 gap-0 rounded-xl overflow-hidden border cursor-pointer transition-all duration-300"
                     data-fg-d3bl171="0.8:1.32440:/src/app/App.tsx:537:15:21285:2490:e:div:ete" data-fgid-d3bl171=":r5e:"
                     style="border-color: rgba(0, 200, 255, 0.1);">
-                    <div class="relative overflow-hidden bg-[#0c1520]"
+                    <div class="relative overflow-hidden"
                         data-fg-d3bl172="0.8:1.32440:/src/app/App.tsx:548:17:21854:598:e:div:ete" data-fgid-d3bl172=":r5f:"
-                        style="min-height: 260px;">
+                        style="min-height: 260px; background: var(--card);">
                         <?php if ($media['isVideo']): ?>
                             <video autoplay muted loop playsinline
                                 class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
@@ -110,7 +110,7 @@ if (empty($rows)) {
                     </div>
                     <div class="min-w-0 flex flex-col justify-between p-6 sm:p-8 lg:p-10"
                         data-fg-d3bl175="0.8:1.32440:/src/app/App.tsx:560:17:22469:1285:e:div:ete" data-fgid-d3bl175=":r5i:"
-                        style="background: rgb(12, 21, 32);">
+                        style="background: var(--card);">
                         <div data-fg-d3bl176="0.8:1.32440:/src/app/App.tsx:564:19:22627:701:e:div:etete"
                             data-fgid-d3bl176=":r5j:">
                             <div class="mb-4 text-xs uppercase tracking-widest break-words [overflow-wrap:anywhere] hyphens-auto"
@@ -121,12 +121,12 @@ if (empty($rows)) {
                             <h3 class="mb-4 text-xl sm:text-2xl font-bold break-words [overflow-wrap:anywhere] hyphens-auto leading-tight"
                                 data-fg-d3bl179="0.8:1.32440:/src/app/App.tsx:571:21:22927:233:e:h3:x"
                                 data-fgid-d3bl179=":r5l:"
-                                style="font-family: &quot;JetBrains Mono&quot;, monospace; color: rgb(232, 237, 245);">
+                                style="font-family: &quot;JetBrains Mono&quot;, monospace; color: var(--foreground);">
                                 <?= $row['title'] ?? 'No title available' ?>
                             </h3>
                             <p class="text-sm leading-relaxed break-words [overflow-wrap:anywhere] hyphens-auto"
                                 data-fg-d3bl181="0.8:1.32440:/src/app/App.tsx:577:21:23181:122:e:p:x"
-                                data-fgid-d3bl181=":r5m:" style="color: rgb(90, 116, 148);">
+                                data-fgid-d3bl181=":r5m:" style="color: var(--muted-foreground);">
                                 <?= $row['description'] ?? 'No description available' ?></p>
                         </div>
                         <a class="flex items-center gap-2 mt-8 text-sm opacity-0 group-hover:opacity-100 transition-all duration-200 -translate-x-2 group-hover:translate-x-0"

@@ -39,7 +39,7 @@ if (empty($items)) {
                 // <?= $slug; ?></div>
             <h2 class="text-4xl lg:text-5xl font-bold"
                 data-fg-d3bl201="0.8:1.32440:/src/app/App.tsx:645:13:26002:298:e:h2:tete" data-fgid-d3bl201=":r73:"
-                style="font-family: &quot;JetBrains Mono&quot;, monospace; color: rgb(232, 237, 245);">
+                style="font-family: &quot;JetBrains Mono&quot;, monospace; color: var(--foreground);">
                 <?= $header1; ?><br data-fg-d3bl203="0.8:1.32440:/src/app/App.tsx:650:15:26202:6:e:br"
                     data-fgid-d3bl203=":r74:"><span
                     data-fg-d3bl204="0.8:1.32440:/src/app/App.tsx:651:15:26223:59:e:span:t" data-fgid-d3bl204=":r75;"
@@ -55,7 +55,7 @@ if (empty($items)) {
                 ?>
             <div class="p-8 rounded-xl border flex flex-col justify-between"
                 data-fg-d3bl208="0.8:1.32440:/src/app/App.tsx:657:15:26456:1583:e:div:ete" data-fgid-d3bl208=":r77:"
-                style="border-color: rgba(0, 200, 255, 0.1); background: rgb(12, 21, 32);">
+                style="border-color: rgba(0, 200, 255, 0.1); background: var(--card);">
                 <div data-fg-d3bl209="0.8:1.32440:/src/app/App.tsx:662:17:26688:428:e:div:ete"
                     data-fgid-d3bl209=":r78:">
                     <div class="flex gap-0.5 mb-6"
@@ -104,7 +104,7 @@ if (empty($items)) {
                         </svg></div>
                     <p class="text-sm leading-relaxed mb-8"
                         data-fg-d3bl213="0.8:1.32440:/src/app/App.tsx:668:19:26967:126:e:p:txt"
-                        data-fgid-d3bl213=":r7f:" style="color: rgb(138, 157, 181);"><?= $feedback; ?></p>
+                        data-fgid-d3bl213=":r7f:" style="color: var(--muted-foreground);"><?= $feedback; ?></p>
                 </div>
                 <div class="flex items-center gap-3"
                     data-fg-d3bl217="0.8:1.32440:/src/app/App.tsx:672:17:27133:885:e:div:ete" data-fgid-d3bl217=":r7g:">
@@ -119,9 +119,9 @@ if (empty($items)) {
                         data-fgid-d3bl220=":r7i:">
                         <div class="text-sm font-semibold"
                             data-fg-d3bl221="0.8:1.32440:/src/app/App.tsx:685:21:27713:126:e:div:x"
-                            data-fgid-d3bl221=":r7j:" style="color: rgb(232, 237, 245);"><?= $name; ?></div>
+                            data-fgid-d3bl221=":r7j:" style="color: var(--foreground);"><?= $name; ?></div>
                         <div class="text-xs" data-fg-d3bl223="0.8:1.32440:/src/app/App.tsx:688:21:27860:110:e:div:x"
-                            data-fgid-d3bl223=":r7k:" style="color: rgb(90, 116, 148);"><?= $role; ?></div>
+                            data-fgid-d3bl223=":r7k:" style="color: var(--muted-foreground);"><?= $role; ?></div>
                     </div>
                 </div>
             </div>
