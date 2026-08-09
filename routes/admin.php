@@ -193,6 +193,11 @@ Router::group('', function (): void {
     Router::get('/clients/data/{id}/invoices', [ClientAdminController::class, 'invoices'])->name('admin.clients.data.invoices');
     Router::post('/clients/data/{id}/invoices', [ClientAdminController::class, 'createInvoice'])->name('admin.clients.data.invoices.create');
     Router::get('/clients/data/{id}/invoices/{invoice_id}/pdf', [ClientAdminController::class, 'invoicePdf'])->name('admin.clients.data.invoices.pdf');
+    Router::get('/clients/data/{id}/contracts', [ClientAdminController::class, 'contracts'])->name('admin.clients.data.contracts');
+    Router::post('/clients/data/{id}/contracts', [ClientAdminController::class, 'createContract'])->name('admin.clients.data.contracts.create');
+    Router::post('/clients/data/{id}/contracts/upload', [ClientAdminController::class, 'uploadContract'])->name('admin.clients.data.contracts.upload');
+    Router::patch('/clients/data/{id}/contracts/{contract_id}', [ClientAdminController::class, 'updateContract'])->name('admin.clients.data.contracts.update');
+    Router::get('/clients/data/{id}/contracts/{contract_id}/download', [ClientAdminController::class, 'downloadContract'])->name('admin.clients.data.contracts.download');
     Router::get('/clients', [ClientsPageController::class, 'index'])->name('admin.clients.index');
     Router::get('/clients/{id}', [ClientsPageController::class, 'show'])->name('admin.clients.show');
     Router::get('/tickets', [ClientsPageController::class, 'tickets'])->name('admin.tickets.index');

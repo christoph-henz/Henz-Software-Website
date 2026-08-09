@@ -633,24 +633,66 @@
             return '<div class="admin-clients-empty">Lade Verträge...</div>';
         }
 
+        var actions = canManage
+            ? '<div class="admin-clients-actions" style="margin-bottom:0.75rem; display:flex; gap:0.5rem; flex-wrap:wrap;">' +
+                '<button type="button" class="admin-clients-page-btn" data-create-contract>Vertrag erstellen</button>' +
+                '<button type="button" class="admin-clients-page-btn" data-upload-contract>Vertrag hochladen</button>' +
+              '</div>'
+            : '';
+
         if (state.contracts.length === 0) {
-            return '<div class="admin-clients-empty">Keine Verträge vorhanden.</div>';
+            return actions + '<div class="admin-clients-empty">Keine Verträge vorhanden.</div>';
         }
 
-        return '<div class="admin-clients-stack">' + state.contracts.map(function (item) {
+        return actions + '<div class="admin-clients-stack">' + state.contracts.map(function (item) {
+            var contractId = parsePositiveInt(item && item.id, 0);
+            var contractType = String(item && item.contract_type ? item.contract_type : 'legacy');
+            var title = String(item && item.title ? item.title : ('Vertrag #' + contractId));
+            var projectName = String(item && item.project_name ? item.project_name : '-');
+            var isActive = !(item && Object.prototype.hasOwnProperty.call(item, 'is_active')) || !!item.is_active;
+            var fileName = String(item && item.file_name ? item.file_name : '');
+            var downloadUrl = trim(String(item && item.download_url ? item.download_url : ''));
+            if (downloadUrl === '' && state.selectedClientId && contractId > 0 && cfg.api && cfg.api.contract_download) {
+                downloadUrl = apiUrl(cfg.api.contract_download, {
+                    id: state.selectedClientId,
+                    contract_id: contractId,
+                });
+            }
+            var previewUrl = trim(String(item && item.preview_url ? item.preview_url : ''));
+            if (previewUrl === '' && downloadUrl !== '') {
+                previewUrl = withInlineDisposition(downloadUrl);
+            }
+            var dateRange = formatDate(item && item.start_date ? item.start_date : '') + ' bis ' + formatDate(item && item.end_date ? item.end_date : '');
+            var metaBadges = '' +
+                metaPill('Projekt', projectName) +
+                metaPill('Laufzeit', dateRange) +
+                metaPill('Typ', contractType === 'upload' ? 'Upload' : 'Baukasten') +
+                metaPill('Status', isActive ? 'Aktiv' : 'Inaktiv');
+
+            var actionButtons = '';
+            if (contractType !== 'upload') {
+                actionButtons += '<button type="button" class="admin-clients-page-btn" data-view-contract="' + contractId + '">Text ansehen</button>';
+            }
+            if (previewUrl !== '') {
+                actionButtons += '<button type="button" class="admin-clients-page-btn" data-preview-contract-pdf="' + contractId + '" data-preview-url="' + escapeHtml(previewUrl) + '" data-pdf-download-url="' + escapeHtml(downloadUrl || previewUrl) + '" data-contract-label="' + escapeHtml(title) + '">PDF ansehen</button>';
+            }
+            if (downloadUrl !== '') {
+                actionButtons += '<button type="button" class="admin-clients-page-btn" data-download-contract="' + contractId + '" data-download-url="' + escapeHtml(downloadUrl) + '">Download</button>';
+            }
+            if (canManage) {
+                actionButtons += '<button type="button" class="admin-clients-page-btn" data-toggle-contract="' + contractId + '" data-next-active="' + (isActive ? '0' : '1') + '">' + (isActive ? 'Deaktivieren' : 'Aktivieren') + '</button>';
+            }
+
             return '' +
                 '<article class="admin-clients-entry-card">' +
                 '  <div class="admin-clients-entry-head">' +
-                '    <strong>' + escapeHtml(String(item.contract_key || 'Einwilligung')) + '</strong>' +
-                '    <span class="admin-clients-entry-time">' + escapeHtml(formatDateTime(item.accepted_at)) + '</span>' +
+                '    <strong>' + escapeHtml(title) + '</strong>' +
+                '    <span class="admin-clients-entry-time">' + escapeHtml(formatDateTime(item && item.created_at ? item.created_at : '')) + '</span>' +
                 '  </div>' +
-                '  <div class="admin-clients-meta-grid">' +
-                metaPill('Status', item.accepted ? 'akzeptiert' : 'abgelehnt') +
-                metaPill('Version', String(item.contract_version || '-')) +
-                metaPill('Kontext', String(item.context_type || '-') + ' #' + String(item.context_id || '-')) +
-                metaPill('Signatur', abbreviateHash(item.signature_hash)) +
-                '  </div>' +
-                (item.contract_text_snapshot ? '<p class="admin-clients-entry-copy">' + escapeHtml(String(item.contract_text_snapshot)) + '</p>' : '') +
+                '  <div class="admin-clients-meta-grid">' + metaBadges + '</div>' +
+                (fileName !== '' ? ('<p class="admin-clients-entry-copy">Datei: ' + escapeHtml(fileName) + '</p>') : '') +
+                (item && item.text_preview ? '<p class="admin-clients-entry-copy">' + escapeHtml(String(item.text_preview)) + '</p>' : '') +
+                (actionButtons !== '' ? '<div class="admin-clients-inline-actions" style="margin-top:0.5rem;">' + actionButtons + '</div>' : '') +
                 '</article>';
         }).join('') + '</div>';
     }
@@ -1011,6 +1053,48 @@
         var createInvoiceBtn = root.querySelector('[data-create-invoice]');
         if (createInvoiceBtn) createInvoiceBtn.addEventListener('click', openCreateInvoiceModal);
 
+        var createContractBtn = root.querySelector('[data-create-contract]');
+        if (createContractBtn) createContractBtn.addEventListener('click', openCreateContractModal);
+
+        var uploadContractBtn = root.querySelector('[data-upload-contract]');
+        if (uploadContractBtn) uploadContractBtn.addEventListener('click', openUploadContractModal);
+
+        root.querySelectorAll('[data-view-contract]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var contractId = parsePositiveInt(btn.getAttribute('data-view-contract'), 0);
+                if (contractId <= 0) return;
+                openContractTextModal(contractId);
+            });
+        });
+
+        root.querySelectorAll('[data-download-contract]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var contractId = parsePositiveInt(btn.getAttribute('data-download-contract'), 0);
+                var downloadUrl = trim(String(btn.getAttribute('data-download-url') || ''));
+                if (contractId <= 0 || downloadUrl === '') return;
+                downloadContractFile(contractId, downloadUrl);
+            });
+        });
+
+        root.querySelectorAll('[data-preview-contract-pdf]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var previewUrl = trim(String(btn.getAttribute('data-preview-url') || ''));
+                var downloadUrl = trim(String(btn.getAttribute('data-pdf-download-url') || previewUrl));
+                var contractLabel = trim(String(btn.getAttribute('data-contract-label') || '-'));
+                if (previewUrl === '') return;
+                openContractPdfPreview(previewUrl, downloadUrl, contractLabel);
+            });
+        });
+
+        root.querySelectorAll('[data-toggle-contract]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var contractId = parsePositiveInt(btn.getAttribute('data-toggle-contract'), 0);
+                var nextActiveRaw = trim(String(btn.getAttribute('data-next-active') || ''));
+                if (contractId <= 0) return;
+                toggleContractActive(contractId, nextActiveRaw === '1');
+            });
+        });
+
         var createRecordBtn = root.querySelector('[data-create-record]');
         if (createRecordBtn) createRecordBtn.addEventListener('click', createFormRecord);
 
@@ -1350,6 +1434,20 @@
         }
 
         return fallback;
+    }
+
+    function withInlineDisposition(url) {
+        var raw = trim(String(url || ''));
+        if (raw === '') return '';
+
+        var hasQuery = raw.indexOf('?') >= 0;
+        var separator = hasQuery ? '&' : '?';
+
+        if (/([?&])disposition=/i.test(raw)) {
+            return raw.replace(/([?&]disposition=)[^&]*/i, '$1inline');
+        }
+
+        return raw + separator + 'disposition=inline';
     }
 
     function goToClientInvoicesSection() {
@@ -2234,6 +2332,7 @@
             fetchClientTickets(state.selectedClientId),
             fetchClientConsents(state.selectedClientId),
             fetchClientPackages(state.selectedClientId),
+            fetchClientContracts(state.selectedClientId),
             fetchLatestTemplates(),
         ])
             .then(function () {
@@ -2574,6 +2673,657 @@
                 state.loadingPackages = false;
                 state.packages = [];
             });
+    }
+
+    function fetchClientContracts(id) {
+        state.loadingContracts = true;
+        return fetch(apiUrl(cfg.api && cfg.api.contracts, id), {
+            credentials: 'include',
+            headers: { Accept: 'application/json' },
+        })
+            .then(parseJsonResponse)
+            .then(function (result) {
+                state.loadingContracts = false;
+                if (result.status !== 200) {
+                    state.contracts = [];
+                    return;
+                }
+
+                var rows = result.json && result.json.data && result.json.data.contracts;
+                state.contracts = Array.isArray(rows) ? rows : [];
+            })
+            .catch(function () {
+                state.loadingContracts = false;
+                state.contracts = [];
+            });
+    }
+
+    function openCreateContractModal() {
+        if (!canManage || !state.selectedClientId) return;
+
+        var projectOptions = activeProjectOptionsHtml();
+        if (projectOptions === '') {
+            notify('warning', 'Es sind keine aktiven Projekte für diesen Client vorhanden.');
+            return;
+        }
+
+        var today = new Date().toISOString().slice(0, 10);
+        var oneYearLater = new Date(Date.now() + (365 * 24 * 60 * 60 * 1000)).toISOString().slice(0, 10);
+        var clientName = trim(String(state.selectedClient && state.selectedClient.name ? state.selectedClient.name : ''));
+        var clientAddress = trim(String(state.selectedClient && state.selectedClient.address ? state.selectedClient.address : ''));
+
+        var body = '' +
+            '<section class="admin-clients-attachments" data-contract-builder>' +
+            '  <p class="admin-clients-help">Vertrag per Baukasten erzeugen und direkt in der Klientenakte speichern.</p>' +
+            '  <div class="admin-clients-form-grid">' +
+            '    <div><label class="admin-clients-label" for="contractProjectId">Projekt</label><select id="contractProjectId" class="admin-clients-input">' + projectOptions + '</select></div>' +
+            '    <div><label class="admin-clients-label" for="contractTitle">Vertragstitel</label><input id="contractTitle" class="admin-clients-input" type="text" value="Website-Erstellungs-, Hosting- und Verwaltungsvertrag" /></div>' +
+            '    <div><label class="admin-clients-label" for="contractStartDate">Beginn</label><input id="contractStartDate" class="admin-clients-input" type="date" value="' + today + '" /></div>' +
+            '    <div><label class="admin-clients-label" for="contractEndDate">Ende</label><input id="contractEndDate" class="admin-clients-input" type="date" value="' + oneYearLater + '" /></div>' +
+            '    <div><label class="admin-clients-label" for="contractClientName">Auftragnehmer Name</label><input id="contractClientName" class="admin-clients-input" type="text" value="' + escapeHtml(clientName) + '" /></div>' +
+            '    <div><label class="admin-clients-label" for="contractClientOwner">Auftragnehmer Inhaber</label><input id="contractClientOwner" class="admin-clients-input" type="text" value="" placeholder="Inhaber" /></div>' +
+            '    <div class="admin-clients-field--full" style="grid-column:1/-1;"><label class="admin-clients-label" for="contractClientAddress">Auftragnehmer Anschrift</label><textarea id="contractClientAddress" class="admin-clients-textarea" rows="2">' + escapeHtml(clientAddress) + '</textarea></div>' +
+            '    <div><label class="admin-clients-label" for="contractSetupFee">Einrichtungsgebühr (EUR)</label><input id="contractSetupFee" class="admin-clients-input" type="number" step="0.01" value="200.00" /></div>' +
+            '    <div><label class="admin-clients-label" for="contractMonthlyFee">Monatliche Vergütung (EUR)</label><input id="contractMonthlyFee" class="admin-clients-input" type="number" step="0.01" value="85.00" /></div>' +
+            '  </div>' +
+            '  <div style="margin-top:0.75rem;">' +
+            '    <label class="admin-clients-label" for="contractServicesList">Leistungsumfang (eine Zeile = ein Bulletpoint)</label>' +
+            '    <textarea id="contractServicesList" class="admin-clients-textarea" rows="10">Erstellung einer Landingpage\nIntegration einer digitalen Speisekarte\nBereitstellung eines Reservierungssystems\nBereitstellung eines Bestellsystems\nEntwicklung und Bereitstellung einer Artikelverwaltung für den Betreiber\nAnbindung eines Chatbots zur Entgegennahme von Reservierungen und Bestellungen\nBereitstellung einer Bilderverwaltung einschließlich Galerie\nBereitstellung eines Einstellungsmanagements für den Betreiber\nHosting der Website\nTechnische Administration und Wartung der Website</textarea>' +
+            '  </div>' +
+            '  <div style="margin-top:0.75rem;">' +
+            '    <label class="admin-clients-label" for="contractPreview">Vorschau (editierbar)</label>' +
+            '    <textarea id="contractPreview" class="admin-clients-textarea" rows="18"></textarea>' +
+            '  </div>' +
+            '</section>';
+
+        window.adminOpenModal && window.adminOpenModal('Vertrag erstellen', body, {
+            type: 'form',
+            modalClass: 'admin-modal--preview',
+            buttons: [
+                { label: 'Speichern', variant: 'primary', onClick: submitCreatedContract },
+                { label: 'Abbrechen', variant: 'secondary', onClick: function () { window.adminCloseModal && window.adminCloseModal(); } },
+            ],
+        });
+
+        updateContractPreviewFromBuilder();
+
+        [
+            'contractTitle',
+            'contractStartDate',
+            'contractEndDate',
+            'contractClientName',
+            'contractClientOwner',
+            'contractClientAddress',
+            'contractSetupFee',
+            'contractMonthlyFee',
+            'contractServicesList',
+        ].forEach(function (id) {
+            var node = document.getElementById(id);
+            if (!node) return;
+            node.addEventListener('input', updateContractPreviewFromBuilder);
+        });
+    }
+
+    function updateContractPreviewFromBuilder() {
+        var preview = document.getElementById('contractPreview');
+        if (!preview) return;
+        preview.value = buildContractTextFromBuilder();
+    }
+
+    function buildContractTextFromBuilder() {
+        var title = trim(getValue('contractTitle')) || 'Website-Erstellungs-, Hosting- und Verwaltungsvertrag';
+        var startDate = formatDateGerman(getValue('contractStartDate'));
+        var endDate = formatDateGerman(getValue('contractEndDate'));
+        var clientName = trim(getValue('contractClientName')) || 'Auftragnehmer';
+        var clientOwner = trim(getValue('contractClientOwner')) || 'Inhaber';
+        var clientAddress = trim(getRawValue('contractClientAddress')) || '-';
+        var services = parseContractServicesList(getRawValue('contractServicesList'));
+        var setupFee = formatCurrencyNumber(getValue('contractSetupFee'));
+        var monthlyFee = formatCurrencyNumber(getValue('contractMonthlyFee'));
+        var setupFeeNumeric = parseNumberLocale(getValue('contractSetupFee'));
+        var nowDate = formatDateGerman(new Date().toISOString().slice(0, 10));
+        var paymentSettings = cfg.payment_settings && typeof cfg.payment_settings === 'object' ? cfg.payment_settings : {};
+        var bankDataName = trim(String(paymentSettings.bank_data_name || ''));
+        var bankDataIban = trim(String(paymentSettings.bank_data_iban || ''));
+        var bankDataBic = trim(String(paymentSettings.bank_data_bic || ''));
+
+        var setupFeeSentence = setupFeeNumeric > 0
+            ? ('Für die Erstellung, Einrichtung und Inbetriebnahme der Website wird bei Vertragsbeginn eine einmalige Einrichtungsgebühr in Höhe von ' + setupFee + ' € fällig.\n')
+            : '';
+        var setupFeeDueSentence = setupFeeNumeric > 0
+            ? 'Die Einrichtungsgebühr ist mit Vertragsschluss und Rechnungsstellung fällig.\n'
+            : '';
+        var paymentDataLines = [
+            'Zahlungsdaten:',
+            bankDataName,
+            bankDataIban !== '' ? ('IBAN: ' + bankDataIban) : '',
+            bankDataBic !== '' ? ('BIC: ' + bankDataBic) : '',
+        ].filter(function (line) {
+            return trim(String(line || '')) !== '';
+        }).join('\n');
+
+        return '' +
+            title + '\n' +
+            'zwischen\n' +
+            'Henz Software Solutions\n' +
+            'Inhaber Christoph Henz, Sitz in\n' +
+            'Güterberg 30a\n' +
+            '63739 Aschaffenburg - nachfolgend "Auftraggeber" -\n' +
+            'und\n' +
+            clientName + '\n' +
+            clientOwner + ', Sitz in\n' +
+            clientAddress + '\n' +
+            '- nachfolgend "Auftragnehmer" -\n\n' +
+            'wird folgender Vertrag geschlossen:\n\n' +
+            'Präambel\n' +
+            'Der Auftraggeber und der Auftragnehmer haben einen umfassenden Hostingvertrag geschlossen, dessen Vertragszweck es ist, für den Auftraggeber eine Webpräsenz zu erstellen. Zur Förderung dieses Vertragszweckes wird der Auftragnehmer die offizielle Website des Auftraggebers für den deutschen Raum betreiben.\n\n' +
+            '§ 1 Vertragsgegenstand\n' +
+            'Der Auftraggeber entwickelt, betreibt und verwaltet für den Auftragnehmer eine individuelle Internetpräsenz einschließlich der dafür notwendigen technischen Infrastruktur.\n' +
+            'Die Leistungen umfassen insbesondere:\n' +
+            services.map(function (item) { return '• ' + item; }).join('\n') + '\n' +
+            'Der konkrete Funktionsumfang ergibt sich aus der jeweils bereitgestellten Version der Software.\n\n' +
+            '§ 2 Vertragslaufzeit\n' +
+            'Der Vertrag wird befristet geschlossen.\n' +
+            'Die Vertragslaufzeit beginnt am ' + startDate + ' und endet automatisch am ' + endDate + ', ohne dass es einer Kündigung bedarf.\n' +
+            'Eine Verlängerung bedarf einer schriftlichen Vereinbarung beider Vertragsparteien.\n\n' +
+            '§ 3 Eigentums- und Nutzungsrechte\n' +
+            'Die vollständigen Eigentums-, Urheber- und Verwertungsrechte an der entwickelten Software, demQuellcode, dem Design, den Datenbanken, den Backend-Systemen sowie sämtlichen technischen Komponenten verbleiben ausschließlich beim Auftraggeber.\n' +
+            'Dies gilt ebenfalls für\n' +
+            '• die registrierten Domains (URLs),\n' +
+            '• sämtliche Subdomains,\n' +
+            '• Hostingkonten,\n' +
+            '• Datenbanken,\n' +
+            '• Verwaltungssoftware\n' +
+            '• Backend-Systeme\n' +
+            '• Schnittstellen\n' +
+            '• Serverkonfigurationen.\n' +
+            'Der Auftragnehmer erhält ausschließlich ein einfaches, nicht übertragbares Nutzungsrecht für die Dauer dieses Vertrages.\n' +
+            'Nach Vertragsende endet das Nutzungsrecht automatisch.\n' +
+            'Ein Anspruch auf Herausgabe des Quellcodes, der Verwaltungssoftware oder der technischen Infrastruktur besteht nicht.\n\n' +
+            '§ 4 Leistungen des Auftraggebers\n' +
+            'Der Auftraggeber verpflichtet sich während der Vertragslaufzeit zur Bereitstellung folgender Leistungen:\n\n' +
+            'Technischer Betrieb\n' +
+            '• Hosting der Website\n' +
+            '• Verwaltung der Domain(s)\n' +
+            '• Bereitstellung der Serverinfrastruktur\n' +
+            '• Datenbanksicherung\n' +
+            '• Überwachung der technischen Erreichbarkeit\n' +
+            'Wartung\n' +
+            '• Installation notwendinger Sicherheitsupdates\n' +
+            '• Fehlerbehebungen\n' +
+            '• Pflege der eingesetzten Softwarekomponenten\n' +
+            '• Sicherstellung der Funktionsfähigkeit der Website nach bestem Wissen und Gewissen\n' +
+            'Inhaltsverwaltung\n' +
+            'Der Auftraggeber übernimmt auf Wunsch des Auftragnehmers die regelmäßige Aktualisierung folgender Inhalte:\n' +
+            '• Artikel\n' +
+            '• Speisekarte\n' +
+            '• Bilder\n' +
+            '• Medien\n' +
+            '• Öffnungszeiten\n' +
+            '• sonstige veröffentlichte Inhalte\n' +
+            'Die hierfür erforderlichen Informationen werden vom Auftragnehmer rechtzeitig bereitgestellt.\n' +
+            '§ 5 Rechtliche Angaben\n' +
+            'Der Auftraggeber verpflichtet sich, die auf der Website erforderlichen rechtlichen Pflichtangaben (z. B. Impressum, Datenschutzerklärung oder vergleichbare gesetzlich vorgeschriebene Angaben) nach bestem Wissen und Gewissen aktuell zu halten.\n' +
+            'Der Auftraggeber übernimmt jedoch keine Haftung für die inhaltliche Richtigkeit, Vollständigkeit oder Rechtmäßigkeit der vom Auftragnehmer bereitgestellten Informationen.\n' +
+            'Für sämtliche Inhalte, insbesondere:\n' +
+            '• Preise,\n' +
+            '• Produktbeschreibung,\n' +
+            '• Bilder,\n' +
+            '• Videos,\n' +
+            '• Grafiken,\n' +
+            '• Texte,\n' +
+            '• Marken,\n' +
+            '• Urheberrechte,\n' +
+            '• rechtliche Erklärungen,\n' +
+            '• sonstige veröffentlichte Informationen,\n' +
+            'trägt ausschließlich der Auftragnehmer die Verantwortung.\n' +
+            'Der Auftragnehmer verpflichtet sich, Änderungen unverzüglich mitzuteilen.\n' +
+            '§ 6 Pflichten des Auftragnehmers\n' +
+            'Der Auftragnehmer verpflichtet sich,\n\n' +
+            '• wahrheitsgemäße Inhalte bereitstellen,\n' +
+            '• notwendige Änderungen rechtzeitig zu übermitteln,\n' +
+            '• sämtliche gesetzlichen Vorgaben einhalten,\n' +
+            '• Zugangsdaten vertraulich behandeln,\n' +
+            '• keine rechtswidrigen Inhalte veröffentlichen zu lassen.\n' +
+            '§ 7 Verfügbarkeit\n' +
+            'Der Auftraggeber bemüht sich um eine möglichst hohe Verfügbarkeit der Website.\n' +
+            'Geplante Wartungsarbeiten, Sicherheitsupdates oder unvorhersehbare technische Störungen können zu vorübergehenden Einschränkungen führen.\n' +
+            'Ein Anspruch auf eine bestimmte Mindestverfügbarkeit besteht nicht, sofern keine gesonderte Service-Level-Vereinbarung geschlossen wurde.\n' +
+            '§ 8 Datensicherung\n' +
+            'Der Auftraggeber erstellt regelmäßige Sicherungen der Website und der Datenbank.\n' +
+            'Eine Wiederherstellung kann nach technischem Aufwand erfolgen.\n' +
+            'Eine Garantie auf die vollständige Wiederherstellung sämtlicher Daten besteht nicht.\n' +
+            '§ 9 Haftung\n' +
+            'Der Auftraggeber haftet ausschließlich für vorsätzlich oder grob fahrlässig verursachte Schäden.\n' +
+            'Für mittelbare Schäden, entgangenen Gewinn, Betriebsunterbrechungen oder Datenverluste wird– soweit gesetzlich zulässig – keine Haftung übernommen.\n' +
+            'Der Auftraggeber haftet insbesondere nicht für:\n' +
+            '• falsche Inhalte,\n' +
+            '• fehlerhafte Preisangaben,\n' +
+            '• rechtswidrige Veröffentlichungen,\n' +
+            '• Verstöße gegen Kennzeichnungs- oder Informationspflichten,\n' +
+            '• Umsatzausfälle aufgrund höherer Gewalt oder technischer Störungen außerhalb seines Einflussbereiches.\n' +
+            '§ 10 Vergütung\n' +
+            setupFeeSentence +
+            'Für das Hosting, die technische Verwaltung, Wartung sowie die Bereitstellung der im Vertrag beschriebenen Leistungen zahlt der Auftragnehmer eine monatliche Vergütung in Höhe von ' + monthlyFee + ' €.\n' +
+            'Die monatliche Vergütung ist jeweils zum ersten Kalendertag eines Monats im Voraus zur Zahlung fällig.\n' +
+            setupFeeDueSentence +
+            'Gerät der Auftragnehmer mit einer fälligen Zahlung in Verzug, ist der Auftraggeber berechtigt, nach vorheriger Mahnung und angemessener Fristsetzung die bereitgestellten Leistungen bis zum vollständigen Zahlungsausgleich vorübergehend einzuschränken oder auszusetzen. Weitergehende gesetzliche Ansprüche bleiben hiervon unberührt.' +
+            paymentDataLines + '\n' +
+            '§ 11 Vertragsende\n' +
+            'Mit Ablauf der Vertragslaufzeit endet das Nutzungsrecht des Auftragnehmers.\n' +
+            'Der Auftraggeber ist berechtigt,\n' +
+            '• die Website abzuschalten,\n' +
+            '• das Hosting einzustellen,\n' +
+            '• den Zugang zum Verwaltungsbereich zu sperren.\n' +
+            'Die Domain verbleibt im Eigentum des Auftraggebers.\n' +
+            'Ein Anspruch auf Übertragung der Domain oder der entwickelten Software besteht nicht.\n' +
+            'Vom Auftragnehmer bereitgestellte Inhalte (z. B. Texte und Bilder), an denen dieser die erforderlichen Rechte besitzt, können ihm auf Wunsch in einem gängigen Format zur Verfügung gestellt werden. Ein Anspruch auf Herausgabe des Quellcodes, der Datenbankstruktur oder proprietärer Verwaltungssoftware besteht nicht.\n' +
+            '§ 12 Vertraulichkeit\n' +
+            'Beide Vertragsparteien verpflichten sich, sämtliche im Rahmen der Zusammenarbeit bekannt gewordenen vertraulichen Informationen auch nach Vertragsende geheim zu halten.\n\n' +
+            '§ 13 Schlussbestimmungen\n' +
+            'Änderungen und Ergänzungen dieses Vertrages bedürfen der Schriftform.\n' +
+            'Sollten einzelne Bestimmungen dieses Vertrages ganz oder teilweise unwirksam sein oder werden, bleibt die Wirksamkeit der übrigen Bestimmungen hiervon unberührt.\n' +
+            'Es gilt das Recht der Bundesrepublik Deutschland.\n' +
+            'Gerichtsstand ist - soweit gesetzlich zulässig - der Sitz des Auftraggebers.\n\r';
+    }
+
+    function submitCreatedContract() {
+        if (!state.selectedClientId) return;
+
+        var projectId = parsePositiveInt(getValue('contractProjectId'), 0);
+        var startDate = trim(getValue('contractStartDate'));
+        var endDate = trim(getValue('contractEndDate'));
+        var title = trim(getValue('contractTitle'));
+        var preview = trim(getRawValue('contractPreview'));
+
+        if (projectId <= 0) {
+            notify('warning', 'Bitte ein Projekt auswählen.');
+            return;
+        }
+        if (startDate === '') {
+            notify('warning', 'Bitte ein Startdatum setzen.');
+            return;
+        }
+        if (preview === '') {
+            notify('warning', 'Vertragstext darf nicht leer sein.');
+            return;
+        }
+
+        var payload = {
+            project_id: projectId,
+            start_date: startDate,
+            end_date: endDate,
+            title: title,
+            contract_text: preview,
+            builder_data: {
+                contractor_name: trim(getValue('contractClientName')),
+                contractor_owner: trim(getValue('contractClientOwner')),
+                contractor_address: trim(getRawValue('contractClientAddress')),
+                start_date: startDate,
+                end_date: endDate,
+                setup_fee: trim(getValue('contractSetupFee')),
+                monthly_fee: trim(getValue('contractMonthlyFee')),
+                services: parseContractServicesList(getRawValue('contractServicesList')),
+            },
+        };
+
+        fetch(apiUrl(cfg.api && cfg.api.contracts_create, state.selectedClientId), {
+            method: 'POST',
+            credentials: 'include',
+            headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        })
+            .then(parseJsonResponse)
+            .then(function (result) {
+                if (result.status !== 201 && result.status !== 200) {
+                    throw new Error(extractErrorMessage(result, 'Vertrag konnte nicht gespeichert werden.'));
+                }
+
+                notify('success', 'Vertrag wurde erstellt.');
+                window.adminCloseModal && window.adminCloseModal();
+                return fetchClientContracts(state.selectedClientId).then(function () {
+                    state.infoSubtab = 'contracts';
+                    writeRecordUrl(false);
+                    render();
+                });
+            })
+            .catch(function (err) {
+                notify('error', err && err.message ? err.message : 'Vertrag konnte nicht erstellt werden.');
+            });
+    }
+
+    function openUploadContractModal() {
+        if (!canManage || !state.selectedClientId) return;
+
+        var projectOptions = activeProjectOptionsHtml();
+        if (projectOptions === '') {
+            notify('warning', 'Es sind keine aktiven Projekte für diesen Client vorhanden.');
+            return;
+        }
+
+        var today = new Date().toISOString().slice(0, 10);
+        var oneYearLater = new Date(Date.now() + (365 * 24 * 60 * 60 * 1000)).toISOString().slice(0, 10);
+
+        var body = '' +
+            '<section class="admin-clients-attachments" data-contract-upload>' +
+            '  <p class="admin-clients-help">PDF oder Word-Datei auswählen und als Vertrag zum Projekt speichern.</p>' +
+            '  <div class="admin-clients-form-grid">' +
+            '    <div><label class="admin-clients-label" for="contractUploadProjectId">Projekt</label><select id="contractUploadProjectId" class="admin-clients-input">' + projectOptions + '</select></div>' +
+            '    <div><label class="admin-clients-label" for="contractUploadTitle">Titel (optional)</label><input id="contractUploadTitle" class="admin-clients-input" type="text" value="" /></div>' +
+            '    <div><label class="admin-clients-label" for="contractUploadStartDate">Beginn</label><input id="contractUploadStartDate" class="admin-clients-input" type="date" value="' + today + '" /></div>' +
+            '    <div><label class="admin-clients-label" for="contractUploadEndDate">Ende</label><input id="contractUploadEndDate" class="admin-clients-input" type="date" value="' + oneYearLater + '" /></div>' +
+            '  </div>' +
+            '  <div style="margin-top:0.75rem;">' +
+            '    <label class="admin-clients-label" for="contractUploadFile">Datei</label>' +
+            '    <input id="contractUploadFile" class="admin-clients-input" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" />' +
+            '  </div>' +
+            '</section>';
+
+        window.adminOpenModal && window.adminOpenModal('Vertrag hochladen', body, {
+            type: 'form',
+            modalClass: 'admin-modal--preview',
+            buttons: [
+                { label: 'Hochladen', variant: 'primary', onClick: submitUploadedContract },
+                { label: 'Abbrechen', variant: 'secondary', onClick: function () { window.adminCloseModal && window.adminCloseModal(); } },
+            ],
+        });
+    }
+
+    function submitUploadedContract() {
+        if (!state.selectedClientId) return;
+
+        var projectId = parsePositiveInt(getValue('contractUploadProjectId'), 0);
+        var title = trim(getValue('contractUploadTitle'));
+        var startDate = trim(getValue('contractUploadStartDate'));
+        var endDate = trim(getValue('contractUploadEndDate'));
+        var fileNode = document.getElementById('contractUploadFile');
+        var file = fileNode && fileNode.files && fileNode.files[0] ? fileNode.files[0] : null;
+
+        if (projectId <= 0) {
+            notify('warning', 'Bitte ein Projekt auswählen.');
+            return;
+        }
+        if (startDate === '') {
+            notify('warning', 'Bitte ein Startdatum setzen.');
+            return;
+        }
+        if (!file) {
+            notify('warning', 'Bitte eine Vertragsdatei auswählen.');
+            return;
+        }
+
+        var formData = new FormData();
+        formData.append('project_id', String(projectId));
+        formData.append('title', title);
+        formData.append('start_date', startDate);
+        formData.append('end_date', endDate);
+        formData.append('contract_file', file);
+
+        fetch(apiUrl(cfg.api && cfg.api.contracts_upload, state.selectedClientId), {
+            method: 'POST',
+            credentials: 'include',
+            headers: { Accept: 'application/json' },
+            body: formData,
+        })
+            .then(parseJsonResponse)
+            .then(function (result) {
+                if (result.status !== 201 && result.status !== 200) {
+                    throw new Error(extractErrorMessage(result, 'Vertrag konnte nicht hochgeladen werden.'));
+                }
+
+                notify('success', 'Vertrag wurde hochgeladen.');
+                window.adminCloseModal && window.adminCloseModal();
+                return fetchClientContracts(state.selectedClientId).then(function () {
+                    state.infoSubtab = 'contracts';
+                    writeRecordUrl(false);
+                    render();
+                });
+            })
+            .catch(function (err) {
+                notify('error', err && err.message ? err.message : 'Vertrag konnte nicht hochgeladen werden.');
+            });
+    }
+
+    function openContractTextModal(contractId) {
+        var item = findContractById(contractId);
+        if (!item) return;
+        var text = trim(String(item.full_text || ''));
+        if (text === '') {
+            notify('warning', 'Für diesen Vertrag ist kein Text verfügbar.');
+            return;
+        }
+
+        var body = '' +
+            '<section class="admin-clients-attachments" data-contract-text-preview>' +
+            '  <div class="admin-clients-help">' + escapeHtml(String(item.title || ('Vertrag #' + contractId))) + '</div>' +
+            '  <textarea class="admin-clients-textarea" rows="24" readonly>' + escapeHtml(text) + '</textarea>' +
+            '</section>';
+
+        window.adminOpenModal && window.adminOpenModal('Vertrag ansehen', body, {
+            type: 'form',
+            modalClass: 'admin-modal--preview',
+            buttons: [
+                { label: 'Schließen', variant: 'primary', onClick: function () { window.adminCloseModal && window.adminCloseModal(); } },
+            ],
+        });
+    }
+
+    function openContractPdfPreview(url, downloadUrl, contractLabel) {
+        var previewUrl = trim(String(url || ''));
+        var safeDownloadUrl = trim(String(downloadUrl || ''));
+        var label = trim(String(contractLabel || '-'));
+
+        if (previewUrl === '' && safeDownloadUrl !== '') {
+            previewUrl = withInlineDisposition(safeDownloadUrl);
+        }
+
+        if (previewUrl === '' && safeDownloadUrl === '') {
+            notify('warning', 'PDF-Vorschau ist nicht verfügbar.');
+            return;
+        }
+
+        var candidates = [];
+        if (previewUrl !== '') candidates.push(previewUrl);
+        if (safeDownloadUrl !== '') {
+            var inlineFromDownload = withInlineDisposition(safeDownloadUrl);
+            if (inlineFromDownload !== '' && !inArray(inlineFromDownload, candidates)) {
+                candidates.push(inlineFromDownload);
+            }
+            if (!inArray(safeDownloadUrl, candidates)) {
+                candidates.push(safeDownloadUrl);
+            }
+        }
+
+        var tryFetch = function (index) {
+            if (index >= candidates.length) {
+                if (safeDownloadUrl !== '') {
+                    window.open(safeDownloadUrl, '_blank', 'noopener');
+                    notify('warning', 'PDF-Vorschau konnte nicht eingebettet werden. Vertrag wurde in neuem Tab geöffnet.');
+                    return;
+                }
+
+                notify('error', 'PDF-Vorschau konnte nicht geladen werden.');
+                return;
+            }
+
+            return fetch(candidates[index], {
+                method: 'GET',
+                credentials: 'include',
+                headers: { Accept: 'application/pdf,application/octet-stream' },
+            })
+                .then(function (response) {
+                    if (!response.ok) {
+                        throw new Error('preview_fetch_failed_' + response.status);
+                    }
+                    return response.blob();
+                })
+                .catch(function () {
+                    return tryFetch(index + 1);
+                });
+        };
+
+        tryFetch(0)
+            .then(function (blob) {
+                if (!(blob instanceof Blob)) {
+                    return;
+                }
+
+                var objectUrl = URL.createObjectURL(blob);
+                window.setTimeout(function () {
+                    URL.revokeObjectURL(objectUrl);
+                }, 5 * 60 * 1000);
+
+                var body = '' +
+                    '<section class="admin-clients-attachments" data-contract-pdf-preview>' +
+                    '  <div class="admin-clients-help">' + escapeHtml(label) + '</div>' +
+                    '  <div style="height:min(80vh,900px); border:1px solid #ddd; border-radius:8px; overflow:hidden; background:#fff;">' +
+                    '    <iframe src="' + escapeHtml(objectUrl) + '" title="Vertrags-PDF" style="width:100%; height:100%; border:0; background:#fff;"></iframe>' +
+                    '  </div>' +
+                    '</section>';
+
+                window.adminOpenModal && window.adminOpenModal('Vertrag ansehen', body, {
+                    type: 'form',
+                    modalClass: 'admin-modal--preview',
+                    buttons: [
+                        {
+                            label: 'Download',
+                            variant: 'secondary',
+                            onClick: function () {
+                                if (safeDownloadUrl !== '') {
+                                    downloadContractFile(0, safeDownloadUrl);
+                                }
+                            }
+                        },
+                        {
+                            label: 'Schließen',
+                            variant: 'primary',
+                            onClick: function () {
+                                URL.revokeObjectURL(objectUrl);
+                                window.adminCloseModal && window.adminCloseModal();
+                            }
+                        },
+                    ],
+                });
+            })
+            .catch(function (err) {
+                notify('error', err && err.message ? err.message : 'PDF-Vorschau ist nicht verfügbar.');
+            });
+    }
+
+    function toggleContractActive(contractId, shouldBeActive) {
+        if (!state.selectedClientId || !canManage) return;
+
+        fetch(apiUrl(cfg.api && cfg.api.contract_update, {
+            id: state.selectedClientId,
+            contract_id: contractId,
+        }), {
+            method: 'PATCH',
+            credentials: 'include',
+            headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_active: shouldBeActive ? '1' : '0' }),
+        })
+            .then(parseJsonResponse)
+            .then(function (result) {
+                if (result.status !== 200) {
+                    throw new Error(extractErrorMessage(result, 'Status konnte nicht aktualisiert werden.'));
+                }
+
+                notify('success', shouldBeActive ? 'Vertrag aktiviert.' : 'Vertrag deaktiviert.');
+                return fetchClientContracts(state.selectedClientId).then(function () {
+                    state.infoSubtab = 'contracts';
+                    writeRecordUrl(false);
+                    render();
+                });
+            })
+            .catch(function (err) {
+                notify('error', err && err.message ? err.message : 'Status konnte nicht aktualisiert werden.');
+            });
+    }
+
+    function downloadContractFile(contractId, url) {
+        fetch(url, {
+            method: 'GET',
+            credentials: 'include',
+            headers: { Accept: 'application/octet-stream' },
+        })
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error('Vertrag konnte nicht heruntergeladen werden.');
+                }
+
+                var disposition = String(response.headers.get('Content-Disposition') || '');
+                var fallbackName = contractId > 0 ? ('vertrag-' + contractId + '.bin') : 'vertrag.pdf';
+                var fileName = extractDownloadFileName(disposition, fallbackName);
+
+                return response.blob().then(function (blob) {
+                    var objectUrl = URL.createObjectURL(blob);
+                    var anchor = document.createElement('a');
+                    anchor.href = objectUrl;
+                    anchor.download = fileName;
+                    anchor.style.display = 'none';
+                    document.body.appendChild(anchor);
+                    anchor.click();
+                    document.body.removeChild(anchor);
+                    window.setTimeout(function () {
+                        URL.revokeObjectURL(objectUrl);
+                    }, 1000);
+                    notify('success', 'Vertrag wurde heruntergeladen.');
+                });
+            })
+            .catch(function (err) {
+                notify('error', err && err.message ? err.message : 'Vertrag konnte nicht heruntergeladen werden.');
+            });
+    }
+
+    function activeProjectOptionsHtml() {
+        var projects = (Array.isArray(state.projects) ? state.projects : []).filter(isProjectActive);
+        return projects.map(function (project) {
+            var projectId = parsePositiveInt(project && project.id, 0);
+            var projectName = String(project && project.name ? project.name : ('Projekt #' + projectId));
+            return '<option value="' + projectId + '">' + escapeHtml(projectName) + '</option>';
+        }).join('');
+    }
+
+    function findContractById(contractId) {
+        var id = parsePositiveInt(contractId, 0);
+        if (id <= 0) return null;
+        var contracts = Array.isArray(state.contracts) ? state.contracts : [];
+        for (var i = 0; i < contracts.length; i += 1) {
+            if (parsePositiveInt(contracts[i] && contracts[i].id, 0) === id) {
+                return contracts[i];
+            }
+        }
+        return null;
+    }
+
+    function parseContractServicesList(raw) {
+        return String(raw || '')
+            .split('\n')
+            .map(function (line) { return trim(line); })
+            .filter(Boolean);
+    }
+
+    function formatDateGerman(value) {
+        var text = trim(String(value || ''));
+        if (text === '') return '-';
+        var date = new Date(text + 'T00:00:00');
+        if (Number.isNaN(date.getTime())) return text;
+        return date.toLocaleDateString('de-DE', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+        });
+    }
+
+    function formatCurrencyNumber(value) {
+        var n = Number(String(value || '0').replace(',', '.'));
+        if (!Number.isFinite(n)) n = 0;
+        return n.toFixed(2).replace('.', ',');
+    }
+
+    function parseNumberLocale(value) {
+        var n = Number(String(value || '0').replace(',', '.'));
+        return Number.isFinite(n) ? n : 0;
     }
 
     function fetchLatestTemplates() {
