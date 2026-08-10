@@ -485,6 +485,8 @@ CREATE TABLE IF NOT EXISTS consents (
     consent_text_snapshot TEXT NOT NULL,
     ip_address VARCHAR(45) NOT NULL,
     user_agent VARCHAR(512) NOT NULL,
+    device_name VARCHAR(255) NOT NULL DEFAULT 'unknown',
+    browser_user_name VARCHAR(255) NOT NULL DEFAULT 'unknown',
     signature_hash VARCHAR(255) NOT NULL,
     FOREIGN KEY (contract_id) REFERENCES contracts(id) ON DELETE RESTRICT ON UPDATE CASCADE,
     FOREIGN KEY (client_request_id) REFERENCES appointments(id) ON DELETE RESTRICT ON UPDATE CASCADE,
