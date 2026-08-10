@@ -746,10 +746,10 @@ final class EmailAutomationService
         $localEnvs = ['local', 'development', 'dev', 'testing', 'test'];
 
         if (in_array($env, $localEnvs, true)) {
-            return 'http://getragen-begleiten.local';
+            return 'http://henz-software.local';
         }
 
-        return 'https://getragen-begleiten.com';
+        return 'https://henz-software.de';
     }
 
     private function supportMailAddress(): string
@@ -764,12 +764,12 @@ final class EmailAutomationService
             return $supportValue;
         }
 
-        $configValue = trim((string) config('mail.senders.support.address', 'support@getragen-begleiten.com'));
+        $configValue = trim((string) config('mail.senders.support.address', 'support@henz-software.de'));
         if ($configValue !== '' && filter_var($configValue, FILTER_VALIDATE_EMAIL)) {
             return $configValue;
         }
 
-        return 'support@getragen-begleiten.com';
+        return 'support@henz-software.de';
     }
 
     private function contactMailAddress(): string
@@ -784,12 +784,12 @@ final class EmailAutomationService
             return $contactValue;
         }
 
-        $configValue = trim((string) config('mail.senders.communication.address', 'info@getragen-begleiten.com'));
+        $configValue = trim((string) config('mail.senders.communication.address', 'info@henz-software.de'));
         if ($configValue !== '' && filter_var($configValue, FILTER_VALIDATE_EMAIL)) {
             return $configValue;
         }
 
-        return 'info@getragen-begleiten.com';
+        return 'info@henz-software.de';
     }
 
     private function readSettingValue(string $key, string $fallback = ''): string
@@ -808,9 +808,9 @@ final class EmailAutomationService
     {
         $transport = strtolower(trim((string) config('mail.transport', 'smtp')));
         $senderConfigKey = 'mail.senders.' . ($senderType !== '' ? $senderType : 'support');
-        $fromAddress = trim((string) config($senderConfigKey . '.address', 'support@getragen-begleiten.com'));
+        $fromAddress = trim((string) config($senderConfigKey . '.address', 'support@henz-software.de'));
         if ($fromAddress === '') {
-            $fromAddress = 'support@getragen-begleiten.com';
+            $fromAddress = 'support@henz-software.de';
         }
 
         $fromName = trim((string) config($senderConfigKey . '.name', 'Henz Software'));

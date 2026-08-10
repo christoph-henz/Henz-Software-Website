@@ -1,7 +1,7 @@
 USE henz_software_main;
 
 INSERT INTO users (first_name, last_name, email, password_hash, role_mask, is_active)
-VALUES ('System', 'Administrator', 'webmaster@henz-software.com', '$2y$10$placeholder', 8191, TRUE);
+VALUES ('System', 'Administrator', 'webmaster@henz-software.de', '$2y$10$placeholder', 8191, TRUE);
 
 INSERT INTO henz_software_main.permissions (name, slug, bit_value, description) VALUES
 ('View Appointments', 'view_appointments', 1, 'Can view all appointment records'),
@@ -44,8 +44,8 @@ INSERT INTO henz_software_main.permissions (name, slug, bit_value, description) 
 
 INSERT INTO settings (`key`, value, type, `group`, description, is_public) VALUES
 ('site_name', 'Henz Software', 'string', 'general', 'Displayed site name', TRUE),
-('contact_email', 'info@henz-software.com', 'string', 'general', 'Main contact email', TRUE),
-('support_email', 'support@henz-software.com', 'string', 'general', 'Support contact', TRUE),
+('contact_email', 'info@henz-software.de', 'string', 'general', 'Main contact email', TRUE),
+('support_email', 'support@henz-software.de', 'string', 'general', 'Support contact', TRUE),
 ('contact_phone', '', 'string', 'general', 'Contact phone', TRUE),
 ('appointments_enabled', '1', 'boolean', 'booking', 'Enable booking form', TRUE),
 ('appointments_advance_days', '60', 'integer', 'booking', 'Days ahead clients can book', FALSE),

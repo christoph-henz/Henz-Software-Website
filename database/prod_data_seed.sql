@@ -15,35 +15,35 @@ VALUES
         67108863
     ),
     (
-        'claudia.schreiber@henz-software.com',
+        'claudia.schreiber@henz-software.de',
         '$2y$10$3oQQkSDDXU8NPnhyNGfnoOsHjcZYmOu/u57FAppo8NcdowFQ0f8Bi',
         'Claudia',
         'Schreiber',
         99135
     ),
     (
-        'support@henz-software.com',
+        'support@henz-software.de',
         '$2y$10$o1IPoPajqv0u6.wBOG5LcOKeK4Z2ScLJpZzuvW3AJ05m19LHb5klu',
         'Ioanni',
         'Gkogkas',
         32803
     ),
     (
-        'hans.huber@henz-software.com',
+        'hans.huber@henz-software.de',
         '$2y$10$nLiWEd4yQvDu4mz0WSnMGOr0AvAztfBqmIlhnXJaYs.UIU6mnPyrO',
         'Hans',
         'Huber',
         33292336
     ),
     (
-        'christoph.henz@henz-software.com',
+        'christoph.henz@henz-software.de',
         '$2y$10$b.W529gEAvAA8ymzwkedRepWUA9AIqcQLNpBjBF/MOsC7MAYfvZkO',
         'Christoph',
         'Henz',
         33402743
     ),
     (
-        'lars.gerster@henz-software.com',
+        'lars.gerster@henz-software.de',
         '$2y$12$Thnzo5dJG6Wk3bzDA4S4EOk0Hp3HoeAB.7oAqVXLycRimCF7dP25K',
         'Lars',
         'Gerster',

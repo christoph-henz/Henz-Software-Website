@@ -23,7 +23,7 @@ $links = $footerConfig['links'] ?? [];
                 data-fg-d3bl249="0.8:1.32440:/src/app/App.tsx:773:13:31413:239:e:span:te" data-fgid-d3bl249=":r91:"
                 style="font-family: &quot;JetBrains Mono&quot;, monospace; color: var(--foreground);"><?= $note; ?><span
                     data-fg-d3bl251="0.8:1.32440:/src/app/App.tsx:777:23:31587:45:e:span:t" data-fgid-d3bl251=":r92:"
-                    style="color: rgb(0, 200, 255);">.com</span></span>
+                    style="color: rgb(0, 200, 255);">.de</span></span>
         </div>
         <div class="flex gap-8" data-fg-d3bl253="0.8:1.32440:/src/app/App.tsx:780:11:31680:519:e:div:x"
             data-fgid-d3bl253=":r93:">

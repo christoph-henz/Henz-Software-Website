@@ -40,7 +40,7 @@ $ssoButton = htmlspecialchars($cfg['sso_button'] ?? 'Mit SSO anmelden');
                     <line x1="12" y1="19" x2="20" y2="19"></line>
                 </svg>
                 <span class="text-base font-bold" style="font-family:'JetBrains Mono', monospace;color:var(--foreground);">
-                    <?= $slug; ?><span style="color:#00c8ff;">.com</span>
+                    <?= $slug; ?><span style="color:#00c8ff;">.de</span>
                 </span>
             </div>
         </div>
@@ -76,7 +76,7 @@ $ssoButton = htmlspecialchars($cfg['sso_button'] ?? 'Mit SSO anmelden');
                             border-color:var(--border);">
                         <span style="color:var(--muted-foreground);"><?= htmlspecialchars($field1['icon'] ?? ''); ?></span>
                         <input type="email" name="email" value="<?= htmlspecialchars($email) ?>"
-                            placeholder="<?= htmlspecialchars($field1['placeholder'] ?? 'support@henz-software.com'); ?>"
+                            placeholder="<?= htmlspecialchars($field1['placeholder'] ?? 'support@henz-software.de'); ?>"
                             autocomplete="email"
                             class="bg-transparent outline-none w-full text-sm placeholder:text-muted-foreground"
                             style="color:var(--foreground); font-family:'JetBrains Mono', monospace;">
@@ -153,7 +153,7 @@ $ssoButton = htmlspecialchars($cfg['sso_button'] ?? 'Mit SSO anmelden');
                 </button>
 
                 <p class="text-center text-xs mt-8" style="color:var(--muted-foreground); font-family:'JetBrains Mono', monospace;">
-                    Nur für autorisierte Mitarbeiter · <?= htmlspecialchars($slug ?? 'henz-software'); ?>.com © <?= date('Y'); ?>
+                    Nur für autorisierte Mitarbeiter · <?= htmlspecialchars($slug ?? 'henz-software'); ?>.de © <?= date('Y'); ?>
                 </p>
             </form>
         </div>

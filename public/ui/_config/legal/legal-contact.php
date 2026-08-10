@@ -3,8 +3,8 @@
 declare(strict_types=1);
 
 $defaults = [
-    'contact_email' => 'info@henz-software.com',
-    'support_email' => 'support@henz-software.com',
+    'contact_email' => 'info@henz-software.de',
+    'support_email' => 'support@henz-software.de',
     'contact_phone' => 'Nicht verfügbar',
 ];
 

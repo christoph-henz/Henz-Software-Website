@@ -44,10 +44,10 @@ if ($sessionCookieDomain === '') {
     $hostOnly = preg_replace('/:\\d+$/', '', $httpHost);
     $hostOnly = is_string($hostOnly) ? $hostOnly : $httpHost;
 
-    if ($hostOnly === 'getragen-begleiten.local' || str_ends_with($hostOnly, '.getragen-begleiten.local')) {
-        $sessionCookieDomain = '.getragen-begleiten.local';
-    } elseif ($hostOnly === 'getragen-begleiten.com' || str_ends_with($hostOnly, '.getragen-begleiten.com')) {
-        $sessionCookieDomain = '.getragen-begleiten.com';
+    if ($hostOnly === 'henz-software.local' || str_ends_with($hostOnly, '.henz-software.local')) {
+        $sessionCookieDomain = '.henz-software.local';
+    } elseif ($hostOnly === 'henz-software.de' || str_ends_with($hostOnly, '.henz-software.de')) {
+        $sessionCookieDomain = '.henz-software.de';
     }
 }
 if ($sessionCookieDomain !== '') {

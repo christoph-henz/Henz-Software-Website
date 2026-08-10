@@ -3,8 +3,8 @@
 declare(strict_types=1);
 
 $legalContact = require __DIR__ . '/legal-contact.php';
-$contactEmail = (string) ($legalContact['contact_email'] ?? 'info@henz-software.com');
-$supportEmail = (string) ($legalContact['support_email'] ?? 'support@henz-software.com');
+$contactEmail = (string) ($legalContact['contact_email'] ?? 'info@henz-software.de');
+$supportEmail = (string) ($legalContact['support_email'] ?? 'support@henz-software.de');
 $contactPhone = (string) ($legalContact['contact_phone'] ?? 'Nicht verfügbar');
 
 return [
