@@ -80,9 +80,11 @@ final class ConsentController extends BaseApiController
         $acceptedAt = date('Y-m-d H:i:s');
         $ipAddress = $this->resolveIpAddress($request);
         $userAgent = trim((string) $request->header('user-agent', 'unknown'));
+        $deviceName = $this->resolveDeviceName($request, $data);
+        $browserUserName = $this->resolveBrowserUserName($request, $data);
 
         $database = app(Database::class);
-        $database->transaction(function () use ($submittedByKey, $requiredKeys, $canonicalTexts, $consentVersion, $acceptedAt, $ipAddress, $userAgent): void {
+        $database->transaction(function () use ($submittedByKey, $requiredKeys, $canonicalTexts, $consentVersion, $acceptedAt, $ipAddress, $userAgent, $deviceName, $browserUserName): void {
             foreach ($requiredKeys as $requiredKey) {
                 $consent = (array) ($submittedByKey[$requiredKey] ?? []);
                 $textSnapshot = trim((string) ($consent['consent_text_snapshot'] ?? ''));
@@ -98,7 +100,9 @@ final class ConsentController extends BaseApiController
                     $consentVersion,
                     $textSnapshot,
                     $ipAddress,
-                    $userAgent
+                    $userAgent,
+                    $deviceName,
+                    $browserUserName
                 );
 
                 db('consents')->insert([
@@ -109,6 +113,8 @@ final class ConsentController extends BaseApiController
                     'consent_text_snapshot' => $textSnapshot,
                     'ip_address' => $ipAddress,
                     'user_agent' => $userAgent,
+                    'device_name' => $deviceName,
+                    'browser_user_name' => $browserUserName,
                     'signature_hash' => $signatureHash,
                 ]);
             }
@@ -153,6 +159,8 @@ final class ConsentController extends BaseApiController
 
         $ipAddress = $this->resolveIpAddress($request);
         $userAgent = trim((string) $request->header('user-agent', 'unknown'));
+        $deviceName = $this->resolveDeviceName($request, $data);
+        $browserUserName = $this->resolveBrowserUserName($request, $data);
 
         $preparedConsents = [];
 
@@ -217,7 +225,9 @@ final class ConsentController extends BaseApiController
                 $preparedConsents,
                 $consentVersion,
                 $ipAddress,
-                $userAgent
+                $userAgent,
+                $deviceName,
+                $browserUserName
             ) {
                 $ids = [];
 
@@ -234,7 +244,9 @@ final class ConsentController extends BaseApiController
                         $consentVersion,
                         $textSnapshot,
                         $ipAddress,
-                        $userAgent
+                        $userAgent,
+                        $deviceName,
+                        $browserUserName
                     );
 
                     $ids[] = db('consents')->insert([
@@ -245,6 +257,8 @@ final class ConsentController extends BaseApiController
                         'consent_text_snapshot' => $textSnapshot,
                         'ip_address' => $ipAddress,
                         'user_agent' => $userAgent,
+                        'device_name' => $deviceName,
+                        'browser_user_name' => $browserUserName,
                         'signature_hash' => $signatureHash,
                     ]);
                 }
@@ -264,21 +278,175 @@ final class ConsentController extends BaseApiController
 
     private function resolveIpAddress(Request $request): string
     {
-        $forwardedFor = trim((string) $request->header('x-forwarded-for', ''));
-        if ($forwardedFor !== '') {
-            $parts = explode(',', $forwardedFor);
-            $candidate = trim((string) ($parts[0] ?? ''));
-            if ($candidate !== '') {
-                return substr($candidate, 0, 45);
+        $candidates = [];
+
+        foreach (['cf-connecting-ip', 'true-client-ip', 'x-client-ip', 'x-real-ip', 'remote_addr'] as $header) {
+            $value = trim((string) $request->header($header, ''));
+            if ($value !== '') {
+                $candidates[] = $value;
             }
         }
 
-        $realIp = trim((string) $request->header('x-real-ip', ''));
-        if ($realIp !== '') {
-            return substr($realIp, 0, 45);
+        $forwardedFor = trim((string) $request->header('x-forwarded-for', ''));
+        if ($forwardedFor !== '') {
+            foreach (explode(',', $forwardedFor) as $part) {
+                $candidate = trim($part);
+                if ($candidate !== '') {
+                    $candidates[] = $candidate;
+                }
+            }
         }
 
-        return '0.0.0.0';
+        $forwarded = trim((string) $request->header('forwarded', ''));
+        if ($forwarded !== '') {
+            if (preg_match_all('/for=\"?\[?([^\]\";,]+)\]?\"?/i', $forwarded, $matches)) {
+                foreach (($matches[1] ?? []) as $candidate) {
+                    $candidate = trim((string) $candidate);
+                    if ($candidate !== '') {
+                        $candidates[] = $candidate;
+                    }
+                }
+            }
+        }
+
+        $bestAny = null;
+        foreach ($candidates as $candidate) {
+            $normalized = $this->normalizeIp($candidate);
+            if ($normalized === null) {
+                continue;
+            }
+
+            if ($this->isPublicIp($normalized)) {
+                return $normalized;
+            }
+
+            if ($bestAny === null) {
+                $bestAny = $normalized;
+            }
+        }
+
+        return $bestAny ?? '0.0.0.0';
+    }
+
+    private function resolveDeviceName(Request $request, array $data): string
+    {
+        $fromPayload = trim((string) ($data['device_name'] ?? ''));
+        if ($fromPayload !== '') {
+            return substr($fromPayload, 0, 255);
+        }
+
+        $fromOsAccountPayload = trim((string) ($data['os_account_name'] ?? ''));
+        if ($fromOsAccountPayload !== '') {
+            return substr($fromOsAccountPayload, 0, 255);
+        }
+
+        $fromHeader = trim((string) $request->header('x-device-name', ''));
+        if ($fromHeader !== '') {
+            return substr($fromHeader, 0, 255);
+        }
+
+        $fromOsAccountHeader = trim((string) $request->header('x-os-account-name', ''));
+        if ($fromOsAccountHeader !== '') {
+            return substr($fromOsAccountHeader, 0, 255);
+        }
+
+        $session = $request->session();
+        $sessionKey = (string) config('admin.session_key', 'admin_user');
+        $adminUser = $session[$sessionKey] ?? null;
+
+        if (is_array($adminUser)) {
+            $firstName = trim((string) ($adminUser['first_name'] ?? ''));
+            $lastName = trim((string) ($adminUser['last_name'] ?? ''));
+            $fullName = trim($firstName . ' ' . $lastName);
+
+            if ($fullName !== '') {
+                return substr($fullName, 0, 255);
+            }
+
+            $email = trim((string) ($adminUser['email'] ?? ''));
+            if ($email !== '') {
+                return substr($email, 0, 255);
+            }
+        }
+
+        $browserUserName = trim((string) ($data['browser_user_name'] ?? ''));
+        if ($browserUserName !== '' && strtolower($browserUserName) !== 'unknown') {
+            return substr($browserUserName, 0, 255);
+        }
+
+        $serverUser = trim((string) ($_SERVER['LOGON_USER'] ?? $_SERVER['REMOTE_USER'] ?? getenv('USERNAME') ?: ''));
+        if ($serverUser !== '') {
+            return substr($serverUser, 0, 255);
+        }
+
+        $platform = trim((string) $request->header('sec-ch-ua-platform', ''));
+        if ($platform !== '') {
+            $platform = trim($platform, " \t\n\r\0\x0B\"");
+            return substr($platform . ' (account-unavailable)', 0, 255);
+        }
+
+        return 'unknown-device';
+    }
+
+    private function resolveBrowserUserName(Request $request, array $data): string
+    {
+        $fromPayload = trim((string) ($data['browser_user_name'] ?? ''));
+        if ($fromPayload !== '') {
+            return substr($fromPayload, 0, 255);
+        }
+
+        $fromHeader = trim((string) $request->header('x-browser-user-name', ''));
+        if ($fromHeader !== '') {
+            return substr($fromHeader, 0, 255);
+        }
+
+        $session = $request->session();
+        $sessionKey = (string) config('admin.session_key', 'admin_user');
+        $adminUser = $session[$sessionKey] ?? null;
+
+        if (is_array($adminUser)) {
+            $firstName = trim((string) ($adminUser['first_name'] ?? ''));
+            $lastName = trim((string) ($adminUser['last_name'] ?? ''));
+            $fullName = trim($firstName . ' ' . $lastName);
+
+            if ($fullName !== '') {
+                return substr($fullName, 0, 255);
+            }
+
+            $email = trim((string) ($adminUser['email'] ?? ''));
+            if ($email !== '') {
+                return substr($email, 0, 255);
+            }
+        }
+
+        return 'unknown';
+    }
+
+    private function normalizeIp(string $candidate): ?string
+    {
+        $candidate = trim($candidate);
+        if ($candidate === '') {
+            return null;
+        }
+
+        if (str_starts_with($candidate, '[') && str_contains($candidate, ']')) {
+            $candidate = trim($candidate, '[]');
+        }
+
+        if (str_contains($candidate, ':') && substr_count($candidate, ':') === 1 && str_contains($candidate, '.')) {
+            $candidate = explode(':', $candidate, 2)[0];
+        }
+
+        if (filter_var($candidate, FILTER_VALIDATE_IP) === false) {
+            return null;
+        }
+
+        return substr($candidate, 0, 45);
+    }
+
+    private function isPublicIp(string $ip): bool
+    {
+        return filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false;
     }
 
     private function normalizeLocalRedirectTarget(string $target): string
@@ -351,7 +519,9 @@ final class ConsentController extends BaseApiController
         string $consentVersion,
         string $consentTextSnapshot,
         string $ipAddress,
-        string $userAgent
+        string $userAgent,
+        string $deviceName,
+        string $browserUserName
     ): string {
         $secret = (string) env('CONSENT_HMAC_KEY', 'local-dev-consent-key');
 
@@ -364,6 +534,8 @@ final class ConsentController extends BaseApiController
             $consentTextSnapshot,
             $ipAddress,
             $userAgent,
+            $deviceName,
+            $browserUserName,
         ]);
 
         return hash_hmac('sha256', $payload, $secret);

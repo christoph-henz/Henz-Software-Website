@@ -47,6 +47,9 @@ $renderBanner = static function (bool $templateMode = false) use ($bannerError, 
                         <input type="hidden" name="redirect_to" value="/" />
                         <input type="hidden" name="context_type" value="site" />
                         <input type="hidden" name="consent_version" value="site-1.0" />
+                      <input type="hidden" name="device_name" value="" />
+                      <input type="hidden" name="os_account_name" value="" />
+                      <input type="hidden" name="browser_user_name" value="" />
                       <input type="hidden" name="consents[0][consent_key]" value="essential_cookies" toolparamdescription="Technischer Schlüssel der erforderlichen Einwilligung." />
                       <input type="hidden" name="consents[0][accepted]" value="1" toolparamdescription="Einwilligung wird erteilt." />
                       <input type="hidden" name="consents[0][consent_text_snapshot]" value="<?= htmlspecialchars($consentText, ENT_QUOTES, 'UTF-8'); ?>" toolparamdescription="Text, dem zugestimmt wird." />
@@ -139,6 +142,66 @@ $renderBanner = static function (bool $templateMode = false) use ($bannerError, 
     return acceptedValues.indexOf(getCookie(cookieName).toLowerCase()) !== -1;
   }
 
+  function resolveOsAccountName() {
+    var platform = '';
+    if (navigator.userAgentData && typeof navigator.userAgentData.platform === 'string') {
+      platform = navigator.userAgentData.platform;
+    } else if (typeof navigator.platform === 'string') {
+      platform = navigator.platform;
+    }
+
+    platform = (platform || '').trim();
+    if (platform !== '') {
+      return (platform + ' (account-unavailable)').substring(0, 255);
+    }
+
+    return 'unknown-device';
+  }
+
+  function resolveDeviceName() {
+    return resolveOsAccountName();
+  }
+
+  function assignDeviceNameFields() {
+    var value = resolveDeviceName();
+    var inputs = document.querySelectorAll('input[name="device_name"]');
+    for (var i = 0; i < inputs.length; i++) {
+      inputs[i].value = value;
+    }
+
+    var osInputs = document.querySelectorAll('input[name="os_account_name"]');
+    for (var j = 0; j < osInputs.length; j++) {
+      osInputs[j].value = value;
+    }
+  }
+
+  function resolveBrowserUserName() {
+    // Browser APIs do not expose Google/Apple profile usernames for privacy reasons.
+    // We store a provider hint and let backend session fallback capture app user identity when available.
+    var ua = navigator.userAgent || '';
+    if (/Edg\//i.test(ua) || /Chrome\//i.test(ua)) {
+      return 'google-profile-unavailable';
+    }
+
+    if (/Safari\//i.test(ua) && !/Chrome\//i.test(ua)) {
+      return 'apple-profile-unavailable';
+    }
+
+    if (/Firefox\//i.test(ua)) {
+      return 'mozilla-profile-unavailable';
+    }
+
+    return 'unknown';
+  }
+
+  function assignBrowserUserNameFields() {
+    var value = resolveBrowserUserName();
+    var inputs = document.querySelectorAll('input[name="browser_user_name"]');
+    for (var i = 0; i < inputs.length; i++) {
+      inputs[i].value = value;
+    }
+  }
+
   function lockBody() {
     document.body.classList.toggle('gb-essential-cookie-locked', !hasConsent());
   }
@@ -169,10 +232,14 @@ $renderBanner = static function (bool $templateMode = false) use ($bannerError, 
 
     var clone = template.content.firstElementChild.cloneNode(true);
     document.body.appendChild(clone);
+    assignDeviceNameFields();
+    assignBrowserUserNameFields();
     lockBody();
   }
 
   function boot() {
+    assignDeviceNameFields();
+    assignBrowserUserNameFields();
     lockBody();
     ensureBanner();
 
