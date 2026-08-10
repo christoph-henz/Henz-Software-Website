@@ -4,12 +4,21 @@ declare(strict_types=1);
 
 $cfg = require base_path('public/ui/_config/legal/datenschutz.php');
 $pageTitle = (string) ($cfg['page_title'] ?? 'Datenschutz – Henz Software Solutions');
+$pageDescription = (string) ($cfg['page_description'] ?? 'Informationen zum Datenschutz und zur Verarbeitung personenbezogener Daten bei Henz Software Solutions.');
+$siteUrl = rtrim((string) config('app.url', 'http://localhost'), '/');
+$pageSeo = [
+    'title' => $pageTitle,
+    'description' => $pageDescription,
+    'canonical' => $siteUrl . '/datenschutz',
+    'og_type' => 'website',
+];
 ?><!doctype html>
 <html lang="de">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title><?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8'); ?></title>
+<?php require __DIR__ . '/../_partials/seo-head.php'; ?>
+    <link rel="icon" type="image/svg+xml" href="/ui/_assets/images/favicon.svg" />
     <link rel="stylesheet" href="/ui/_assets/css/theme.css" />
     <link rel="stylesheet" href="/ui/_assets/css/tailwind.css" />
 </head>

@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 ?>
-<div class="rounded-xl overflow-hidden border" data-fg-d3bl64="0.8:1.32440:/src/app/App.tsx:338:11:12594:3124:e:div:ete"
+<div class="hidden md:block rounded-xl overflow-hidden border" data-fg-d3bl64="0.8:1.32440:/src/app/App.tsx:338:11:12594:3124:e:div:ete"
     data-fgid-d3bl64=":r16:" style="border-color: rgba(0, 200, 255, 0.15); background: var(--card);">
     <div class="flex items-center gap-2 px-4 py-3 border-b"
         data-fg-d3bl65="0.8:1.32440:/src/app/App.tsx:342:13:12764:651:e:div:etetete" data-fgid-d3bl65=":r17:"

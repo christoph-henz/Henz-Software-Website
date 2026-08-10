@@ -17,7 +17,7 @@ $calendarConfig = is_array($calendarConfig ?? null)
     ? $calendarConfig
     : (require base_path('public/ui/_config/operations/admin-calendar.php'));
 
-$extraHead = '';
+$extraHead = '<link rel="icon" type="image/svg+xml" href="/ui/_assets/images/favicon.svg" />';
 $extraScripts = '<script>window.__ADMIN_CALENDAR_CONFIG = ' . json_encode(
     $calendarConfig,
     JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT

@@ -3,12 +3,21 @@
 declare(strict_types=1);
 
 $pageTitle = 'Anfrage erfolgreich gesendet - Henz Software';
+$siteUrl = rtrim((string) config('app.url', 'http://localhost'), '/');
+$pageSeo = [
+    'title' => $pageTitle,
+    'description' => 'Ihre Anfrage wurde erfolgreich übermittelt. Henz Software meldet sich zeitnah zurück.',
+    'canonical' => $siteUrl . '/kontakt/erfolg',
+    'robots' => 'noindex,follow',
+    'og_type' => 'website',
+];
 ?><!doctype html>
 <html lang="de">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title><?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8'); ?></title>
+<?php require __DIR__ . '/../_partials/seo-head.php'; ?>
+    <link rel="icon" type="image/svg+xml" href="/ui/_assets/images/favicon.svg" />
     <link rel="stylesheet" href="/ui/_assets/css/theme.css" />
     <link rel="stylesheet" href="/ui/_assets/css/tailwind.css" />
 </head>

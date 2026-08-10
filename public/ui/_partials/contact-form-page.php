@@ -111,6 +111,10 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
         // }
         $requiredAttr = $required ? 'required' : '';
         $placeholderAttr = htmlspecialchars($placeholder, ENT_QUOTES, 'UTF-8');
+        $toolParamDescription = $label !== ''
+            ? $label . ($required ? ' (Pflichtfeld)' : '')
+            : ($name . ($required ? ' (Pflichtfeld)' : ''));
+        $toolParamDescriptionAttr = htmlspecialchars($toolParamDescription, ENT_QUOTES, 'UTF-8');
 
         $colSpanClass = $col === 'half'
             ? 'md:col-span-1'
@@ -135,6 +139,7 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
                         style="border-color: var(--border); background: var(--card); color: var(--foreground);"
                         type="<?= htmlspecialchars($type) ?>" id="<?= htmlspecialchars($fieldId) ?>"
                         name="<?= htmlspecialchars($fieldId) ?>" placeholder="<?= $placeholderAttr ?>"
+                        toolparamdescription="<?= $toolParamDescriptionAttr ?>"
                         value="<?= htmlspecialchars((string) $value) ?>" data-validators='<?= htmlspecialchars(
                                json_encode($validators, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '[]',
                                ENT_QUOTES,
@@ -158,6 +163,7 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
                         style="border-color: var(--border); background: var(--card); color: var(--foreground);"
                         type="<?= htmlspecialchars($type) ?>" id="<?= htmlspecialchars($fieldId) ?>"
                         name="<?= htmlspecialchars($fieldId) ?>" placeholder="<?= $placeholderAttr ?>"
+                        toolparamdescription="<?= $toolParamDescriptionAttr ?>"
                         value="<?= htmlspecialchars((string) $value) ?>" data-validators='<?= htmlspecialchars(
                                json_encode($validators, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '[]',
                                ENT_QUOTES,
@@ -181,6 +187,7 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
                         style="border-color: var(--border); background: var(--card); color: var(--foreground);"
                         type="<?= htmlspecialchars($type) ?>" id="<?= htmlspecialchars($fieldId) ?>"
                         name="<?= htmlspecialchars($fieldId) ?>" placeholder="<?= $placeholderAttr ?>"
+                        toolparamdescription="<?= $toolParamDescriptionAttr ?>"
                         value="<?= htmlspecialchars((string) $value) ?>" data-validators='<?= htmlspecialchars(
                                json_encode($validators, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '[]',
                                ENT_QUOTES,
@@ -204,6 +211,7 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
                         class="peer min-h-[180px] w-full rounded-xl border px-5 pt-7 pb-3 resize-y focus:outline-none transition-colors"
                         style="border-color: var(--border); background: var(--card); color: var(--foreground);"
                         id="<?= htmlspecialchars($fieldId) ?>" name="<?= htmlspecialchars($fieldId) ?>"
+                        toolparamdescription="<?= $toolParamDescriptionAttr ?>"
                         placeholder="<?= $placeholderAttr ?>" data-validators='<?= htmlspecialchars(
                               json_encode($validators, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '[]',
                               ENT_QUOTES,
@@ -227,6 +235,7 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
                     <select
                         class="peer w-full rounded-xl border px-5 pt-7 pb-3 appearance-none focus:outline-none transition-colors"
                         style="border-color: var(--border); background: var(--card); color: var(--foreground);"
+                        toolparamdescription="<?= $toolParamDescriptionAttr ?>"
                         id="<?= htmlspecialchars($fieldId) ?>" name="<?= htmlspecialchars($fieldId) ?>" data-validators='<?= htmlspecialchars(
                                 json_encode($validators, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '[]',
                                 ENT_QUOTES,
@@ -349,6 +358,8 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
             style="border-color: var(--border); background: var(--card); box-shadow: 0 24px 60px color-mix(in srgb, var(--primary) 12%, transparent);">
             <form class="gap-6" id="booking-form" action="<?= htmlspecialchars($action, ENT_QUOTES, 'UTF-8'); ?>"
                 method="<?= htmlspecialchars($method, ENT_QUOTES, 'UTF-8'); ?>"
+                toolname="submitContactRequest"
+                tooldescription="Sendet eine Kontaktanfrage mit Leistungswunsch, Kontaktdaten, Termin und Einwilligungen."
                 data-success-url="<?= htmlspecialchars($successRedirectUrl, ENT_QUOTES, 'UTF-8'); ?>"
                 data-slots-endpoint="<?= htmlspecialchars($slotPickerEndpoint, ENT_QUOTES, 'UTF-8'); ?>"
                 data-days-endpoint="<?= htmlspecialchars($slotPickerDaysEndpoint, ENT_QUOTES, 'UTF-8'); ?>"
@@ -382,6 +393,7 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
                                 style="border-color: color-mix(in srgb, var(--primary) 30%, transparent); background: var(--card); color: var(--primary);"
                                 type="checkbox"
                                 name="consent_check_<?= htmlspecialchars($consentKey, ENT_QUOTES, 'UTF-8'); ?>"
+                                toolparamdescription="<?= htmlspecialchars('Einwilligung: ' . $consentLabel, ENT_QUOTES, 'UTF-8'); ?>"
                                 data-consent-key="<?= htmlspecialchars($consentKey, ENT_QUOTES, 'UTF-8'); ?>" required />
                             <span
                                 class="text-sm leading-relaxed" style="color: var(--foreground);"><?= htmlspecialchars($consentLabel, ENT_QUOTES, 'UTF-8'); ?></span>

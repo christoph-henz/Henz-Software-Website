@@ -8,7 +8,7 @@ $logoutAction = (string) ($logoutAction ?? '/logout');
 $csrfToken   = (string) ($csrfToken ?? '');
 $usersConfig = is_array($usersConfig ?? null) ? $usersConfig : [];
 
-$extraHead    = '';
+$extraHead    = '<link rel="icon" type="image/svg+xml" href="/ui/_assets/images/favicon.svg" />';
 $extraScripts = '<script>window.__ADMIN_USERS_CONFIG = ' . json_encode(
     $usersConfig,
     JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT

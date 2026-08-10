@@ -90,7 +90,7 @@ $renderNavItems = static function (array $items): string {
                 class="px-5 py-2 text-sm font-semibold rounded transition-all duration-200"
                 data-fg-d3bl27="0.8:1.32440:/src/app/App.tsx:221:13:7846:607:e:button:s" data-fgid-d3bl27=":rf:"
                 style="<?= htmlspecialchars($talkStyle, ENT_QUOTES, 'UTF-8'); ?>"
-                onclick="window.location.href='/contact'">//
+                onclick="window.location.href='/kontakt'">//
                 let's talk</button></div><button class="gb-nav-toggle md:hidden p-2"
             data-fg-d3bl29="0.8:1.32440:/src/app/App.tsx:239:11:8482:251:e:button:x" data-fgid-d3bl29=":rg:"
             type="button" aria-expanded="false" aria-label="Navigation umschalten"

@@ -192,6 +192,73 @@ Router::get('/status.json', fn () => Response::json([
     ],
 ]))->name('status.api');
 
+Router::get('/robots.txt', function (): Response {
+    $baseUrl = rtrim((string) config('app.url', 'http://localhost'), '/');
+    $lines = [
+        'User-agent: *',
+        'Allow: /llms.txt',
+        'Disallow: /api/',
+        'Disallow: /admin/',
+        'Disallow: /swagger/',
+        'Disallow: /status',
+        'Disallow: /status.json',
+        'Disallow: /kontakt/erfolg',
+        'Disallow: /storage/cache/',
+        'Disallow: /storage/logs/',
+        'Sitemap: ' . $baseUrl . '/sitemap.xml',
+    ];
+
+    return new Response(implode("\n", $lines) . "\n", 200, [
+        'Content-Type' => 'text/plain; charset=utf-8',
+        'Cache-Control' => 'public, max-age=86400',
+    ]);
+})->name('robots.txt');
+
+Router::get('/sitemap.xml', function (): Response {
+    $baseUrl = rtrim((string) config('app.url', 'http://localhost'), '/');
+    $urls = [
+        '/',
+        '/leistungen',
+        '/technology',
+        '/kontakt',
+        '/impressum',
+        '/datenschutz',
+        '/agb',
+        '/widerruf',
+    ];
+
+    foreach (project_page_entries() as $project) {
+        $routeSlug = trim((string) ($project['route_slug'] ?? ''));
+        if ($routeSlug === '') {
+            continue;
+        }
+
+        $urls[] = '/' . ltrim($routeSlug, '/');
+    }
+
+    $seen = [];
+    $xmlEntries = [];
+    foreach ($urls as $path) {
+        $path = '/' . ltrim((string) $path, '/');
+        if (isset($seen[$path])) {
+            continue;
+        }
+
+        $seen[$path] = true;
+        $xmlEntries[] = '  <url><loc>' . htmlspecialchars($baseUrl . $path, ENT_XML1 | ENT_QUOTES, 'UTF-8') . '</loc></url>';
+    }
+
+    $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n" .
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n" .
+        implode("\n", $xmlEntries) . "\n" .
+        '</urlset>' . "\n";
+
+    return new Response($xml, 200, [
+        'Content-Type' => 'application/xml; charset=utf-8',
+        'Cache-Control' => 'public, max-age=86400',
+    ]);
+})->name('sitemap.xml');
+
 /**
  * Returns an empty response for favicon requests.
  *
@@ -336,11 +403,7 @@ Router::get('/technologien', function (): Response {
         return $response;
     }
 
-    ob_start();
-    require base_path('public/ui/_templates/technology-page.php');
-    $html = (string) ob_get_clean();
-
-    return new Response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
+    return Response::redirect('/technology', 301);
 })->name('technologien');
 
 /**
@@ -475,7 +538,6 @@ Router::get('/datenschutz', function (): Response {
  *
  * @return Response HTML response for the widerruf page.
  **/
-/*
 Router::get('/widerruf', function (): Response {
     ob_start();
     require base_path('public/ui/_templates/widerruf-page.php');
@@ -483,7 +545,6 @@ Router::get('/widerruf', function (): Response {
 
     return new Response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
 })->name('widerruf');
-*/
 
 /**
  * Renders the AGB page.

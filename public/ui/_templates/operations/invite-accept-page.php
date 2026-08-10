@@ -20,6 +20,7 @@ $errorMessage = (string) ($errorMessage ?? '');
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Henz Software</title>
+    <link rel="icon" type="image/svg+xml" href="/ui/_assets/images/favicon.svg" />
     <link rel="stylesheet" href="/ui/_assets/css/theme.css" />
     <link rel="stylesheet" href="/ui/_assets/css/tailwind.css" />
 </head>

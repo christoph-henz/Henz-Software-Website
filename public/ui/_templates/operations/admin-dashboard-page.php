@@ -32,7 +32,7 @@ $extraScripts = '<script>window.__ADMIN_DASHBOARD_CONFIG = ' . json_encode(
     $_dashboardConfig,
     JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
 ) . ';</script>';
-$extraHead = '';
+$extraHead = '<link rel="icon" type="image/svg+xml" href="/ui/_assets/images/favicon.svg" />';
 
 ob_start();
 ?>

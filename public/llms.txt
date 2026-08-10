@@ -1,0 +1,29 @@
+# Henz Software Website
+
+> Offizielle Uebersicht fuer KI-Agenten zur Navigation, Kontaktaufnahme und rechtlichen Informationen auf henz-software.de.
+
+Diese Datei beschreibt die wichtigsten Seiten und deren Zweck in kompakter Form.
+Interaktive Formulare sind fuer agentische Nutzung mit WebMCP-Annotationen versehen.
+
+## Hauptseiten
+
+- [Startseite](/): Ueberblick ueber Leistungen, Referenzen, Technologien und Kontakt.
+- [Leistungen](/leistungen): Leistungen und Angebotsbereiche.
+- [Technologien](/technology): Verwendete Technologien und Schwerpunkte.
+- [Kontakt](/kontakt): Kontaktformular fuer Anfragen und Terminwuensche.
+
+## Projekte
+
+- [Sitemap](/sitemap.xml): Vollstaendige Liste indexierbarer Seiten inklusive aktiver Projektseiten.
+
+## Rechtliches
+
+- [Impressum](/impressum): Anbieterkennzeichnung.
+- [Datenschutz](/datenschutz): Informationen zur Datenverarbeitung.
+- [AGB](/agb): Allgemeine Geschaeftsbedingungen.
+- [Widerruf](/widerruf): Widerrufsbelehrung.
+
+## Optional
+
+- [robots.txt](/robots.txt): Crawl-Regeln fuer klassische Bots.
+- [Status API](/status.json): Technischer Status-Endpunkt (nicht fuer Indexierung gedacht).

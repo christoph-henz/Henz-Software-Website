@@ -189,7 +189,7 @@ foreach ($technologies as $technology) {
 return [
     'slug' => 'Tech Stack',
     'title' => 'Technologien im Einsatz',
-    'intro' => 'Aus der Tabelle technology geladen und nach Bereichen strukturiert.',
+    'intro' => 'Wir setzen auf moderne Technologien, um robuste und skalierbare Softwarelösungen zu entwickeln. Unser Technologie-Stack umfasst eine Vielzahl von Programmiersprachen, Frameworks und Tools, die es uns ermöglichen, maßgeschneiderte Anwendungen für unterschiedliche Anforderungen zu erstellen.',
     'groups' => $groupList,
     'technologies' => $technologies,
     'highlights' => $highlights,

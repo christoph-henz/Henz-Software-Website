@@ -8,7 +8,7 @@ $logoutAction = (string) ($logoutAction ?? '/logout');
 $csrfToken = (string) ($csrfToken ?? '');
 $availabilityConfig = is_array($availabilityConfig ?? null) ? $availabilityConfig : [];
 
-$extraHead = '<link rel="stylesheet" href="/ui/_assets/css/admin-availability.css" />';
+$extraHead = '<link rel="stylesheet" href="/ui/_assets/css/admin-availability.css" /><link rel="icon" type="image/svg+xml" href="/ui/_assets/images/favicon.svg" />';
 $extraScripts = '<script>window.__ADMIN_AVAILABILITY_CONFIG = ' . json_encode(
     $availabilityConfig,
     JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
