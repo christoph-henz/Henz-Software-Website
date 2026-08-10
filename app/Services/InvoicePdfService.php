@@ -443,6 +443,7 @@ final class InvoicePdfService
                         Unternehmensdaten
                     </strong>'
         . 'USt-IdNr: ' . $bank_data['ust_id'] .'<br>'
+        . 'USt-IdNr: wird nachgetragen<br>'
         . 'Amtsgericht: Aschaffenburg<br>
                     Inhaber: Christoph Henz<br>
                     www.henz-software.de'
