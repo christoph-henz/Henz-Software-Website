@@ -6,9 +6,35 @@ use App\Core\Http\Response;
 use App\Core\Http\Request;
 use App\Core\Routing\RouterFacade as Router;
 use App\Controllers\Api\V1\AvailabilityController;
+use App\Controllers\Api\V1\ConsentController;
 use App\Controllers\Api\V1\RequestController;
 use App\Controllers\Api\V1\FormStateController;
 use App\Core\Support\OperationHost;
+
+if (!function_exists('hasEssentialCookieConsent')) {
+    function hasEssentialCookieConsent(Request $request): bool
+    {
+        $cookie = strtolower(trim((string) $request->cookie('hs_essential_cookies', '')));
+
+        return in_array($cookie, ['accepted', '1', 'true', 'yes'], true);
+    }
+}
+
+if (!function_exists('redirectIfEssentialConsentMissing')) {
+    function redirectIfEssentialConsentMissing(Request $request): ?Response
+    {
+        $path = $request->path();
+        if (in_array($path, ['/', '/impressum', '/agb', '/datenschutz'], true)) {
+            return null;
+        }
+
+        if (hasEssentialCookieConsent($request)) {
+            return null;
+        }
+
+        return Response::redirect('/', 302);
+    }
+}
 
 if (!function_exists('serveMediaFileFromStorage')) {
     /**
@@ -274,6 +300,11 @@ Router::get('/', function (): Response {
  * @return Response HTML response for the leistungen page.
  */
 Router::get('/leistungen', function (): Response {
+    $request = Request::capture();
+    if ($response = redirectIfEssentialConsentMissing($request)) {
+        return $response;
+    }
+
     ob_start();
     require base_path('public/ui/_templates/service-page.php');
     $html = (string) ob_get_clean();
@@ -287,6 +318,11 @@ Router::get('/leistungen', function (): Response {
  * @return Response HTML response for the technology page.
  */
 Router::get('/technology', function (): Response {
+    $request = Request::capture();
+    if ($response = redirectIfEssentialConsentMissing($request)) {
+        return $response;
+    }
+
     ob_start();
     require base_path('public/ui/_templates/technology-page.php');
     $html = (string) ob_get_clean();
@@ -295,6 +331,11 @@ Router::get('/technology', function (): Response {
 })->name('technology');
 
 Router::get('/technologien', function (): Response {
+    $request = Request::capture();
+    if ($response = redirectIfEssentialConsentMissing($request)) {
+        return $response;
+    }
+
     ob_start();
     require base_path('public/ui/_templates/technology-page.php');
     $html = (string) ob_get_clean();
@@ -326,6 +367,11 @@ foreach (project_page_entries() as $project) {
     $routeName = preg_replace('/[^a-z0-9_-]+/i', '-', $routeSlug) ?? $routeSlug;
 
     Router::get('/' . ltrim($routeSlug, '/'), static function () use ($project): Response {
+        $request = Request::capture();
+        if ($response = redirectIfEssentialConsentMissing($request)) {
+            return $response;
+        }
+
         ob_start();
         require base_path('public/ui/_templates/project-page.php');
         $html = (string) ob_get_clean();
@@ -340,6 +386,11 @@ foreach (project_page_entries() as $project) {
  * @return Response HTML response for the referenzen page.
  */
 Router::get('/zielgruppen', function (): Response {
+    $request = Request::capture();
+    if ($response = redirectIfEssentialConsentMissing($request)) {
+        return $response;
+    }
+
     ob_start();
     require base_path('public/ui/_templates/zielgruppen-page.php');
     $html = (string) ob_get_clean();
@@ -368,6 +419,11 @@ Router::get('/ueber-uns', function (): Response {
  * @return Response HTML response for the contact page.
  */
 Router::get('/kontakt', function (): Response {
+    $request = Request::capture();
+    if ($response = redirectIfEssentialConsentMissing($request)) {
+        return $response;
+    }
+
     ob_start();
     require base_path('public/ui/_templates/contact-page.php');
     $html = (string) ob_get_clean();
@@ -376,6 +432,11 @@ Router::get('/kontakt', function (): Response {
 })->name('kontakt');
 
 Router::get('/kontakt/erfolg', function (): Response {
+    $request = Request::capture();
+    if ($response = redirectIfEssentialConsentMissing($request)) {
+        return $response;
+    }
+
     ob_start();
     require base_path('public/ui/_templates/contact-success-page.php');
     $html = (string) ob_get_clean();
@@ -436,6 +497,8 @@ Router::get('/agb', function (): Response {
 
     return new Response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
 })->name('agb');
+
+Router::post('/cookie-consent', [ConsentController::class, 'storeWebsite'])->name('cookie-consent.store');
 
 /**
  * Handles unmatched routes and renders API or HTML 404 responses.

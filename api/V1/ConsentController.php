@@ -12,21 +12,126 @@ use Throwable;
 
 final class ConsentController extends BaseApiController
 {
+    public function storeWebsite(Request $request): Response
+    {
+        $data = $request->all();
+        $consentVersion = trim((string) ($data['consent_version'] ?? 'site-1.0'));
+        $redirectTo = $this->normalizeLocalRedirectTarget((string) ($data['redirect_to'] ?? '/'));
+
+        $consentConfig = config('consents');
+        $requiredKeys = (array) ($consentConfig['site_required_keys'] ?? ['essential_cookies']);
+        $canonicalTexts = (array) (($consentConfig['site_versions'] ?? [])[$consentVersion] ?? []);
+
+        $errors = [];
+
+        if ($consentVersion === '') {
+            $errors['consent_version'][] = 'required';
+        } elseif ($canonicalTexts === []) {
+            $errors['consent_version'][] = 'unsupported_version';
+        }
+
+        $consents = $data['consents'] ?? null;
+        if (!is_array($consents) || $consents === []) {
+            $errors['consents'][] = 'required';
+        }
+
+        if ($errors !== []) {
+            return Response::redirect($redirectTo . (str_contains($redirectTo, '?') ? '&' : '?') . 'cookie_consent=error', 303);
+        }
+
+        $submittedByKey = [];
+        foreach ($consents as $consent) {
+            if (!is_array($consent)) {
+                continue;
+            }
+
+            $key = trim((string) ($consent['consent_key'] ?? ''));
+            if ($key !== '') {
+                $submittedByKey[$key] = $consent;
+            }
+        }
+
+        foreach ($requiredKeys as $requiredKey) {
+            if (!isset($submittedByKey[$requiredKey])) {
+                $errors['consents.' . $requiredKey][] = 'required';
+                continue;
+            }
+
+            $consent = $submittedByKey[$requiredKey];
+            $accepted = $this->parseBooleanInput($consent['accepted'] ?? null) === true;
+            $textSnapshot = trim((string) ($consent['consent_text_snapshot'] ?? ''));
+
+            if (!$accepted) {
+                $errors['consents.' . $requiredKey . '.accepted'][] = 'required_true';
+            }
+
+            $canonicalText = (string) ($canonicalTexts[$requiredKey] ?? '');
+            if ($textSnapshot === '') {
+                $errors['consents.' . $requiredKey . '.consent_text_snapshot'][] = 'required';
+            } elseif ($canonicalText !== '' && $textSnapshot !== $canonicalText) {
+                $errors['consents.' . $requiredKey . '.consent_text_snapshot'][] = 'text_mismatch';
+            }
+        }
+
+        if ($errors !== []) {
+            return Response::redirect($redirectTo . (str_contains($redirectTo, '?') ? '&' : '?') . 'cookie_consent=error', 303);
+        }
+
+        $acceptedAt = date('Y-m-d H:i:s');
+        $ipAddress = $this->resolveIpAddress($request);
+        $userAgent = trim((string) $request->header('user-agent', 'unknown'));
+
+        $database = app(Database::class);
+        $database->transaction(function () use ($submittedByKey, $requiredKeys, $canonicalTexts, $consentVersion, $acceptedAt, $ipAddress, $userAgent): void {
+            foreach ($requiredKeys as $requiredKey) {
+                $consent = (array) ($submittedByKey[$requiredKey] ?? []);
+                $textSnapshot = trim((string) ($consent['consent_text_snapshot'] ?? ''));
+                if ($textSnapshot === '') {
+                    $textSnapshot = (string) ($canonicalTexts[$requiredKey] ?? '');
+                }
+
+                $signatureHash = $this->buildSignatureHash(
+                    0,
+                    (string) $requiredKey,
+                    true,
+                    $acceptedAt,
+                    $consentVersion,
+                    $textSnapshot,
+                    $ipAddress,
+                    $userAgent
+                );
+
+                db('consents')->insert([
+                    'consent_key' => (string) $requiredKey,
+                    'accepted' => true,
+                    'accepted_at' => $acceptedAt,
+                    'consent_version' => $consentVersion,
+                    'consent_text_snapshot' => $textSnapshot,
+                    'ip_address' => $ipAddress,
+                    'user_agent' => $userAgent,
+                    'signature_hash' => $signatureHash,
+                ]);
+            }
+        });
+
+        $response = Response::redirect($redirectTo, 303);
+        $cookie = sprintf(
+            'hs_essential_cookies=accepted; Path=/; Max-Age=%d; SameSite=Lax%s',
+            60 * 60 * 24 * 365,
+            $this->isHttpsRequest($request) ? '; Secure' : ''
+        );
+
+        return $response->withHeader('Set-Cookie', $cookie);
+    }
+
     public function store(Request $request): Response
     {
         $data = $request->all();
 
-        $bookingId = (int) ($data['booking_id'] ?? 0);
-        $requestId = (int) ($data['client_request_id'] ?? 0);
         $consentVersion = trim((string) ($data['consent_version'] ?? ''));
         $consents = $data['consents'] ?? null;
 
         $errors = [];
-
-        if ($bookingId <= 0 && $requestId <= 0) {
-            $errors['booking_id'][] = 'required_without_client_request_id';
-            $errors['client_request_id'][] = 'required_without_booking_id';
-        }
 
         if ($consentVersion === '') {
             $errors['consent_version'][] = 'required';
@@ -44,32 +149,6 @@ final class ConsentController extends BaseApiController
 
         if ($errors !== []) {
             return $this->fail('Validation failed', 422, $errors);
-        }
-
-        if ($bookingId > 0) {
-            $bookingExists = db('bookings')
-                ->where('id', $bookingId)
-                ->select(['id'])
-                ->first();
-
-            if ($bookingExists === null) {
-                return $this->fail('Validation failed', 422, [
-                    'booking_id' => ['not_found'],
-                ]);
-            }
-        }
-
-        if ($requestId > 0) {
-            $requestExists = db('client_requests')
-                ->where('id', $requestId)
-                ->select(['id'])
-                ->first();
-
-            if ($requestExists === null) {
-                return $this->fail('Validation failed', 422, [
-                    'client_request_id' => ['not_found'],
-                ]);
-            }
         }
 
         $ipAddress = $this->resolveIpAddress($request);
@@ -136,8 +215,6 @@ final class ConsentController extends BaseApiController
             $database = app(Database::class);
             $insertedConsentIds = $database->transaction(function () use (
                 $preparedConsents,
-                $bookingId,
-                $requestId,
                 $consentVersion,
                 $ipAddress,
                 $userAgent
@@ -150,7 +227,7 @@ final class ConsentController extends BaseApiController
                     $textSnapshot = (string) $prepared['consent_text_snapshot'];
 
                     $signatureHash = $this->buildSignatureHash(
-                        $requestId > 0 ? $requestId : $bookingId,
+                        0,
                         $consentKey,
                         true,
                         $acceptedAt,
@@ -161,8 +238,6 @@ final class ConsentController extends BaseApiController
                     );
 
                     $ids[] = db('consents')->insert([
-                        'client_request_id' => $requestId > 0 ? $requestId : null,
-                        'booking_id' => $bookingId > 0 ? $bookingId : null,
                         'consent_key' => $consentKey,
                         'accepted' => true,
                         'accepted_at' => $acceptedAt,
@@ -178,8 +253,6 @@ final class ConsentController extends BaseApiController
             });
 
             return $this->ok([
-                'booking_id' => $bookingId,
-                'client_request_id' => $requestId > 0 ? $requestId : null,
                 'consent_ids' => $insertedConsentIds,
                 'count' => count($insertedConsentIds),
                 'message' => 'Consents wurden gespeichert.',
@@ -206,6 +279,68 @@ final class ConsentController extends BaseApiController
         }
 
         return '0.0.0.0';
+    }
+
+    private function normalizeLocalRedirectTarget(string $target): string
+    {
+        $target = trim($target);
+        if ($target === '' || !str_starts_with($target, '/')) {
+            return '/';
+        }
+
+        return $target;
+    }
+
+    private function parseBooleanInput(mixed $value): ?bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_int($value)) {
+            if ($value === 1) {
+                return true;
+            }
+
+            if ($value === 0) {
+                return false;
+            }
+
+            return null;
+        }
+
+        if (is_string($value)) {
+            $normalized = strtolower(trim($value));
+            if (in_array($normalized, ['1', 'true', 'yes', 'on'], true)) {
+                return true;
+            }
+
+            if (in_array($normalized, ['0', 'false', 'no', 'off'], true)) {
+                return false;
+            }
+        }
+
+        return null;
+    }
+
+    private function isHttpsRequest(Request $request): bool
+    {
+        $https = strtolower(trim((string) $request->header('x-forwarded-proto', '')));
+        if ($https === 'https') {
+            return true;
+        }
+
+        $forwarded = strtolower(trim((string) $request->header('forwarded', '')));
+        if ($forwarded !== '' && str_contains($forwarded, 'proto=https')) {
+            return true;
+        }
+
+        $scheme = (string) $request->header('x-scheme', '');
+        if ($scheme === '') {
+            $scheme = (string) ($_SERVER['REQUEST_SCHEME'] ?? '');
+        }
+
+        return strtolower(trim($scheme)) === 'https';
     }
 
     private function buildSignatureHash(

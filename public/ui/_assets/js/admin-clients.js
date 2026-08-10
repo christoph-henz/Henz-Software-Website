@@ -4159,7 +4159,10 @@
         return fetch(url, { credentials: 'include', headers: { Accept: 'application/json' } })
             .then(parseJsonResponse)
             .then(function (result) {
-                if (result.status !== 200) return false;
+                if (result.status !== 200) {
+                    throw new Error('validation_unavailable');
+                }
+
                 return !!(result.json && result.json.data && result.json.data.available);
             });
     }

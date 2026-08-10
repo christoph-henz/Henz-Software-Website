@@ -10,8 +10,9 @@ declare(strict_types=1);
   <link rel="stylesheet" href="/ui/_assets/css/theme.css" />
   <link rel="stylesheet" href="/ui/_assets/css/tailwind.css" />
 </head>
-<body>
+<body<?= in_array(strtolower(trim((string) ($_COOKIE['hs_essential_cookies'] ?? ''))), ['accepted', '1', 'true', 'yes'], true) ? '' : ' class="gb-essential-cookie-locked"'; ?>>
   <?php require __DIR__ . '/../_partials/navbar.php'; ?>
+  <?php require __DIR__ . '/../_partials/cookie-banner.php'; ?>
 
   <main class="gb-main gb-home-main">
     <?php require __DIR__ . '/../_partials/hero-section.php'; ?>
