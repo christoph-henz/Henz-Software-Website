@@ -64,7 +64,20 @@ INSERT INTO settings (`key`, value, type, `group`, description, is_public) VALUE
 ('paypal_enabled', '0', 'boolean', 'payment', 'Accept PayPal', FALSE),
 ('paypal_email', '', 'string', 'payment', 'PayPal account email', FALSE),
 ('package_expiration_months', '8', 'integer', 'booking', 'Default package validity in months', FALSE),
+('19_ust_true', '1', 'boolean', 'payment', 'Kleinunternehmerregel aktiv', FALSE),
 ('ust_id', 'DE0123456789', 'string', 'payment', 'USt Id', FALSE);
+
+INSERT INTO availability_rules (`rule_key`, `rule_value`, `description`) VALUES
+('appointments_enabled',1,'Terminbuchung aktiviert (1) oder deaktiviert (0)'),
+('tickets_enabled',1,'Ticketsystem aktiviert (1) oder deaktiviert (0)'),
+('buffer_minutes',0,'Pufferzeit zwischen Terminen in Minuten'),
+('max_appointments_per_day',0,'Maximale Anzahl Termine pro Tag (0 = unbegrenzt)'),
+('appointments_min_hours_notice',24,'Mindestvorlaufzeit in Stunden'),
+('appointments_advance_days',60,'Maximale Vorausplanung in Tagen'),
+('appointments_day_start_hour',8,'Früheste Stunde für Tagesansicht'),
+('appointments_day_end_hour',18,'Späteste Stunde für Tagesansicht'),
+('cancellation_hours_notice',48,'Stornofrist in Stunden vor Termin'),
+('reminder_hours_before',24,'Erinnerung in Stunden vor Termin');
 
 SET @individual_structure = JSON_ARRAY(
     JSON_OBJECT('type', 'intro', 'slug', 'slug', 'eyebrow', 'eyebrow', 'title', 'title', 'accent', 'title_accent', 'lead', 'lead', 'points', 'highlights', 'primary_cta', 'primary_cta', 'secondary_cta', 'secondary_cta', 'image_var', 'main_image', 'image_alt', 'main_image_alt'),

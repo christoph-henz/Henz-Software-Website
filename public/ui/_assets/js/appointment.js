@@ -11,10 +11,12 @@
   let lockedServiceSlug = form ? String(form.getAttribute('data-locked-service-slug') || '').trim() : '';
   let serviceLockChangeBound = false;
 
+  window.initBookingAvailabilityPicker = initBookingAvailabilityPicker;
+
   if (!form) return;
 
   bindPackageServiceLock();
-  initTerminSlotPicker(form);
+  initBookingAvailabilityPicker(form);
 
   form.addEventListener('submit', async function (e) {
     e.preventDefault();
@@ -83,6 +85,11 @@
    */
   function shouldShowSupportId(status) {
     return status >= 500 || status === 403 || status === 404;
+  }
+
+  function initBookingAvailabilityPicker(targetForm) {
+    initTerminSlotPicker(targetForm);
+    initContactAvailabilityPicker(targetForm);
   }
 
   /**
@@ -336,7 +343,8 @@
         return;
       }
 
-      const availableTimes = await fetchAvailableTimes(slotsEndpoint, serviceSlug, selectedDate, timezone);
+      const slotAvailability = await fetchAvailableTimes(slotsEndpoint, serviceSlug, selectedDate, timezone);
+      const availableTimes = slotAvailability.availableTimes;
       const previousSelection = String(slotSelect.value || '').trim();
 
       slotSelect.innerHTML = '';
@@ -386,6 +394,269 @@
     renderSlotOptions().catch(() => {
       renderSlotPlaceholder(slotSelect, 'Slots konnten nicht geladen werden. Bitte erneut versuchen.');
     });
+  }
+
+  function initContactAvailabilityPicker(form) {
+    const contactServiceSelect = form.querySelector('select[name$=".service"]');
+    const dateField = form.querySelector('[name$=".appointment_date"]');
+    const timeField = form.querySelector('[name$=".appointment_time"]');
+
+    if (!(contactServiceSelect instanceof HTMLSelectElement) || !dateField || !timeField) {
+      return;
+    }
+
+    const dateSelect = ensureSelectField(dateField, 'Datum wählen …');
+    const timeSelect = ensureSelectField(timeField, 'Uhrzeit wählen …');
+    if (!(dateSelect instanceof HTMLSelectElement) || !(timeSelect instanceof HTMLSelectElement)) {
+      return;
+    }
+
+    const slotsEndpoint = String(form.getAttribute('data-slots-endpoint') || '').trim();
+    const daysEndpointRaw = String(form.getAttribute('data-days-endpoint') || '').trim();
+    const daysEndpoint = daysEndpointRaw !== ''
+      ? daysEndpointRaw
+      : (slotsEndpoint !== '' ? slotsEndpoint.replace(/\/slots(?:\?.*)?$/u, '/days') : '');
+    const timezone = String(form.getAttribute('data-slots-timezone') || 'Europe/Berlin').trim() || 'Europe/Berlin';
+    const slotStepMinutes = readSlotStepMinutes(form);
+    const minNoticeHours = Number.parseInt(String(form.getAttribute('data-slot-min-notice-hours') || '24'), 10) || 24;
+    const advanceDays = Number.parseInt(String(form.getAttribute('data-slot-advance-days') || '60'), 10) || 60;
+    const workWindowsByDay = parseWorkWindowsByDay(form.getAttribute('data-slot-work-windows'));
+
+    const now = new Date();
+    const minDateTime = new Date(now.getTime() + (Math.max(0, minNoticeHours) * 60 * 60 * 1000));
+    const maxDate = new Date(now.getTime() + (Math.max(1, advanceDays) * 24 * 60 * 60 * 1000));
+
+    const renderDateOptions = async () => {
+      const serviceSlug = String(contactServiceSelect.value || '').trim();
+      dateSelect.innerHTML = '';
+
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = serviceSlug === '' ? 'Bitte Angebot wählen …' : 'Datum wählen …';
+      dateSelect.appendChild(placeholder);
+
+      if (serviceSlug === '') {
+        timeSelect.innerHTML = '<option value="">Bitte zuerst Angebot wählen …</option>';
+        return;
+      }
+
+      const dateAvailability = await fetchAvailableDates(daysEndpoint, serviceSlug, timezone, minDateTime, maxDate);
+      const previousDate = String(dateSelect.value || '').trim();
+      let firstAvailableDate = '';
+
+      for (const day of enumerateDays(minDateTime, maxDate)) {
+        const ymd = toYmd(day);
+        const option = document.createElement('option');
+        option.value = ymd;
+
+        const dayMeta = dateAvailability.get(ymd) || null;
+        const available = dayMeta ? dayMeta.hasAvailability : false;
+        option.disabled = !available;
+        option.textContent = available
+          ? formatDateLabel(day)
+          : `${formatDateLabel(day)} (nicht verfügbar)`;
+
+        if (available && firstAvailableDate === '') {
+          firstAvailableDate = ymd;
+        }
+
+        dateSelect.appendChild(option);
+      }
+
+      if (previousDate !== '' && (dateAvailability.get(previousDate)?.hasAvailability === true)) {
+        dateSelect.value = previousDate;
+      } else if (firstAvailableDate !== '') {
+        dateSelect.value = firstAvailableDate;
+      } else {
+        dateSelect.value = '';
+      }
+
+      await renderTimeOptions();
+    };
+
+    const renderTimeOptions = async () => {
+      const serviceSlug = String(contactServiceSelect.value || '').trim();
+      const selectedDate = String(dateSelect.value || '').trim();
+
+      timeSelect.innerHTML = '';
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = 'Uhrzeit wählen …';
+      timeSelect.appendChild(placeholder);
+
+      if (serviceSlug === '' || selectedDate === '') {
+        return;
+      }
+
+      const candidateTimes = buildCandidateTimesForDate(selectedDate, slotStepMinutes, workWindowsByDay);
+      if (candidateTimes.length === 0) {
+        const emptyOption = document.createElement('option');
+        emptyOption.value = '';
+        emptyOption.disabled = true;
+        emptyOption.textContent = 'Keine Öffnungszeit';
+        timeSelect.appendChild(emptyOption);
+        return;
+      }
+
+      const slotAvailability = await fetchAvailableTimes(slotsEndpoint, serviceSlug, selectedDate, timezone);
+      const availableTimes = slotAvailability.availableTimes;
+      const previousTime = String(timeSelect.value || '').trim();
+      let firstAvailableTime = '';
+
+      for (const time of candidateTimes) {
+        const candidateDate = new Date(`${selectedDate}T${time}:00`);
+        if (Number.isNaN(candidateDate.getTime()) || candidateDate.getTime() < minDateTime.getTime()) {
+          continue;
+        }
+
+        const option = document.createElement('option');
+        option.value = time;
+        const available = availableTimes.has(time);
+        option.disabled = !available;
+        option.textContent = available ? time : `${time} (nicht verfügbar)`;
+
+        if (available && firstAvailableTime === '') {
+          firstAvailableTime = time;
+        }
+
+        timeSelect.appendChild(option);
+      }
+
+      if (previousTime !== '' && availableTimes.has(previousTime)) {
+        timeSelect.value = previousTime;
+      } else if (firstAvailableTime !== '') {
+        timeSelect.value = firstAvailableTime;
+      } else {
+        timeSelect.value = '';
+      }
+    };
+
+    contactServiceSelect.addEventListener('change', () => {
+      renderDateOptions().catch(() => {
+        dateSelect.innerHTML = '<option value="">Datum konnte nicht geladen werden.</option>';
+      });
+    });
+
+    dateSelect.addEventListener('change', () => {
+      renderTimeOptions().catch(() => {
+        timeSelect.innerHTML = '<option value="">Uhrzeiten konnten nicht geladen werden.</option>';
+      });
+    });
+
+    renderDateOptions().catch(() => {
+      dateSelect.innerHTML = '<option value="">Datum konnte nicht geladen werden.</option>';
+    });
+  }
+
+  function ensureSelectField(field, placeholderText) {
+    if (field instanceof HTMLSelectElement) {
+      return field;
+    }
+
+    if (!(field instanceof HTMLInputElement)) {
+      return null;
+    }
+
+    const select = document.createElement('select');
+    select.name = field.name;
+    select.id = field.id;
+    select.className = field.className;
+    select.required = field.required;
+
+    const style = field.getAttribute('style');
+    if (style) {
+      select.setAttribute('style', style);
+    }
+
+    const validators = field.getAttribute('data-validators');
+    if (validators) {
+      select.setAttribute('data-validators', validators);
+    }
+
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = placeholderText;
+    select.appendChild(placeholder);
+
+    field.parentNode && field.parentNode.replaceChild(select, field);
+    return select;
+  }
+
+  function enumerateDays(fromDate, toDate) {
+    const days = [];
+    const cursor = new Date(fromDate.getFullYear(), fromDate.getMonth(), fromDate.getDate());
+    const end = new Date(toDate.getFullYear(), toDate.getMonth(), toDate.getDate());
+
+    while (cursor <= end) {
+      days.push(new Date(cursor.getTime()));
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    return days;
+  }
+
+  async function fetchAvailableDates(endpoint, serviceSlug, timezone, minDate, maxDate) {
+    const availabilityByDate = new Map();
+    if (endpoint === '' || serviceSlug === '') {
+      return availabilityByDate;
+    }
+
+    const months = enumerateMonths(minDate, maxDate);
+    for (const month of months) {
+      const url = new URL(endpoint, window.location.origin);
+      url.searchParams.set('service_slug', serviceSlug);
+      url.searchParams.set('month', month);
+      url.searchParams.set('timezone', timezone);
+
+      try {
+        const response = await fetch(url.toString(), {
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+        });
+        if (!response.ok) {
+          continue;
+        }
+
+        const json = await response.json().catch(() => ({}));
+        const days = Array.isArray(json?.data?.days)
+          ? json.data.days
+          : (Array.isArray(json?.days) ? json.days : []);
+
+        for (const day of days) {
+          const date = typeof day?.date === 'string' ? day.date : '';
+          if (date === '') {
+            continue;
+          }
+
+          availabilityByDate.set(date, {
+            hasAvailability: day?.has_availability === true,
+            fullDayBlocked: day?.full_day_blocked === true,
+            reason: normalizeUnavailableReason(day?.unavailable_reason),
+          });
+        }
+      } catch (_error) {
+        // ignore and continue with next month
+      }
+    }
+
+    return availabilityByDate;
+  }
+
+  function normalizeUnavailableReason(rawReason) {
+    return typeof rawReason === 'string' ? rawReason.trim() : '';
+  }
+
+  function enumerateMonths(minDate, maxDate) {
+    const values = [];
+    const cursor = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+    const end = new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
+
+    while (cursor <= end) {
+      values.push(`${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`);
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+
+    return values;
   }
 
   function readSlotStepMinutes(form) {
@@ -476,8 +747,13 @@
   }
 
   async function fetchAvailableTimes(endpoint, serviceSlug, selectedDate, timezone) {
+    const availability = {
+      availableTimes: new Set(),
+      blockedReasons: new Map(),
+    };
+
     if (endpoint === '') {
-      return new Set();
+      return availability;
     }
 
     const rangeFrom = `${selectedDate}T00:00:00`;
@@ -496,15 +772,13 @@
       headers: { Accept: 'application/json' },
     });
     if (!response.ok) {
-      return new Set();
+      return availability;
     }
 
     const json = await response.json().catch(() => ({}));
     const slots = Array.isArray(json?.data?.slots)
       ? json.data.slots
       : (Array.isArray(json?.slots) ? json.slots : []);
-    const availableTimes = new Set();
-
     for (const slot of slots) {
       const start = typeof slot?.start === 'string' ? slot.start : '';
       if (start.length < 16) {
@@ -514,11 +788,31 @@
       const ymd = start.slice(0, 10);
       const hhmm = start.slice(11, 16);
       if (ymd === selectedDate && isTimeString(hhmm)) {
-        availableTimes.add(hhmm);
+        availability.availableTimes.add(hhmm);
       }
     }
 
-    return availableTimes;
+    const unavailableSlots = Array.isArray(json?.data?.unavailable_slots)
+      ? json.data.unavailable_slots
+      : (Array.isArray(json?.unavailable_slots) ? json.unavailable_slots : []);
+
+    for (const slot of unavailableSlots) {
+      const start = typeof slot?.start === 'string' ? slot.start : '';
+      if (start.length < 16) {
+        continue;
+      }
+
+      const ymd = start.slice(0, 10);
+      const hhmm = start.slice(11, 16);
+      if (ymd !== selectedDate || !isTimeString(hhmm)) {
+        continue;
+      }
+
+      const reason = typeof slot?.reason === 'string' ? slot.reason.trim() : '';
+      availability.blockedReasons.set(hhmm, reason !== '' ? reason : 'belegt');
+    }
+
+    return availability;
   }
 
   function renderSlotPlaceholder(slotSelect, message) {

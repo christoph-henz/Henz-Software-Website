@@ -158,6 +158,10 @@ $slotsEndpoint = $apiBaseUrl !== ''
     ? rtrim($apiBaseUrl, '/') . '/v1/availability/slots'
     : '/v1/availability/slots';
 
+$daysEndpoint = $apiBaseUrl !== ''
+    ? rtrim($apiBaseUrl, '/') . '/v1/availability/days'
+    : '/v1/availability/days';
+
 
 //     'name' => 'example_field',
 //     'type' => 'text',
@@ -288,6 +292,15 @@ return [
         'action' => $requestAction,
         'method' => 'post',
         'success_redirect_url' => '/kontakt/erfolg',
+        'slot_picker' => [
+            'slots_endpoint' => $slotsEndpoint,
+            'days_endpoint' => $daysEndpoint,
+            'timezone' => $timezoneName,
+            'slot_step_minutes' => $slotStepMinutes,
+            'booking_min_hours_notice' => $bookingMinHoursNotice,
+            'booking_advance_days' => $bookingAdvanceDays,
+            'work_windows_by_day' => $workWindowsByDay,
+        ],
 
         'fields' => [
 

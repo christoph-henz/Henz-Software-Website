@@ -6,6 +6,7 @@ namespace App\Controllers\Api\V1;
 
 use App\Controllers\Api\BaseApiController;
 use App\Core\Http\Response;
+use Throwable;
 
 final class TicketController extends BaseApiController
 {
@@ -14,6 +15,12 @@ final class TicketController extends BaseApiController
      */
     public function storeFromContactForm(array $data): Response
     {
+        if (!$this->readAvailabilityRuleBool('tickets_enabled', true)) {
+            return $this->fail('Ticketsystem ist derzeit deaktiviert.', 409, [
+                'service_type' => ['tickets_disabled'],
+            ]);
+        }
+
         $prefix = 'service_type.ticket.';
 
         $clientNumber = trim((string) ($data[$prefix . 'client_number'] ?? ''));
@@ -109,6 +116,29 @@ final class TicketController extends BaseApiController
         }
 
         return '';
+    }
+
+    private function readAvailabilityRuleBool(string $ruleKey, bool $default): bool
+    {
+        try {
+            $row = db('availability_rules')
+                ->where('rule_key', $ruleKey)
+                ->select(['rule_value'])
+                ->first();
+        } catch (Throwable) {
+            return $default;
+        }
+
+        if (!is_array($row)) {
+            return $default;
+        }
+
+        $raw = strtolower(trim((string) ($row['rule_value'] ?? '')));
+        if ($raw === '') {
+            return $default;
+        }
+
+        return in_array($raw, ['1', 'true', 'yes', 'on'], true);
     }
 
     /**

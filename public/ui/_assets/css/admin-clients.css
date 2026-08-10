@@ -218,6 +218,10 @@
   display: none;
 }
 
+.admin-clients-address-cell {
+  white-space: pre-line;
+}
+
 .admin-clients-sort {
   appearance: none;
   border: 0;
@@ -718,6 +722,18 @@
     display: table-row;
   }
 
+  .admin-clients-row--primary td {
+    border-bottom: 0;
+  }
+
+  .admin-clients-row--mobile-meta .admin-clients-address-cell {
+    padding-top: 0.15rem;
+    padding-bottom: 0.72rem;
+    border-bottom: 1px solid var(--clients-border);
+  }
+
+  .admin-clients-row--primary .admin-clients-desktop-only,
+  .admin-clients-row--mobile-meta .admin-clients-desktop-only,
   .admin-clients-desktop-only {
     display: none;
   }

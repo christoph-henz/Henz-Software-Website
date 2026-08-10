@@ -16,6 +16,11 @@ use Throwable;
 
 final class AvailabilityController extends BaseApiController
 {
+    /** @var array<string, bool> */
+    private array $appointmentColumnAvailability = [];
+    /** @var array<string, bool> */
+    private array $serviceColumnAvailability = [];
+
     public function slots(Request $request): Response
     {
         $isAdminContext = str_starts_with($request->path(), '/admin/');
@@ -101,12 +106,15 @@ final class AvailabilityController extends BaseApiController
             ]);
         }
 
-        $occupiedIntervals = $this->fetchOccupiedIntervals($effectiveFrom, $effectiveTo, $window);
+        $bookedIntervals = $this->fetchBookedIntervals($effectiveFrom, $effectiveTo, $window);
+        $blockedIntervals = $this->fetchBlockedIntervals($effectiveFrom, $effectiveTo, $timezone);
+        $occupiedIntervals = array_merge($bookedIntervals, $blockedIntervals);
         $bookingsPerDay = $this->fetchBookingsCountByDay($effectiveFrom, $effectiveTo);
         $slotDurationMinutes = (int) $service['duration_minutes'];
         $slotStepMinutes = $window['slot_step_minutes'];
 
         $slots = [];
+        $unavailableSlots = [];
         foreach ($this->iterateDays($effectiveFrom, $effectiveTo, $timezone) as $dayStart) {
             $dayDate = $dayStart->format('Y-m-d');
             if ($maxAppointmentsPerDay > 0 && (($bookingsPerDay[$dayDate] ?? 0) >= $maxAppointmentsPerDay)) {
@@ -143,10 +151,21 @@ final class AvailabilityController extends BaseApiController
                         continue;
                     }
 
-                    if (!$this->overlapsWithBookings($candidate, $candidateEnd, $occupiedIntervals, $bufferMinutes)) {
+                    $blockedReason = $this->findBlockedReasonForInterval($candidate, $candidateEnd, $blockedIntervals);
+                    $isBlocked = $blockedReason !== null;
+                    $isBooked = !$isBlocked && $this->overlapsWithBookings($candidate, $candidateEnd, $bookedIntervals, $bufferMinutes);
+
+                    if (!$isBlocked && !$isBooked) {
                         $slots[] = [
                             'start' => $candidate->format(DATE_ATOM),
                             'end' => $candidateEnd->format(DATE_ATOM),
+                        ];
+                    } else {
+                        $unavailableSlots[] = [
+                            'start' => $candidate->format(DATE_ATOM),
+                            'end' => $candidateEnd->format(DATE_ATOM),
+                            'type' => $isBlocked ? 'blocked' : 'booked',
+                            'reason' => $isBlocked ? $blockedReason : 'Belegt',
                         ];
                     }
 
@@ -167,6 +186,7 @@ final class AvailabilityController extends BaseApiController
                 'to' => $to->format(DATE_ATOM),
             ],
             'slots' => $slots,
+            'unavailable_slots' => $unavailableSlots,
         ]);
     }
 
@@ -236,10 +256,14 @@ final class AvailabilityController extends BaseApiController
         $effectiveTo = $monthEnd < $maxAllowed ? $monthEnd : $maxAllowed;
 
         $days = [];
+        $bookedIntervals = [];
+        $blockedIntervals = [];
         $occupiedIntervals = [];
         $bookingsPerDay = [];
         if ($effectiveTo > $effectiveFrom) {
-            $occupiedIntervals = $this->fetchOccupiedIntervals($effectiveFrom, $effectiveTo, $window);
+            $bookedIntervals = $this->fetchBookedIntervals($effectiveFrom, $effectiveTo, $window);
+            $blockedIntervals = $this->fetchBlockedIntervals($effectiveFrom, $effectiveTo, $timezone);
+            $occupiedIntervals = array_merge($bookedIntervals, $blockedIntervals);
             $bookingsPerDay = $this->fetchBookingsCountByDay($effectiveFrom, $effectiveTo);
         }
 
@@ -253,11 +277,25 @@ final class AvailabilityController extends BaseApiController
                 continue;
             }
 
+            $fullDayBlockedReason = $this->findFullDayBlockedReason($workWindows, $blockedIntervals);
+            if ($fullDayBlockedReason !== null) {
+                $days[] = [
+                    'date' => $dayDate,
+                    'has_availability' => false,
+                    'free_slots_count' => 0,
+                    'full_day_blocked' => true,
+                    'unavailable_reason' => $fullDayBlockedReason,
+                ];
+                continue;
+            }
+
             if ($maxAppointmentsPerDay > 0 && (($bookingsPerDay[$dayDate] ?? 0) >= $maxAppointmentsPerDay)) {
                 $days[] = [
                     'date' => $dayDate,
                     'has_availability' => false,
                     'free_slots_count' => 0,
+                    'full_day_blocked' => false,
+                    'unavailable_reason' => 'Tageslimit erreicht',
                 ];
                 continue;
             }
@@ -300,6 +338,8 @@ final class AvailabilityController extends BaseApiController
                 'date' => $dayDate,
                 'has_availability' => $freeSlotsCount > 0,
                 'free_slots_count' => $freeSlotsCount,
+                'full_day_blocked' => false,
+                'unavailable_reason' => $freeSlotsCount > 0 ? null : null,
             ];
         }
 
@@ -457,18 +497,32 @@ final class AvailabilityController extends BaseApiController
      */
     private function resolveService(string $serviceSlug): ?array
     {
-        $row = db('services')
-            ->where('slug', $serviceSlug)
+        $serviceSlug = trim($serviceSlug);
+        if ($serviceSlug === '') {
+            return null;
+        }
+
+        $hasServiceDurationColumn = $this->isServiceColumnAvailable('duration_minutes');
+        $query = db('services')
             ->where('is_active', 1)
-            ->select(['id', 'slug', 'duration_minutes'])
-            ->first();
+            ->select($hasServiceDurationColumn ? ['id', 'slug', 'duration_minutes'] : ['id', 'slug']);
+
+        if (ctype_digit($serviceSlug)) {
+            $query->where('id', (int) $serviceSlug);
+        } else {
+            $query->where('slug', $serviceSlug);
+        }
+
+        $row = $query->first();
 
         if (!is_array($row)) {
             return null;
         }
 
         $serviceId = (int) ($row['id'] ?? 0);
-        $durationMinutes = (int) ($row['duration_minutes'] ?? 0);
+        $durationMinutes = $hasServiceDurationColumn
+            ? (int) ($row['duration_minutes'] ?? 0)
+            : 60;
 
         if ($serviceId <= 0 || $durationMinutes <= 0) {
             return null;
@@ -525,28 +579,49 @@ final class AvailabilityController extends BaseApiController
     /**
      * @return array<int, array{start:DateTimeImmutable,end:DateTimeImmutable}>
      */
-    private function fetchOccupiedIntervals(
+    private function fetchBookedIntervals(
         DateTimeImmutable $from,
         DateTimeImmutable $to,
         array $window
     ): array
     {
+        $dateColumn = $this->resolveAppointmentDateColumn();
+        if ($dateColumn === null) {
+            return [];
+        }
+
         $bufferTo = $to->modify('+12 hours');
         $bufferFrom = $from->modify('-12 hours');
 
         $database = app(Database::class);
         $pdo = $database->connection();
 
-        $sql = 'SELECT b.scheduled_at, s.duration_minutes
-                FROM bookings b
-                INNER JOIN services s ON s.id = b.service_id
-                WHERE b.status <> :cancelled
-                  AND b.scheduled_at >= :from
-                  AND b.scheduled_at < :to';
+        $hasStatusColumn = $this->isAppointmentColumnAvailable('status');
+        $hasAppointmentDurationColumn = $this->isAppointmentColumnAvailable('duration_minutes');
+        $hasServiceDurationColumn = $this->isServiceColumnAvailable('duration_minutes');
+
+        if ($hasAppointmentDurationColumn && $hasServiceDurationColumn) {
+            $durationSql = 'COALESCE(NULLIF(a.duration_minutes, 0), s.duration_minutes, 60)';
+        } elseif ($hasAppointmentDurationColumn) {
+            $durationSql = 'COALESCE(NULLIF(a.duration_minutes, 0), 60)';
+        } elseif ($hasServiceDurationColumn) {
+            $durationSql = 'COALESCE(s.duration_minutes, 60)';
+        } else {
+            $durationSql = '60';
+        }
+        $statusSql = $hasStatusColumn
+            ? "AND (a.status IS NULL OR a.status NOT IN ('storno', 'declined', 'cancelled'))"
+            : '';
+
+        $sql = 'SELECT a.' . $dateColumn . ' AS scheduled_at, ' . $durationSql . ' AS duration_minutes
+                FROM appointments a
+                LEFT JOIN services s ON s.id = a.service_id
+                WHERE a.' . $dateColumn . ' >= :from
+                  AND a.' . $dateColumn . ' < :to
+                  ' . $statusSql;
 
         $stmt = $pdo->prepare($sql);
         $stmt->execute([
-            'cancelled' => 'cancelled',
             'from' => $bufferFrom->format('Y-m-d H:i:s'),
             'to' => $bufferTo->format('Y-m-d H:i:s'),
         ]);
@@ -584,8 +659,22 @@ final class AvailabilityController extends BaseApiController
             ];
         }
 
+        return $intervals;
+    }
+
+    /**
+     * @return array<int, array{start:DateTimeImmutable,end:DateTimeImmutable,reason:string}>
+     */
+    private function fetchBlockedIntervals(DateTimeImmutable $from, DateTimeImmutable $to, DateTimeZone $timezone): array
+    {
+        $database = app(Database::class);
+        $pdo = $database->connection();
+
+        $bufferTo = $to->modify('+12 hours');
+        $bufferFrom = $from->modify('-12 hours');
+
         try {
-            $blockedTimesSql = 'SELECT starts_at, ends_at
+            $blockedTimesSql = 'SELECT starts_at, ends_at, reason
                                 FROM blocked_times
                                 WHERE starts_at < :to
                                   AND ends_at > :from';
@@ -595,54 +684,69 @@ final class AvailabilityController extends BaseApiController
                 'to' => $bufferTo->format('Y-m-d H:i:s'),
             ]);
 
-            $blockedTimeRows = $blockedTimesStmt->fetchAll();
-            if (is_array($blockedTimeRows)) {
-                foreach ($blockedTimeRows as $blockedTimeRow) {
-                    if (!is_array($blockedTimeRow)) {
-                        continue;
-                    }
-
-                    $startsAtRaw = (string) ($blockedTimeRow['starts_at'] ?? '');
-                    $endsAtRaw = (string) ($blockedTimeRow['ends_at'] ?? '');
-                    if ($startsAtRaw === '' || $endsAtRaw === '') {
-                        continue;
-                    }
-
-                    $start = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $startsAtRaw, $from->getTimezone());
-                    $end = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $endsAtRaw, $from->getTimezone());
-                    if (!$start instanceof DateTimeImmutable || !$end instanceof DateTimeImmutable || $end <= $start) {
-                        continue;
-                    }
-
-                    $intervals[] = [
-                        'start' => $start,
-                        'end' => $end,
-                    ];
-                }
+            $rows = $blockedTimesStmt->fetchAll();
+            if (!is_array($rows)) {
+                return [];
             }
+
+            $intervals = [];
+            foreach ($rows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                $startsAtRaw = (string) ($row['starts_at'] ?? '');
+                $endsAtRaw = (string) ($row['ends_at'] ?? '');
+                if ($startsAtRaw === '' || $endsAtRaw === '') {
+                    continue;
+                }
+
+                $start = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $startsAtRaw, $timezone);
+                $end = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $endsAtRaw, $timezone);
+                if (!$start instanceof DateTimeImmutable || !$end instanceof DateTimeImmutable || $end <= $start) {
+                    continue;
+                }
+
+                $reason = trim((string) ($row['reason'] ?? ''));
+                $intervals[] = [
+                    'start' => $start,
+                    'end' => $end,
+                    'reason' => $reason !== '' ? $reason : 'Sperrzeit',
+                ];
+            }
+
+            return $intervals;
         } catch (Throwable) {
             // blocked_times table is optional before H-004 migration is applied
+            return [];
         }
-
-        return $intervals;
     }
 
     /** @return array<string, int> */
     private function fetchBookingsCountByDay(DateTimeImmutable $from, DateTimeImmutable $to): array
     {
+                $dateColumn = $this->resolveAppointmentDateColumn();
+                if ($dateColumn === null) {
+                        return [];
+                }
+
         $database = app(Database::class);
         $pdo = $database->connection();
 
-        $sql = 'SELECT DATE(scheduled_at) AS booking_date, COUNT(*) AS booking_count
-                FROM bookings
-                WHERE status <> :cancelled
-                  AND scheduled_at >= :from
-                  AND scheduled_at < :to
-                GROUP BY DATE(scheduled_at)';
+                $hasStatusColumn = $this->isAppointmentColumnAvailable('status');
+                $statusSql = $hasStatusColumn
+                        ? "AND (status IS NULL OR status NOT IN ('storno', 'declined', 'cancelled'))"
+                        : '';
+
+                $sql = 'SELECT DATE(' . $dateColumn . ') AS booking_date, COUNT(*) AS booking_count
+                                FROM appointments
+                                WHERE ' . $dateColumn . ' >= :from
+                                    AND ' . $dateColumn . ' < :to
+                                    ' . $statusSql . '
+                                GROUP BY DATE(' . $dateColumn . ')';
 
         $stmt = $pdo->prepare($sql);
         $stmt->execute([
-            'cancelled' => 'cancelled',
             'from' => $from->format('Y-m-d H:i:s'),
             'to' => $to->format('Y-m-d H:i:s'),
         ]);
@@ -712,6 +816,129 @@ final class AvailabilityController extends BaseApiController
         }
 
         return false;
+    }
+
+    private function findBlockedReasonForInterval(
+        DateTimeImmutable $candidateStart,
+        DateTimeImmutable $candidateEnd,
+        array $blockedIntervals
+    ): ?string {
+        foreach ($blockedIntervals as $interval) {
+            if (!($interval['start'] instanceof DateTimeImmutable) || !($interval['end'] instanceof DateTimeImmutable)) {
+                continue;
+            }
+
+            if ($candidateStart < $interval['end'] && $interval['start'] < $candidateEnd) {
+                $reason = trim((string) ($interval['reason'] ?? ''));
+                return $reason !== '' ? $reason : 'Sperrzeit';
+            }
+        }
+
+        return null;
+    }
+
+    private function findFullDayBlockedReason(array $workWindows, array $blockedIntervals): ?string
+    {
+        foreach ($blockedIntervals as $blockedInterval) {
+            if (!($blockedInterval['start'] instanceof DateTimeImmutable) || !($blockedInterval['end'] instanceof DateTimeImmutable)) {
+                continue;
+            }
+
+            $coversWholeDay = true;
+            foreach ($workWindows as $workWindow) {
+                $workStart = $workWindow['start'] ?? null;
+                $workEnd = $workWindow['end'] ?? null;
+                if (!($workStart instanceof DateTimeImmutable) || !($workEnd instanceof DateTimeImmutable)) {
+                    $coversWholeDay = false;
+                    break;
+                }
+
+                if (!($blockedInterval['start'] <= $workStart && $blockedInterval['end'] >= $workEnd)) {
+                    $coversWholeDay = false;
+                    break;
+                }
+            }
+
+            if ($coversWholeDay) {
+                $reason = trim((string) ($blockedInterval['reason'] ?? ''));
+                return $reason !== '' ? $reason : 'Sperrzeit';
+            }
+        }
+
+        return null;
+    }
+
+    private function resolveAppointmentDateColumn(): ?string
+    {
+        if ($this->isAppointmentColumnAvailable('scheduled_at')) {
+            return 'scheduled_at';
+        }
+
+        if ($this->isAppointmentColumnAvailable('appointment_date')) {
+            return 'appointment_date';
+        }
+
+        return null;
+    }
+
+    private function isAppointmentColumnAvailable(string $column): bool
+    {
+        if (array_key_exists($column, $this->appointmentColumnAvailability)) {
+            return $this->appointmentColumnAvailability[$column];
+        }
+
+        try {
+            $pdo = app(Database::class)->connection();
+            $stmt = $pdo->prepare(
+                'SELECT 1
+                 FROM information_schema.columns
+                 WHERE table_schema = DATABASE()
+                   AND table_name = :table_name
+                   AND column_name = :column_name
+                 LIMIT 1'
+            );
+            $stmt->execute([
+                ':table_name' => 'appointments',
+                ':column_name' => $column,
+            ]);
+
+            $exists = $stmt->fetchColumn() !== false;
+            $this->appointmentColumnAvailability[$column] = $exists;
+            return $exists;
+        } catch (Throwable) {
+            $this->appointmentColumnAvailability[$column] = false;
+            return false;
+        }
+    }
+
+    private function isServiceColumnAvailable(string $column): bool
+    {
+        if (array_key_exists($column, $this->serviceColumnAvailability)) {
+            return $this->serviceColumnAvailability[$column];
+        }
+
+        try {
+            $pdo = app(Database::class)->connection();
+            $stmt = $pdo->prepare(
+                'SELECT 1
+                 FROM information_schema.columns
+                 WHERE table_schema = DATABASE()
+                   AND table_name = :table_name
+                   AND column_name = :column_name
+                 LIMIT 1'
+            );
+            $stmt->execute([
+                ':table_name' => 'services',
+                ':column_name' => $column,
+            ]);
+
+            $exists = $stmt->fetchColumn() !== false;
+            $this->serviceColumnAvailability[$column] = $exists;
+            return $exists;
+        } catch (Throwable) {
+            $this->serviceColumnAvailability[$column] = false;
+            return false;
+        }
     }
 
     /**

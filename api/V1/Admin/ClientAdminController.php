@@ -441,9 +441,13 @@ final class ClientAdminController extends BaseApiController
 
         $pdo = app(Database::class)->connection();
         $pdfColumnsAvailable = $this->isInvoicePdfColumnAvailable();
+        $invoiceColumns = $this->invoiceColumnSet();
         $pdfSelect = $pdfColumnsAvailable
             ? 'inv.pdf_path, inv.pdf_generated_at'
             : 'NULL AS pdf_path, NULL AS pdf_generated_at';
+        $contractSelect = isset($invoiceColumns['contract_id'])
+            ? 'inv.contract_id AS invoice_contract_id,'
+            : 'NULL AS invoice_contract_id,';
 
         $stmt = $pdo->prepare(
             'SELECT
@@ -456,6 +460,7 @@ final class ClientAdminController extends BaseApiController
         inv.id AS invoice_id,
         inv.invoice_number,
         inv.status AS invoice_status,
+        ' . $contractSelect . '
         inv.total_amount,
         inv.currency_code,
         inv.invoice_date,
@@ -483,7 +488,7 @@ final class ClientAdminController extends BaseApiController
         $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
         $contractsStmt = $pdo->prepare(
-            'SELECT c.id, c.project_id, c.start_date, c.end_date
+            'SELECT c.id, c.project_id, c.start_date, c.end_date, c.is_active, c.terms
              FROM contracts c
              INNER JOIN projects p ON p.id = c.project_id
              WHERE p.client_id = :client_id
@@ -609,7 +614,6 @@ final class ClientAdminController extends BaseApiController
             'kind' => 'builder',
             'title' => $title,
             'text' => $contractText,
-            'active' => true,
             'builder_data' => $builderData,
         ];
 
@@ -622,6 +626,7 @@ final class ClientAdminController extends BaseApiController
             'end_date' => $normalizedEndDate,
             'terms' => $terms,
             'document_path' => null,
+            'is_active' => 1,
             'created_by' => $actorId,
             'updated_by' => $actorId,
             'created_at' => $now,
@@ -755,7 +760,6 @@ final class ClientAdminController extends BaseApiController
             'kind' => 'upload',
             'title' => $title,
             'text' => '',
-            'active' => true,
             'file' => $uploadMeta,
         ]);
 
@@ -766,6 +770,7 @@ final class ClientAdminController extends BaseApiController
             'end_date' => $endDate,
             'terms' => $terms,
             'document_path' => trim((string) ($uploadMeta['storage_path'] ?? '')),
+            'is_active' => 1,
             'created_by' => $actorId,
             'updated_by' => $actorId,
             'created_at' => $now,
@@ -826,13 +831,10 @@ final class ClientAdminController extends BaseApiController
             ]);
         }
 
-        $termsPayload = $this->decodeContractTermsPayload((string) ($row['terms'] ?? ''));
-        $termsPayload['active'] = $active;
-
         db('contracts')
             ->where('id', $contractId)
             ->update([
-                'terms' => $this->encodeContractTermsPayload($termsPayload),
+                'is_active' => $active ? 1 : 0,
                 'updated_by' => $this->actorId($request),
                 'updated_at' => date('Y-m-d H:i:s'),
             ]);
@@ -846,6 +848,7 @@ final class ClientAdminController extends BaseApiController
                 'c.project_id',
                 'c.start_date',
                 'c.end_date',
+                'c.is_active',
                 'c.terms',
                 'c.created_at',
                 'p.name as project_name',
@@ -1036,9 +1039,6 @@ final class ClientAdminController extends BaseApiController
         }
 
         $items = $this->normalizeManualInvoiceItems($payload['items'] ?? []);
-        if ($items === []) {
-            $errors['items'][] = 'at_least_one_item_required';
-        }
 
         $projectRow = $projectId > 0 ? $this->fetchProjectForClient($clientId, $projectId) : null;
         if ($projectId > 0 && $projectRow === null) {
@@ -1051,6 +1051,15 @@ final class ClientAdminController extends BaseApiController
             if ($contractRow === null) {
                 $errors['contract_id'][] = 'invalid_for_project';
             }
+        }
+
+        if ($items === [] && is_array($contractRow)) {
+            $hasPriorInvoiceUsage = $this->hasAnyInvoiceForContract($contractId ?? 0);
+            $items = $this->buildInvoiceItemsFromContract($contractRow, $hasPriorInvoiceUsage);
+        }
+
+        if ($items === []) {
+            $errors['items'][] = 'at_least_one_item_required';
         }
 
         if ($errors !== []) {
@@ -2081,6 +2090,7 @@ final class ClientAdminController extends BaseApiController
     private function formatProjectsWithInvoices(array $rows, int $clientId, array $contracts = [], string $pdfBasePath = '/clients/data'): array
     {
         $projects = [];
+        $invoicedContractIds = [];
 
         foreach ($rows as $row) {
             $projectId = (int) ($row['project_id'] ?? 0);
@@ -2100,6 +2110,11 @@ final class ClientAdminController extends BaseApiController
             $invoiceId = (int) ($row['invoice_id'] ?? 0);
 
             if ($invoiceId > 0) {
+                $invoiceContractId = (int) ($row['invoice_contract_id'] ?? 0);
+                if ($invoiceContractId > 0) {
+                    $invoicedContractIds[$invoiceContractId] = true;
+                }
+
                 $pdfPath = trim((string) ($row['pdf_path'] ?? ''));
                 $pdfAvailable = $pdfPath !== '';
                 $pdfUrlBase = rtrim($pdfBasePath, '/');
@@ -2107,6 +2122,7 @@ final class ClientAdminController extends BaseApiController
 
                 $projects[$projectId]['invoices'][] = [
                     'id' => $invoiceId,
+                    'contract_id' => $invoiceContractId > 0 ? $invoiceContractId : null,
                     'invoice_number' => (int) ($row['invoice_number'] ?? 0),
                     'status' => (string) ($row['invoice_status'] ?? 'created'),
                     'total_amount' => isset($row['total_amount'])
@@ -2134,10 +2150,27 @@ final class ClientAdminController extends BaseApiController
                 continue;
             }
 
+            $payload = $this->decodeContractTermsPayload((string) ($row['terms'] ?? ''));
+            $contractId = (int) ($row['id'] ?? 0);
+            $invoiceTemplate = $this->extractContractInvoiceTemplate($payload, isset($invoicedContractIds[$contractId]));
+
             $projects[$projectId]['contracts'][] = [
-                'id' => (int) ($row['id'] ?? 0),
+                'id' => $contractId,
+                'title' => $this->resolveContractTitle(
+                    $payload,
+                    [
+                        'project_name' => (string) ($projects[$projectId]['name'] ?? ''),
+                    ],
+                    null
+                ),
                 'start_date' => isset($row['start_date']) ? (string) $row['start_date'] : null,
                 'end_date' => isset($row['end_date']) ? (string) $row['end_date'] : null,
+                'is_active' => (int) ($row['is_active'] ?? 1) === 1,
+                'setup_fee' => $invoiceTemplate['setup_fee'],
+                'monthly_fee' => $invoiceTemplate['monthly_fee'],
+                'services' => $invoiceTemplate['services'],
+                'has_prior_invoice' => $invoiceTemplate['has_prior_invoice'],
+                'include_setup_fee' => $invoiceTemplate['include_setup_fee'],
             ];
         }
 
@@ -2429,6 +2462,156 @@ final class ClientAdminController extends BaseApiController
         return is_array($row) ? $row : null;
     }
 
+    private function hasAnyInvoiceForContract(int $contractId): bool
+    {
+        if ($contractId <= 0) {
+            return false;
+        }
+
+        $columns = $this->invoiceColumnSet();
+        if (!isset($columns['contract_id'])) {
+            return false;
+        }
+
+        $row = db('invoices')
+            ->where('contract_id', $contractId)
+            ->select(['id'])
+            ->first();
+
+        return is_array($row) && (int) ($row['id'] ?? 0) > 0;
+    }
+
+    /**
+     * @param array<string, mixed> $contractRow
+     * @return array<int, array{description: string, quantity: float, unit_price: float}>
+     */
+    private function buildInvoiceItemsFromContract(array $contractRow, bool $hasPriorInvoice): array
+    {
+        $payload = $this->decodeContractTermsPayload((string) ($contractRow['terms'] ?? ''));
+        $template = $this->extractContractInvoiceTemplate($payload, $hasPriorInvoice);
+
+        $items = [];
+        if ($template['include_setup_fee'] && $template['setup_fee'] > 0.0) {
+            $items[] = [
+                'description' => 'Einrichtungsgebühr',
+                'quantity' => 1.0,
+                'unit_price' => $template['setup_fee'],
+            ];
+        }
+
+        if ($template['monthly_fee'] > 0.0) {
+            $items[] = [
+                'description' => 'Service / Wartung',
+                'quantity' => 1.0,
+                'unit_price' => $template['monthly_fee'],
+            ];
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{setup_fee: float, monthly_fee: float, services: array<int, string>, has_prior_invoice: bool, include_setup_fee: bool}
+     */
+    private function extractContractInvoiceTemplate(array $payload, bool $hasPriorInvoice): array
+    {
+        $builderData = is_array($payload['builder_data'] ?? null)
+            ? (array) $payload['builder_data']
+            : [];
+
+        $setupFee = $this->toMoneyValue($builderData['setup_fee'] ?? 0);
+        $monthlyFee = $this->toMoneyValue($builderData['monthly_fee'] ?? 0);
+
+        $contractText = trim((string) ($payload['text'] ?? ''));
+        if ($setupFee <= 0.0) {
+            $setupFee = $this->extractFeeFromContractText(
+                $contractText,
+                ['einrichtungsgebühr', 'einrichtungsgebuehr']
+            );
+        }
+        if ($monthlyFee <= 0.0) {
+            $monthlyFee = $this->extractFeeFromContractText(
+                $contractText,
+                ['wartungsgebühr', 'wartungsgebuehr', 'monatliche vergütung', 'monatliche verguetung']
+            );
+        }
+
+        $services = [];
+        $rawServices = $builderData['services'] ?? [];
+        if (is_array($rawServices)) {
+            foreach ($rawServices as $line) {
+                $text = trim((string) $line);
+                if ($text !== '') {
+                    $services[] = $text;
+                }
+            }
+        } elseif (is_string($rawServices)) {
+            foreach (preg_split('/\R/u', $rawServices) ?: [] as $line) {
+                $text = trim((string) $line);
+                if ($text !== '') {
+                    $services[] = $text;
+                }
+            }
+        }
+
+        return [
+            'setup_fee' => $setupFee,
+            'monthly_fee' => $monthlyFee,
+            'services' => $services,
+            'has_prior_invoice' => $hasPriorInvoice,
+            'include_setup_fee' => $hasPriorInvoice,
+        ];
+    }
+
+    /** @param array<int, string> $labels */
+    private function extractFeeFromContractText(string $contractText, array $labels): float
+    {
+        $text = trim($contractText);
+        if ($text === '' || $labels === []) {
+            return 0.0;
+        }
+
+        foreach ($labels as $label) {
+            $quotedLabel = preg_quote($label, '/');
+
+            $patterns = [
+                '/(?:' . $quotedLabel . ')[^\d]{0,80}(\d{1,3}(?:[\. ]\d{3})*(?:,\d{1,2})?|\d+(?:,\d{1,2})?)\s*€/iu',
+                '/(\d{1,3}(?:[\. ]\d{3})*(?:,\d{1,2})?|\d+(?:,\d{1,2})?)\s*€[^\n\r]{0,80}(?:' . $quotedLabel . ')/iu',
+            ];
+
+            foreach ($patterns as $pattern) {
+                if (preg_match($pattern, $text, $matches) !== 1) {
+                    continue;
+                }
+
+                $amount = $this->toMoneyValue($matches[1] ?? 0);
+                if ($amount > 0.0) {
+                    return $amount;
+                }
+            }
+        }
+
+        return 0.0;
+    }
+
+    private function toMoneyValue(mixed $value): float
+    {
+        if (is_int($value) || is_float($value)) {
+            return round((float) $value, 2);
+        }
+
+        if (is_string($value)) {
+            $normalized = str_replace([' ', '.'], ['', ''], trim($value));
+            $normalized = str_replace(',', '.', $normalized);
+            if ($normalized !== '' && is_numeric($normalized)) {
+                return round((float) $normalized, 2);
+            }
+        }
+
+        return 0.0;
+    }
+
     /** @return array<int, array<string, mixed>> */
     private function fetchContractsForClient(int $clientId): array
     {
@@ -2441,6 +2624,7 @@ final class ClientAdminController extends BaseApiController
                 'c.project_id',
                 'c.start_date',
                 'c.end_date',
+                'c.is_active',
                 'c.terms',
                 'c.document_path',
                 'c.created_at',
@@ -2462,6 +2646,10 @@ final class ClientAdminController extends BaseApiController
             $kind = 'legacy';
         }
 
+        $contractId = (int) ($row['id'] ?? 0);
+        $hasPriorInvoice = $this->hasAnyInvoiceForContract($contractId);
+        $invoiceTemplate = $this->extractContractInvoiceTemplate($payload, $hasPriorInvoice);
+
         $file = is_array($payload['file'] ?? null) ? $payload['file'] : null;
         $title = $this->resolveContractTitle($payload, $row, $file);
 
@@ -2469,9 +2657,7 @@ final class ClientAdminController extends BaseApiController
             ? trim((string) ($payload['text'] ?? ''))
             : '';
 
-        $isActive = !array_key_exists('active', $payload)
-            ? true
-            : ((bool) $payload['active']);
+        $isActive = (int) ($row['is_active'] ?? 1) === 1;
 
         $documentPath = trim((string) ($row['document_path'] ?? ''));
         $storagePath = is_array($file)
@@ -2494,7 +2680,7 @@ final class ClientAdminController extends BaseApiController
             : '';
 
         return [
-            'id' => (int) ($row['id'] ?? 0),
+            'id' => $contractId,
             'client_id' => (int) ($row['client_id'] ?? 0),
             'project_id' => (int) ($row['project_id'] ?? 0),
             'project_name' => (string) ($row['project_name'] ?? ''),
@@ -2512,6 +2698,11 @@ final class ClientAdminController extends BaseApiController
             'file_size_bytes' => $hasFile ? (int) ($file['size_bytes'] ?? 0) : null,
             'preview_url' => $previewUrl,
             'download_url' => $downloadUrl,
+            'setup_fee' => $invoiceTemplate['setup_fee'],
+            'monthly_fee' => $invoiceTemplate['monthly_fee'],
+            'services' => $invoiceTemplate['services'],
+            'has_prior_invoice' => $invoiceTemplate['has_prior_invoice'],
+            'include_setup_fee' => $invoiceTemplate['include_setup_fee'],
         ];
     }
 

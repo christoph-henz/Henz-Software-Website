@@ -19,6 +19,10 @@ final class AvailabilityAdminController extends BaseApiController
     private const VIEW_APPOINTMENTS_BIT = 1;
     private const MANAGE_APPOINTMENTS_BIT = 2;
     private const BERLIN_TIMEZONE = 'Europe/Berlin';
+    /** @var array<string, bool> */
+    private array $appointmentColumnAvailability = [];
+    /** @var array<string, bool> */
+    private array $serviceColumnAvailability = [];
 
     public function index(Request $request): Response
     {
@@ -67,6 +71,7 @@ final class AvailabilityAdminController extends BaseApiController
         $bufferMinutes = $this->readIntPayload($data['buffer_minutes'] ?? null, 0, 180, $errors, 'buffer_minutes');
         $maxAppointmentsPerDay = $this->readIntPayload($data['max_appointments_per_day'] ?? null, 0, 100, $errors, 'max_appointments_per_day');
         $appointmentsEnabled = $this->normalizeBool($data['appointments_enabled'] ?? true) ? 1 : 0;
+        $ticketsEnabled = $this->normalizeBool($data['tickets_enabled'] ?? true) ? 1 : 0;
         $minNoticeHours = $this->readIntPayload($data['appointments_min_hours_notice'] ?? null, 0, 720, $errors, 'appointments_min_hours_notice');
         $advanceDays = $this->readIntPayload($data['appointments_advance_days'] ?? null, 1, 3650, $errors, 'appointments_advance_days');
         $dayStartHour = $this->readIntPayload($data['appointments_day_start_hour'] ?? null, 0, 23, $errors, 'appointments_day_start_hour');
@@ -84,6 +89,7 @@ final class AvailabilityAdminController extends BaseApiController
 
         $rules = [
             'appointments_enabled' => (string) $appointmentsEnabled,
+            'tickets_enabled' => (string) $ticketsEnabled,
             'buffer_minutes' => (string) $bufferMinutes,
             'max_appointments_per_day' => (string) $maxAppointmentsPerDay,
             'appointments_min_hours_notice' => (string) $minNoticeHours,
@@ -96,6 +102,7 @@ final class AvailabilityAdminController extends BaseApiController
 
         $descriptions = [
             'appointments_enabled' => 'Terminbuchung aktiviert (1) oder deaktiviert (0)',
+            'tickets_enabled' => 'Ticketsystem aktiviert (1) oder deaktiviert (0)',
             'buffer_minutes' => 'Pufferzeit zwischen Terminen in Minuten',
             'max_appointments_per_day' => 'Maximale Anzahl Termine pro Tag (0 = unbegrenzt)',
             'appointments_min_hours_notice' => 'Mindestvorlaufzeit in Stunden',
@@ -332,6 +339,7 @@ final class AvailabilityAdminController extends BaseApiController
     {
         $rules = [
             'appointments_enabled' => 1,
+            'tickets_enabled' => 1,
             'buffer_minutes' => 0,
             'max_appointments_per_day' => 0,
             'appointments_min_hours_notice' => 24,
@@ -579,17 +587,38 @@ final class AvailabilityAdminController extends BaseApiController
         $windowFrom = $startsAt->modify('-1 day');
         $windowTo = $endsAt->modify('+1 day');
 
+        $dateColumn = $this->resolveAppointmentDateColumn();
+        if ($dateColumn === null) {
+            return false;
+        }
+
+        $hasStatusColumn = $this->isAppointmentColumnAvailable('status');
+        $hasAppointmentDurationColumn = $this->isAppointmentColumnAvailable('duration_minutes');
+        $hasServiceDurationColumn = $this->isServiceColumnAvailable('duration_minutes');
+
         $pdo = app(Database::class)->connection();
-         $stmt = $pdo->prepare(
-                   'SELECT b.scheduled_at, b.duration_minutes
-                    FROM appointments b
-                    WHERE b.status NOT IN (:storno, :declined)
-             AND b.scheduled_at >= :from
-             AND b.scheduled_at < :to'
-         );
+        if ($hasAppointmentDurationColumn && $hasServiceDurationColumn) {
+            $durationSql = 'COALESCE(NULLIF(a.duration_minutes, 0), s.duration_minutes, 60)';
+        } elseif ($hasAppointmentDurationColumn) {
+            $durationSql = 'COALESCE(NULLIF(a.duration_minutes, 0), 60)';
+        } elseif ($hasServiceDurationColumn) {
+            $durationSql = 'COALESCE(s.duration_minutes, 60)';
+        } else {
+            $durationSql = '60';
+        }
+        $statusSql = $hasStatusColumn
+            ? "AND (a.status IS NULL OR a.status NOT IN ('storno', 'declined', 'cancelled'))"
+            : '';
+
+        $stmt = $pdo->prepare(
+            'SELECT a.' . $dateColumn . ' AS scheduled_at, ' . $durationSql . ' AS duration_minutes
+             FROM appointments a
+             LEFT JOIN services s ON s.id = a.service_id
+             WHERE a.' . $dateColumn . ' >= :from
+               AND a.' . $dateColumn . ' < :to
+               ' . $statusSql
+        );
         $stmt->execute([
-                        ':storno' => 'storno',
-                        ':declined' => 'declined',
             ':from' => $windowFrom->format('Y-m-d H:i:s'),
             ':to' => $windowTo->format('Y-m-d H:i:s'),
         ]);
@@ -640,5 +669,78 @@ final class AvailabilityAdminController extends BaseApiController
         $userId = (int) ($adminUser['id'] ?? 0);
 
         return $userId > 0 ? $userId : null;
+    }
+
+    private function resolveAppointmentDateColumn(): ?string
+    {
+        if ($this->isAppointmentColumnAvailable('scheduled_at')) {
+            return 'scheduled_at';
+        }
+
+        if ($this->isAppointmentColumnAvailable('appointment_date')) {
+            return 'appointment_date';
+        }
+
+        return null;
+    }
+
+    private function isAppointmentColumnAvailable(string $column): bool
+    {
+        if (array_key_exists($column, $this->appointmentColumnAvailability)) {
+            return $this->appointmentColumnAvailability[$column];
+        }
+
+        try {
+            $pdo = app(Database::class)->connection();
+            $stmt = $pdo->prepare(
+                'SELECT 1
+                 FROM information_schema.columns
+                 WHERE table_schema = DATABASE()
+                   AND table_name = :table_name
+                   AND column_name = :column_name
+                 LIMIT 1'
+            );
+            $stmt->execute([
+                ':table_name' => 'appointments',
+                ':column_name' => $column,
+            ]);
+
+            $exists = $stmt->fetchColumn() !== false;
+            $this->appointmentColumnAvailability[$column] = $exists;
+            return $exists;
+        } catch (Throwable) {
+            $this->appointmentColumnAvailability[$column] = false;
+            return false;
+        }
+    }
+
+    private function isServiceColumnAvailable(string $column): bool
+    {
+        if (array_key_exists($column, $this->serviceColumnAvailability)) {
+            return $this->serviceColumnAvailability[$column];
+        }
+
+        try {
+            $pdo = app(Database::class)->connection();
+            $stmt = $pdo->prepare(
+                'SELECT 1
+                 FROM information_schema.columns
+                 WHERE table_schema = DATABASE()
+                   AND table_name = :table_name
+                   AND column_name = :column_name
+                 LIMIT 1'
+            );
+            $stmt->execute([
+                ':table_name' => 'services',
+                ':column_name' => $column,
+            ]);
+
+            $exists = $stmt->fetchColumn() !== false;
+            $this->serviceColumnAvailability[$column] = $exists;
+            return $exists;
+        } catch (Throwable) {
+            $this->serviceColumnAvailability[$column] = false;
+            return false;
+        }
     }
 }
