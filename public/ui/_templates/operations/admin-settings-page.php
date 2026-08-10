@@ -10,7 +10,7 @@ $settingsByGroup = is_array($settingsByGroup ?? null) ? $settingsByGroup : [];
 $settingsConfig  = is_array($settingsConfig ?? null) ? $settingsConfig : [];
 $canManageAdmin  = (bool) ($canManageAdmin ?? false);
 
-$extraHead    = '';
+$extraHead    = '<link rel="icon" type="image/svg+xml" href="/ui/_assets/images/favicon.svg" />';
 $extraScripts = '';
 
 ob_start();

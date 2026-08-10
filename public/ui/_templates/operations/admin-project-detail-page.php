@@ -9,7 +9,7 @@ $csrfToken   = (string) ($csrfToken ?? '');
 $projectDetailConfig = is_array($projectDetailConfig ?? null) ? $projectDetailConfig : [];
 $canManageProjects = (bool) ($projectDetailConfig['can_manage_projects'] ?? false);
 
-$extraHead = '';
+$extraHead = '<link rel="icon" type="image/svg+xml" href="/ui/_assets/images/favicon.svg" />';
 $extraScripts = '<script>window.__ADMIN_PROJECT_DETAIL_CONFIG = ' . json_encode(
     $projectDetailConfig,
     JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT

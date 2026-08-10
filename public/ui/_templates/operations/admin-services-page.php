@@ -8,7 +8,7 @@ $logoutAction = (string) ($logoutAction ?? '/logout');
 $csrfToken = (string) ($csrfToken ?? '');
 $servicesConfig = is_array($servicesConfig ?? null) ? $servicesConfig : [];
 
-$extraHead = '<link rel="stylesheet" href="/ui/_assets/css/admin-services.css" />';
+$extraHead = '<link rel="stylesheet" href="/ui/_assets/css/admin-services.css" /><link rel="icon" type="image/svg+xml" href="/ui/_assets/images/favicon.svg" />';
 $extraScripts = '<script>window.__ADMIN_SERVICES_CONFIG = ' . json_encode(
     $servicesConfig,
     JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT

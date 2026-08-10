@@ -119,6 +119,24 @@ if (!function_exists('media_asset_public_url')) {
     }
 }
 
+if (!function_exists('site_url')) {
+    function site_url(string $path = ''): string
+    {
+        $baseUrl = rtrim((string) config('app.url', 'http://localhost'), '/');
+        $path = trim($path);
+
+        if ($path === '') {
+            return $baseUrl;
+        }
+
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return $path;
+        }
+
+        return $baseUrl . '/' . ltrim($path, '/');
+    }
+}
+
 if (!function_exists('page_media_slot_url')) {
     function page_media_slot_url(string $pageKey, string $sectionKey, string $slotKey, string $fallback = ''): string
     {

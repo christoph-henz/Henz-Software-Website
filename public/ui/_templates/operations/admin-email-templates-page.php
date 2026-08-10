@@ -9,7 +9,7 @@ $csrfToken = (string) ($csrfToken ?? '');
 $templates = is_array($templates ?? null) ? $templates : [];
 $placeholderGroups = is_array($placeholderGroups ?? null) ? $placeholderGroups : [];
 
-$extraHead = '<link rel="stylesheet" href="/ui/_assets/css/admin-email-templates.css" />';
+$extraHead = '<link rel="stylesheet" href="/ui/_assets/css/admin-email-templates.css" /><link rel="icon" type="image/svg+xml" href="/ui/_assets/images/favicon.svg" />';
 $extraScripts = <<<'HTML'
 <script>
 document.addEventListener('DOMContentLoaded', function () {

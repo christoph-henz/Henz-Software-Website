@@ -2,12 +2,20 @@
 
 declare(strict_types=1);
 $services = service_page_sections();
+$siteUrl = rtrim((string) config('app.url', 'http://localhost'), '/');
+$pageSeo = [
+  'title' => 'Leistungen',
+  'description' => 'Leistungen rund um Webentwicklung, Prozessdigitalisierung, Automatisierung und technische Umsetzung bei Henz Software.',
+  'canonical' => $siteUrl . '/leistungen',
+  'og_type' => 'website',
+];
 ?><!doctype html>
 <html lang="de">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Henz Software</title>
+<?php require __DIR__ . '/../_partials/seo-head.php'; ?>
+  <link rel="icon" type="image/svg+xml" href="/ui/_assets/images/favicon.svg" />
   <link rel="stylesheet" href="/ui/_assets/css/theme.css" />
   <link rel="stylesheet" href="/ui/_assets/css/tailwind.css" />
 </head>

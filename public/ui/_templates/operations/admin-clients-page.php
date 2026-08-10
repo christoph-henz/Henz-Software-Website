@@ -16,7 +16,7 @@ if ($viewMode === 'tickets') {
     $pageSubheading = 'Zentrale Ticketliste mit direkter Verlinkung in die jeweilige Klientenakte.';
 }
 
-$extraHead = '<link rel="stylesheet" href="/ui/_assets/css/admin-clients.css" />';
+$extraHead = '<link rel="stylesheet" href="/ui/_assets/css/admin-clients.css" /><link rel="icon" type="image/svg+xml" href="/ui/_assets/images/favicon.svg" />';
 $extraScripts = '<script>window.__ADMIN_CLIENTS_CONFIG = ' . json_encode(
     $clientsConfig,
     JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT

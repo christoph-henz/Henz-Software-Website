@@ -38,8 +38,17 @@ $resolveProjectMedia = static function (array $row): array {
         'ogg' => 'video/ogg',
     ];
 
+    $resolvedMediaFile = $mediaFile;
+    if (!isset($videoMimeTypes[$extension])) {
+        $optimizedFile = preg_replace('/\.[^.]+$/', '-960.jpg', $mediaFile) ?? $mediaFile;
+        $optimizedPath = base_path('/storage/media/referenced_projects/' . $optimizedFile);
+        if (is_file($optimizedPath)) {
+            $resolvedMediaFile = $optimizedFile;
+        }
+    }
+
     return [
-        'src' => '/storage/media/referenced_projects/' . rawurlencode($mediaFile),
+        'src' => '/storage/media/referenced_projects/' . rawurlencode($resolvedMediaFile),
         'isVideo' => isset($videoMimeTypes[$extension]),
         'mimeType' => $videoMimeTypes[$extension] ?? null,
     ];
@@ -91,14 +100,13 @@ if (empty($rows)) {
                         data-fg-d3bl172="0.8:1.32440:/src/app/App.tsx:548:17:21854:598:e:div:ete" data-fgid-d3bl172=":r5f:"
                         style="min-height: 260px; background: var(--card);">
                         <?php if ($media['isVideo']): ?>
-                            <video autoplay muted loop playsinline
+                                            <video autoplay muted loop playsinline preload="none" data-deferred-video="1" data-video-src="<?= $media['src'] ?>" data-video-type="<?= $media['mimeType'] ?>"
                                 class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                                 data-fg-d3bl173="0.8:1.32440:/src/app/App.tsx:549:19:21959:265:e:img" data-fgid-d3bl173=":r5g:"
                                 style="position: absolute; inset: 0px;">
-                                <source src="<?= $media['src'] ?>" type="<?= $media['mimeType'] ?>">
                             </video>
                         <?php else: ?>
-                            <img src="<?= $media['src'] ?>" alt="<?= $row['title'] ?? 'Project Image' ?>"
+                            <img src="<?= $media['src'] ?>" alt="<?= $row['title'] ?? 'Project Image' ?>" loading="lazy" decoding="async"
                                 class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                                 data-fg-d3bl173="0.8:1.32440:/src/app/App.tsx:549:19:21959:265:e:img" data-fgid-d3bl173=":r5g:"
                                 style="position: absolute; inset: 0px;">

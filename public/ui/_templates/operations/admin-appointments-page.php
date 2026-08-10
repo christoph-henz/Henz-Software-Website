@@ -16,7 +16,7 @@ $appointmentsConfig = is_array($appointmentsConfig ?? null)
     ? $appointmentsConfig
     : (require base_path('public/ui/_config/operations/admin-appointments.php'));
 
-$extraHead = '';
+$extraHead = '<link rel="icon" type="image/svg+xml" href="/ui/_assets/images/favicon.svg" />';
 $extraScripts = '<script>window.__ADMIN_APPOINTMENTS_CONFIG = ' . json_encode(
     $appointmentsConfig,
     JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT

@@ -9,6 +9,13 @@ $intro = (string) ($cfg['intro'] ?? '');
 $total = (int) ($cfg['total'] ?? 0);
 $highlights = is_array($cfg['highlights'] ?? null) ? $cfg['highlights'] : [];
 $technologies = is_array($cfg['technologies'] ?? null) ? $cfg['technologies'] : [];
+$siteUrl = rtrim((string) config('app.url', 'http://localhost'), '/');
+$pageSeo = [
+  'title' => 'Technologien',
+  'description' => $intro !== '' ? $intro : 'Ein Überblick über die Technologien, die bei Henz Software produktiv eingesetzt werden.',
+  'canonical' => $siteUrl . '/technology',
+  'og_type' => 'website',
+];
 
 $escape = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
 ?>
@@ -17,7 +24,8 @@ $escape = static fn(string $value): string => htmlspecialchars($value, ENT_QUOTE
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Technologien - Henz Software</title>
+<?php require __DIR__ . '/../_partials/seo-head.php'; ?>
+  <link rel="icon" type="image/svg+xml" href="/ui/_assets/images/favicon.svg" />
   <link rel="stylesheet" href="/ui/_assets/css/theme.css" />
   <link rel="stylesheet" href="/ui/_assets/css/tailwind.css" />
 </head>

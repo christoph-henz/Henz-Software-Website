@@ -9,7 +9,7 @@ $csrfToken = (string) ($csrfToken ?? '');
 $templatesConfig = is_array($templatesConfig ?? null) ? $templatesConfig : [];
 $includeGlobalAdminModal = false;
 
-$extraHead = '<link rel="stylesheet" href="/ui/_assets/css/admin-form-templates.css" />';
+$extraHead = '<link rel="stylesheet" href="/ui/_assets/css/admin-form-templates.css" /><link rel="icon" type="image/svg+xml" href="/ui/_assets/images/favicon.svg" />';
 $extraScripts = '<script>window.__ADMIN_TEMPLATES_CONFIG = ' . json_encode(
     $templatesConfig,
     JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
