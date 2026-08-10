@@ -3168,7 +3168,7 @@
             method: 'PATCH',
             credentials: 'include',
             headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-            body: JSON.stringify({ is_active: !!shouldBeActive }),
+            body: JSON.stringify({ is_active: shouldBeActive ? '1' : '0' }),
         })
             .then(parseJsonResponse)
             .then(function (result) {
@@ -3177,10 +3177,7 @@
                 }
 
                 notify('success', shouldBeActive ? 'Vertrag aktiviert.' : 'Vertrag deaktiviert.');
-                return Promise.all([
-                    fetchClientContracts(state.selectedClientId),
-                    fetchClientBookings(state.selectedClientId),
-                ]).then(function () {
+                return fetchClientContracts(state.selectedClientId).then(function () {
                     state.infoSubtab = 'contracts';
                     writeRecordUrl(false);
                     render();
