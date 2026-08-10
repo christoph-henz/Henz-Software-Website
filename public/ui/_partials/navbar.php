@@ -6,6 +6,21 @@ $brand = htmlspecialchars((string) ($footerConfig['brand'] ?? 'Henz Software Sol
 $note = htmlspecialchars((string) ($footerConfig['note'] ?? 'Henz Software'), ENT_QUOTES, 'UTF-8');
 
 $navItems = require __DIR__ . '/../_config/navigation.php';
+$essentialConsentGranted = in_array(
+    strtolower(trim((string) ($_COOKIE['hs_essential_cookies'] ?? ''))),
+    ['accepted', '1', 'true', 'yes'],
+    true
+);
+
+$legalNavItems = [
+    ['label' => 'Impressum', 'href' => '/impressum'],
+    ['label' => 'Datenschutz', 'href' => '/datenschutz'],
+    ['label' => 'AGB', 'href' => '/agb'],
+];
+
+$visibleNavItems = $essentialConsentGranted ? $navItems : $legalNavItems;
+$gitCloneStyle = 'color: var(--primary); border-color: color-mix(in srgb, var(--primary) 35%, transparent); background: transparent; font-family: &quot;JetBrains Mono&quot;, monospace;' . ($essentialConsentGranted ? '' : ' display: none;');
+$talkStyle = 'background: var(--primary); color: var(--primary-foreground); font-family: &quot;JetBrains Mono&quot;, monospace;' . ($essentialConsentGranted ? '' : ' display: none;');
 
 $renderNavItems = static function (array $items): string {
     $html = '';
@@ -62,19 +77,19 @@ $renderNavItems = static function (array $items): string {
         <nav class="gb-nav gb-nav-surface absolute left-4 right-4 top-[4.5rem] hidden rounded-2xl p-4 backdrop-blur-md shadow-2xl md:static md:block md:rounded-none md:border-0 md:bg-transparent md:p-0 md:shadow-none"
             data-fg-d3bl20="0.8:1.32440:/src/app/App.tsx:188:11:6513:559:e:nav:x" data-fgid-d3bl20=":r7:">
             <ul class="flex flex-col gap-2 md:flex-row md:items-center md:gap-8" role="menubar">
-                <?= $renderNavItems($navItems); ?>
+                <?= $renderNavItems($visibleNavItems); ?>
             </ul>
         </nav>
         <div class="hidden md:flex items-center gap-3"
             data-fg-d3bl24="0.8:1.32440:/src/app/App.tsx:203:11:7084:1386:e:div:ete" data-fgid-d3bl24=":rd:"><button
                 class="px-5 py-2 text-sm font-medium rounded transition-all duration-200 border"
                 data-fg-d3bl25="0.8:1.32440:/src/app/App.tsx:204:13:7148:685:e:button:t" data-fgid-d3bl25=":re:"
-                style="color: var(--primary); border-color: color-mix(in srgb, var(--primary) 35%, transparent); background: transparent; font-family: &quot;JetBrains Mono&quot;, monospace;"
+                style="<?= htmlspecialchars($gitCloneStyle, ENT_QUOTES, 'UTF-8'); ?>"
                 onclick="window.location.href='https://github.com/christoph-henz/Henz-Software-Website'">git
                 clone project</button><button
                 class="px-5 py-2 text-sm font-semibold rounded transition-all duration-200"
                 data-fg-d3bl27="0.8:1.32440:/src/app/App.tsx:221:13:7846:607:e:button:s" data-fgid-d3bl27=":rf:"
-                style="background: var(--primary); color: var(--primary-foreground); font-family: &quot;JetBrains Mono&quot;, monospace;"
+                style="<?= htmlspecialchars($talkStyle, ENT_QUOTES, 'UTF-8'); ?>"
                 onclick="window.location.href='/contact'">//
                 let's talk</button></div><button class="gb-nav-toggle md:hidden p-2"
             data-fg-d3bl29="0.8:1.32440:/src/app/App.tsx:239:11:8482:251:e:button:x" data-fgid-d3bl29=":rg:"

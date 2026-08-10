@@ -12,9 +12,17 @@ declare(strict_types=1);
 return [
     'required_keys' => ['privacy_policy'],
 
+    'site_required_keys' => ['essential_cookies'],
+
     'versions' => [
         '1.0' => [
             'privacy_policy' => 'Ich habe die Datenschutzerklärung gelesen und stimme der Verarbeitung meiner personenbezogenen Daten zum Zwecke der Kontaktaufnahme und Terminvermittlung zu.',
             ],
+    ],
+
+    'site_versions' => [
+        'site-1.0' => [
+            'essential_cookies' => 'Ich stimme der Nutzung essenzieller Cookies zu, damit diese Website technisch bereitgestellt werden kann.',
+        ],
     ],
 ];
