@@ -74,8 +74,7 @@ $renderNavItems = static function (array $items): string {
                 style="font-family: &quot;JetBrains Mono&quot;, monospace; color: var(--foreground);"><?= $note; ?><span
                     data-fg-d3bl18="0.8:1.32440:/src/app/App.tsx:184:23:6419:45:e:span:t" data-fgid-d3bl18=":r6:"
                     style="color: rgb(0, 200, 255);">.de</span></span></a>
-        <nav class="gb-nav gb-nav-surface absolute left-4 right-4 top-[4.5rem] hidden rounded-2xl p-4 backdrop-blur-md shadow-2xl md:static md:block md:rounded-none md:border-0 md:bg-transparent md:p-0 md:shadow-none"
-            data-fg-d3bl20="0.8:1.32440:/src/app/App.tsx:188:11:6513:559:e:nav:x" data-fgid-d3bl20=":r7:">
+        <nav class="gb-nav gb-nav-surface absolute left-4 right-4 top-[4.5rem] hidden rounded-2xl bg-white/90 p-4 shadow-2xl backdrop-blur-md md:static md:block md:rounded-none md:border-0 md:bg-transparent md:p-0 md:shadow-none">
             <ul class="flex flex-col gap-2 md:flex-row md:items-center md:gap-8" role="menubar">
                 <?= $renderNavItems($visibleNavItems); ?>
             </ul>
