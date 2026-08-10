@@ -541,9 +541,10 @@
         }
 
         var timeLabel = blockedSegmentLabel(segment);
+        var reasonLabel = String(slot && slot.reason ? slot.reason : 'Sperrzeit');
         return '' +
             '<div class="admin-calendar-event admin-calendar-event--blocked" data-blocked-id="' + slot.id + '">' +
-            '  <strong>' + escapeHtml(timeLabel) + '</strong> Sperrzeit' +
+            '  <strong>' + escapeHtml(timeLabel) + '</strong> ' + escapeHtml(reasonLabel) +
             '</div>';
     }
 
@@ -575,10 +576,11 @@
         var dt = toDateSafe(segment.start_at);
         var time = dt ? dt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '--:--';
         var durationLabel = formatDurationLabel(Number(slot && slot.duration_minutes || segment.duration_minutes || 0));
+        var reasonLabel = String(slot && slot.reason ? slot.reason : 'Sperrzeit');
         return '' +
             '<div class="admin-week-event admin-calendar-event--blocked" data-blocked-id="' + slot.id + '" data-booking-top="' + Math.round(topPx) + '" style="top:' + topPx + 'px;height:' + heightPx + 'px">' +
             '  <div class="admin-week-event-time">' + escapeHtml(time) + ' (' + escapeHtml(durationLabel) + ')</div>' +
-            '  <div class="admin-week-event-client">Sperrzeit</div>' +
+            '  <div class="admin-week-event-client">' + escapeHtml(reasonLabel) + '</div>' +
             '</div>';
     }
 

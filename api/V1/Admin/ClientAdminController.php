@@ -441,9 +441,13 @@ final class ClientAdminController extends BaseApiController
 
         $pdo = app(Database::class)->connection();
         $pdfColumnsAvailable = $this->isInvoicePdfColumnAvailable();
+        $invoiceColumns = $this->invoiceColumnSet();
         $pdfSelect = $pdfColumnsAvailable
             ? 'inv.pdf_path, inv.pdf_generated_at'
             : 'NULL AS pdf_path, NULL AS pdf_generated_at';
+        $contractSelect = isset($invoiceColumns['contract_id'])
+            ? 'inv.contract_id AS invoice_contract_id,'
+            : 'NULL AS invoice_contract_id,';
 
         $stmt = $pdo->prepare(
             'SELECT
@@ -456,6 +460,7 @@ final class ClientAdminController extends BaseApiController
         inv.id AS invoice_id,
         inv.invoice_number,
         inv.status AS invoice_status,
+        ' . $contractSelect . '
         inv.total_amount,
         inv.currency_code,
         inv.invoice_date,
@@ -483,7 +488,7 @@ final class ClientAdminController extends BaseApiController
         $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
         $contractsStmt = $pdo->prepare(
-            'SELECT c.id, c.project_id, c.start_date, c.end_date
+            'SELECT c.id, c.project_id, c.start_date, c.end_date, c.is_active, c.terms
              FROM contracts c
              INNER JOIN projects p ON p.id = c.project_id
              WHERE p.client_id = :client_id
@@ -984,6 +989,480 @@ final class ClientAdminController extends BaseApiController
 
     public function createInvoice(Request $request): Response
     {
+        if (!$this->canViewClients($request)) {
+            return $this->fail('Forbidden', 403, [
+                'permission' => ['insufficient_role'],
+            ]);
+        }
+
+        $clientId = (int) $request->attribute('id', 0);
+        if ($clientId <= 0) {
+            return $this->fail('Validation failed', 422, [
+                'id' => ['required'],
+            ]);
+        }
+
+        $client = $this->fetchClient($clientId);
+        if ($client === null) {
+            return $this->fail('Client not found', 404);
+        }
+
+        $rows = $this->fetchContractsForClient($clientId);
+
+        $downloadBase = str_starts_with($request->path(), '/v1/')
+            ? '/v1/admin/clients/data'
+            : '/clients/data';
+
+        $contracts = array_map(function (array $row) use ($clientId, $downloadBase): array {
+            return $this->formatContractEntry($row, $clientId, $downloadBase);
+        }, $rows);
+
+        return $this->ok([
+            'contracts' => $contracts,
+        ]);
+    }
+
+    public function createContract(Request $request): Response
+    {
+        if (!$this->canManageClients($request)) {
+            return $this->fail('Forbidden', 403, [
+                'permission' => ['insufficient_role'],
+            ]);
+        }
+
+        $clientId = (int) $request->attribute('id', 0);
+        if ($clientId <= 0) {
+            return $this->fail('Validation failed', 422, [
+                'id' => ['required'],
+            ]);
+        }
+
+        $client = $this->fetchClient($clientId);
+        if ($client === null) {
+            return $this->fail('Client not found', 404);
+        }
+
+        $payload = $request->all();
+        $projectId = (int) ($payload['project_id'] ?? 0);
+        $startDate = trim((string) ($payload['start_date'] ?? ''));
+        $endDate = trim((string) ($payload['end_date'] ?? ''));
+        $title = trim((string) ($payload['title'] ?? ''));
+        $contractText = trim((string) ($payload['contract_text'] ?? ''));
+        $builderData = is_array($payload['builder_data'] ?? null)
+            ? (array) $payload['builder_data']
+            : [];
+
+        $errors = [];
+        if ($projectId <= 0) {
+            $errors['project_id'][] = 'required';
+        }
+
+        $normalizedStartDate = $this->normalizeDate($startDate);
+        if ($normalizedStartDate === null) {
+            $errors['start_date'][] = 'invalid_date';
+        }
+
+        $normalizedEndDate = null;
+        if ($endDate !== '') {
+            $normalizedEndDate = $this->normalizeDate($endDate);
+            if ($normalizedEndDate === null) {
+                $errors['end_date'][] = 'invalid_date';
+            }
+        }
+
+        if ($contractText === '') {
+            $errors['contract_text'][] = 'required';
+        }
+
+        if ($errors !== []) {
+            return $this->fail('Validation failed', 422, $errors);
+        }
+
+        if ($this->fetchProjectForClient($clientId, $projectId) === null) {
+            return $this->fail('Validation failed', 422, [
+                'project_id' => ['invalid_for_client'],
+            ]);
+        }
+
+        $actorId = $this->actorId($request);
+        $now = date('Y-m-d H:i:s');
+        $termsPayload = [
+            'kind' => 'builder',
+            'title' => $title,
+            'text' => $contractText,
+            'builder_data' => $builderData,
+        ];
+
+        $terms = $this->encodeContractTermsPayload($termsPayload);
+
+        $contractId = (int) db('contracts')->insert([
+            'client_id' => $clientId,
+            'project_id' => $projectId,
+            'start_date' => $normalizedStartDate,
+            'end_date' => $normalizedEndDate,
+            'terms' => $terms,
+            'document_path' => null,
+            'is_active' => 1,
+            'created_by' => $actorId,
+            'updated_by' => $actorId,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        try {
+            $pdfMeta = app(ContractPdfService::class)->generateAndStore($contractId, $title, $contractText, $builderData);
+            $termsPayload['file'] = [
+                'storage_path' => (string) ($pdfMeta['storage_path'] ?? ''),
+                'original_filename' => (string) ($pdfMeta['original_filename'] ?? ('vertrag-' . $contractId . '.pdf')),
+                'mime_type' => (string) ($pdfMeta['mime_type'] ?? 'application/pdf'),
+                'size_bytes' => (int) ($pdfMeta['file_size'] ?? 0),
+                'sha256' => (string) ($pdfMeta['sha256'] ?? ''),
+                'generated_at' => (string) ($pdfMeta['generated_at'] ?? date('Y-m-d H:i:s')),
+            ];
+
+            db('contracts')
+                ->where('id', $contractId)
+                ->update([
+                    'terms' => $this->encodeContractTermsPayload($termsPayload),
+                    'document_path' => trim((string) ($pdfMeta['storage_path'] ?? '')),
+                    'updated_by' => $actorId,
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ]);
+        } catch (\Throwable $e) {
+            db('contracts')
+                ->where('id', $contractId)
+                ->delete();
+
+            $logger = app(Logger::class);
+            if ($logger instanceof Logger) {
+                $logger->error('contract.pdf_generation_failed', [
+                    'client_id' => $clientId,
+                    'contract_id' => $contractId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            return $this->fail('Contract PDF generation failed', 500, [
+                'contract' => ['pdf_generation_failed'],
+            ]);
+        }
+
+        $row = db('contracts')
+            ->where('id', $contractId)
+            ->first();
+
+        if (!is_array($row)) {
+            return $this->fail('Contract could not be created', 500);
+        }
+
+        return $this->ok([
+            'contract' => $this->formatContractEntry($row, $clientId, '/clients/data'),
+        ], 201);
+    }
+
+    public function uploadContract(Request $request): Response
+    {
+        if (!$this->canManageClients($request)) {
+            return $this->fail('Forbidden', 403, [
+                'permission' => ['insufficient_role'],
+            ]);
+        }
+
+        $clientId = (int) $request->attribute('id', 0);
+        if ($clientId <= 0) {
+            return $this->fail('Validation failed', 422, [
+                'id' => ['required'],
+            ]);
+        }
+
+        $client = $this->fetchClient($clientId);
+        if ($client === null) {
+            return $this->fail('Client not found', 404);
+        }
+
+        $projectId = (int) $request->input('project_id', 0);
+        $startDateRaw = trim((string) $request->input('start_date', ''));
+        $endDateRaw = trim((string) $request->input('end_date', ''));
+        $title = trim((string) $request->input('title', ''));
+        $file = $request->file('contract_file');
+
+        $errors = [];
+        if ($projectId <= 0) {
+            $errors['project_id'][] = 'required';
+        }
+
+        $startDate = $this->normalizeDate($startDateRaw);
+        if ($startDate === null) {
+            $errors['start_date'][] = 'invalid_date';
+        }
+
+        $endDate = null;
+        if ($endDateRaw !== '') {
+            $endDate = $this->normalizeDate($endDateRaw);
+            if ($endDate === null) {
+                $errors['end_date'][] = 'invalid_date';
+            }
+        }
+
+        if (!is_array($file) || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            $errors['contract_file'][] = 'required';
+        }
+
+        if ($errors !== []) {
+            return $this->fail('Validation failed', 422, $errors);
+        }
+
+        if ($this->fetchProjectForClient($clientId, $projectId) === null) {
+            return $this->fail('Validation failed', 422, [
+                'project_id' => ['invalid_for_client'],
+            ]);
+        }
+
+        try {
+            $uploadMeta = $this->storeContractUploadFile($file);
+        } catch (\RuntimeException $e) {
+            return $this->fail('Validation failed', 422, [
+                'contract_file' => [$e->getMessage()],
+            ]);
+        } catch (\Throwable) {
+            return $this->fail('Upload failed', 500, [
+                'contract_file' => ['upload_failed'],
+            ]);
+        }
+
+        $actorId = $this->actorId($request);
+        $now = date('Y-m-d H:i:s');
+        $terms = $this->encodeContractTermsPayload([
+            'kind' => 'upload',
+            'title' => $title,
+            'text' => '',
+            'file' => $uploadMeta,
+        ]);
+
+        $contractId = (int) db('contracts')->insert([
+            'client_id' => $clientId,
+            'project_id' => $projectId,
+            'start_date' => $startDate,
+            'end_date' => $endDate,
+            'terms' => $terms,
+            'document_path' => trim((string) ($uploadMeta['storage_path'] ?? '')),
+            'is_active' => 1,
+            'created_by' => $actorId,
+            'updated_by' => $actorId,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $row = db('contracts')
+            ->where('id', $contractId)
+            ->first();
+
+        if (!is_array($row)) {
+            return $this->fail('Contract could not be created', 500);
+        }
+
+        return $this->ok([
+            'contract' => $this->formatContractEntry($row, $clientId, '/clients/data'),
+        ], 201);
+    }
+
+    public function updateContract(Request $request): Response
+    {
+        if (!$this->canManageClients($request)) {
+            return $this->fail('Forbidden', 403, [
+                'permission' => ['insufficient_role'],
+            ]);
+        }
+
+        $clientId = (int) $request->attribute('id', 0);
+        $contractId = (int) $request->attribute('contract_id', 0);
+
+        if ($clientId <= 0 || $contractId <= 0) {
+            return $this->fail('Validation failed', 422, [
+                'id' => ['required'],
+                'contract_id' => ['required'],
+            ]);
+        }
+
+        $row = db('contracts')
+            ->where('id', $contractId)
+            ->where('client_id', $clientId)
+            ->first();
+
+        if (!is_array($row)) {
+            return $this->fail('Contract not found', 404);
+        }
+
+        $payload = $request->all();
+        if (!array_key_exists('is_active', $payload)) {
+            return $this->fail('Validation failed', 422, [
+                'is_active' => ['required'],
+            ]);
+        }
+
+        $active = $this->parseBooleanInput($payload['is_active']);
+        if ($active === null) {
+            return $this->fail('Validation failed', 422, [
+                'is_active' => ['invalid_boolean'],
+            ]);
+        }
+
+        db('contracts')
+            ->where('id', $contractId)
+            ->update([
+                'is_active' => $active ? 1 : 0,
+                'updated_by' => $this->actorId($request),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+
+        $updated = db('contracts as c')
+            ->join('projects as p', 'p.id', '=', 'c.project_id')
+            ->where('c.id', $contractId)
+            ->select([
+                'c.id',
+                'c.client_id',
+                'c.project_id',
+                'c.start_date',
+                'c.end_date',
+                'c.is_active',
+                'c.terms',
+                'c.created_at',
+                'p.name as project_name',
+            ])
+            ->first();
+
+        if (!is_array($updated)) {
+            return $this->fail('Contract could not be updated', 500);
+        }
+
+        return $this->ok([
+            'contract' => $this->formatContractEntry($updated, $clientId, '/clients/data'),
+        ]);
+    }
+
+    public function downloadContract(Request $request): Response
+    {
+        if (!$this->canViewClients($request)) {
+            return $this->fail('Forbidden', 403, [
+                'permission' => ['insufficient_role'],
+            ]);
+        }
+
+        $clientId = (int) $request->attribute('id', 0);
+        $contractId = (int) $request->attribute('contract_id', 0);
+
+        if ($clientId <= 0 || $contractId <= 0) {
+            return $this->fail('Validation failed', 422, [
+                'id' => ['required'],
+                'contract_id' => ['required'],
+            ]);
+        }
+
+        $row = db('contracts')
+            ->where('id', $contractId)
+            ->where('client_id', $clientId)
+            ->first();
+
+        if (!is_array($row)) {
+            return $this->fail('Contract not found', 404);
+        }
+
+        $termsPayload = $this->decodeContractTermsPayload((string) ($row['terms'] ?? ''));
+
+        if ((string) ($termsPayload['kind'] ?? '') === 'builder') {
+            try {
+                $builderData = is_array($termsPayload['builder_data'] ?? null)
+                    ? (array) $termsPayload['builder_data']
+                    : [];
+
+                $normalizedTitle = $this->sanitizeContractTitle((string) ($termsPayload['title'] ?? ''));
+
+                $pdfMeta = app(ContractPdfService::class)->generateAndStore(
+                    $contractId,
+                    $normalizedTitle,
+                    trim((string) ($termsPayload['text'] ?? '')),
+                    $builderData
+                );
+
+                $termsPayload['title'] = $normalizedTitle;
+
+                $termsPayload['file'] = [
+                    'storage_path' => (string) ($pdfMeta['storage_path'] ?? ''),
+                    'original_filename' => (string) ($pdfMeta['original_filename'] ?? ('vertrag-' . $contractId . '.pdf')),
+                    'mime_type' => (string) ($pdfMeta['mime_type'] ?? 'application/pdf'),
+                    'size_bytes' => (int) ($pdfMeta['file_size'] ?? 0),
+                    'sha256' => (string) ($pdfMeta['sha256'] ?? ''),
+                    'generated_at' => (string) ($pdfMeta['generated_at'] ?? date('Y-m-d H:i:s')),
+                ];
+
+                db('contracts')
+                    ->where('id', $contractId)
+                    ->update([
+                        'terms' => $this->encodeContractTermsPayload($termsPayload),
+                        'document_path' => trim((string) ($pdfMeta['storage_path'] ?? '')),
+                        'updated_at' => date('Y-m-d H:i:s'),
+                    ]);
+            } catch (\Throwable) {
+                // Continue with existing file metadata if regeneration fails.
+            }
+        }
+
+        $fileMeta = is_array($termsPayload['file'] ?? null) ? $termsPayload['file'] : null;
+        if (!$fileMeta || trim((string) ($fileMeta['storage_path'] ?? '')) === '') {
+            $hydrated = $this->hydrateMissingContractFileMeta($row, $termsPayload);
+            if (is_array($hydrated)) {
+                $termsPayload = $hydrated;
+                $fileMeta = is_array($termsPayload['file'] ?? null) ? $termsPayload['file'] : null;
+            }
+        }
+
+        $storagePath = trim((string) ($fileMeta['storage_path'] ?? ''));
+        if ($storagePath === '') {
+            $storagePath = trim((string) ($row['document_path'] ?? ''));
+        }
+
+        if ($storagePath === '') {
+            return $this->fail('Contract file not available', 404, [
+                'contract' => ['file_missing'],
+            ]);
+        }
+
+        $storagePath = str_replace('\\\\', '/', $storagePath);
+        $absolutePath = base_path($storagePath);
+        if (!is_file($absolutePath)) {
+            return $this->fail('Contract file not available', 404, [
+                'contract' => ['file_missing_on_disk'],
+            ]);
+        }
+
+        $content = file_get_contents($absolutePath);
+        if ($content === false) {
+            return $this->fail('Contract file could not be read', 500);
+        }
+
+        $fileName = trim((string) ($fileMeta['original_filename'] ?? basename($storagePath)));
+        if ($fileName === '') {
+            $fileName = 'vertrag-' . $contractId . '.pdf';
+        }
+
+        $mimeType = trim((string) ($fileMeta['mime_type'] ?? 'application/octet-stream'));
+        if ($mimeType === '') {
+            $mimeType = 'application/octet-stream';
+        }
+
+        $disposition = strtolower(trim((string) $request->query('disposition', 'attachment')));
+        $dispositionType = in_array($disposition, ['attachment', 'download'], true) ? 'attachment' : 'inline';
+
+        return new Response((string) $content, 200, [
+            'Content-Type' => $mimeType,
+            'Content-Disposition' => $dispositionType . '; filename="' . str_replace('"', '', $fileName) . '"',
+            'Content-Length' => (string) filesize($absolutePath),
+            'Cache-Control' => 'private, no-store',
+        ]);
+    }
+
+    public function createInvoice(Request $request): Response
+    {
         if (!$this->canManageClients($request)) {
             return $this->fail('Forbidden', 403, [
                 'permission' => ['insufficient_role'],
@@ -1036,9 +1515,6 @@ final class ClientAdminController extends BaseApiController
         }
 
         $items = $this->normalizeManualInvoiceItems($payload['items'] ?? []);
-        if ($items === []) {
-            $errors['items'][] = 'at_least_one_item_required';
-        }
 
         $projectRow = $projectId > 0 ? $this->fetchProjectForClient($clientId, $projectId) : null;
         if ($projectId > 0 && $projectRow === null) {
@@ -1051,6 +1527,15 @@ final class ClientAdminController extends BaseApiController
             if ($contractRow === null) {
                 $errors['contract_id'][] = 'invalid_for_project';
             }
+        }
+
+        if ($items === [] && is_array($contractRow)) {
+            $hasPriorInvoiceUsage = $this->hasAnyInvoiceForContract($contractId ?? 0);
+            $items = $this->buildInvoiceItemsFromContract($contractRow, $hasPriorInvoiceUsage);
+        }
+
+        if ($items === []) {
+            $errors['items'][] = 'at_least_one_item_required';
         }
 
         if ($errors !== []) {
@@ -2081,6 +2566,7 @@ final class ClientAdminController extends BaseApiController
     private function formatProjectsWithInvoices(array $rows, int $clientId, array $contracts = [], string $pdfBasePath = '/clients/data'): array
     {
         $projects = [];
+        $invoicedContractIds = [];
 
         foreach ($rows as $row) {
             $projectId = (int) ($row['project_id'] ?? 0);
@@ -2100,6 +2586,11 @@ final class ClientAdminController extends BaseApiController
             $invoiceId = (int) ($row['invoice_id'] ?? 0);
 
             if ($invoiceId > 0) {
+                $invoiceContractId = (int) ($row['invoice_contract_id'] ?? 0);
+                if ($invoiceContractId > 0) {
+                    $invoicedContractIds[$invoiceContractId] = true;
+                }
+
                 $pdfPath = trim((string) ($row['pdf_path'] ?? ''));
                 $pdfAvailable = $pdfPath !== '';
                 $pdfUrlBase = rtrim($pdfBasePath, '/');
@@ -2107,6 +2598,7 @@ final class ClientAdminController extends BaseApiController
 
                 $projects[$projectId]['invoices'][] = [
                     'id' => $invoiceId,
+                    'contract_id' => $invoiceContractId > 0 ? $invoiceContractId : null,
                     'invoice_number' => (int) ($row['invoice_number'] ?? 0),
                     'status' => (string) ($row['invoice_status'] ?? 'created'),
                     'total_amount' => isset($row['total_amount'])
@@ -2134,10 +2626,27 @@ final class ClientAdminController extends BaseApiController
                 continue;
             }
 
+            $payload = $this->decodeContractTermsPayload((string) ($row['terms'] ?? ''));
+            $contractId = (int) ($row['id'] ?? 0);
+            $invoiceTemplate = $this->extractContractInvoiceTemplate($payload, isset($invoicedContractIds[$contractId]));
+
             $projects[$projectId]['contracts'][] = [
-                'id' => (int) ($row['id'] ?? 0),
+                'id' => $contractId,
+                'title' => $this->resolveContractTitle(
+                    $payload,
+                    [
+                        'project_name' => (string) ($projects[$projectId]['name'] ?? ''),
+                    ],
+                    null
+                ),
                 'start_date' => isset($row['start_date']) ? (string) $row['start_date'] : null,
                 'end_date' => isset($row['end_date']) ? (string) $row['end_date'] : null,
+                'is_active' => (int) ($row['is_active'] ?? 1) === 1,
+                'setup_fee' => $invoiceTemplate['setup_fee'],
+                'monthly_fee' => $invoiceTemplate['monthly_fee'],
+                'services' => $invoiceTemplate['services'],
+                'has_prior_invoice' => $invoiceTemplate['has_prior_invoice'],
+                'include_setup_fee' => $invoiceTemplate['include_setup_fee'],
             ];
         }
 
@@ -2427,6 +2936,642 @@ final class ClientAdminController extends BaseApiController
             ->first();
 
         return is_array($row) ? $row : null;
+    }
+
+    private function hasAnyInvoiceForContract(int $contractId): bool
+    {
+        if ($contractId <= 0) {
+            return false;
+        }
+
+        $columns = $this->invoiceColumnSet();
+        if (!isset($columns['contract_id'])) {
+            return false;
+        }
+
+        $row = db('invoices')
+            ->where('contract_id', $contractId)
+            ->select(['id'])
+            ->first();
+
+        return is_array($row) && (int) ($row['id'] ?? 0) > 0;
+    }
+
+    /**
+     * @param array<string, mixed> $contractRow
+     * @return array<int, array{description: string, quantity: float, unit_price: float}>
+     */
+    private function buildInvoiceItemsFromContract(array $contractRow, bool $hasPriorInvoice): array
+    {
+        $payload = $this->decodeContractTermsPayload((string) ($contractRow['terms'] ?? ''));
+        $template = $this->extractContractInvoiceTemplate($payload, $hasPriorInvoice);
+
+        $items = [];
+        if ($template['include_setup_fee'] && $template['setup_fee'] > 0.0) {
+            $items[] = [
+                'description' => 'Einrichtungsgebühr',
+                'quantity' => 1.0,
+                'unit_price' => $template['setup_fee'],
+            ];
+        }
+
+        if ($template['monthly_fee'] > 0.0) {
+            $items[] = [
+                'description' => 'Service / Wartung',
+                'quantity' => 1.0,
+                'unit_price' => $template['monthly_fee'],
+            ];
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{setup_fee: float, monthly_fee: float, services: array<int, string>, has_prior_invoice: bool, include_setup_fee: bool}
+     */
+    private function extractContractInvoiceTemplate(array $payload, bool $hasPriorInvoice): array
+    {
+        $builderData = is_array($payload['builder_data'] ?? null)
+            ? (array) $payload['builder_data']
+            : [];
+
+        $setupFee = $this->toMoneyValue($builderData['setup_fee'] ?? 0);
+        $monthlyFee = $this->toMoneyValue($builderData['monthly_fee'] ?? 0);
+
+        $contractText = trim((string) ($payload['text'] ?? ''));
+        if ($setupFee <= 0.0) {
+            $setupFee = $this->extractFeeFromContractText(
+                $contractText,
+                ['einrichtungsgebühr', 'einrichtungsgebuehr']
+            );
+        }
+        if ($monthlyFee <= 0.0) {
+            $monthlyFee = $this->extractFeeFromContractText(
+                $contractText,
+                ['wartungsgebühr', 'wartungsgebuehr', 'monatliche vergütung', 'monatliche verguetung']
+            );
+        }
+
+        $services = [];
+        $rawServices = $builderData['services'] ?? [];
+        if (is_array($rawServices)) {
+            foreach ($rawServices as $line) {
+                $text = trim((string) $line);
+                if ($text !== '') {
+                    $services[] = $text;
+                }
+            }
+        } elseif (is_string($rawServices)) {
+            foreach (preg_split('/\R/u', $rawServices) ?: [] as $line) {
+                $text = trim((string) $line);
+                if ($text !== '') {
+                    $services[] = $text;
+                }
+            }
+        }
+
+        return [
+            'setup_fee' => $setupFee,
+            'monthly_fee' => $monthlyFee,
+            'services' => $services,
+            'has_prior_invoice' => $hasPriorInvoice,
+            'include_setup_fee' => $hasPriorInvoice,
+        ];
+    }
+
+    /** @param array<int, string> $labels */
+    private function extractFeeFromContractText(string $contractText, array $labels): float
+    {
+        $text = trim($contractText);
+        if ($text === '' || $labels === []) {
+            return 0.0;
+        }
+
+        foreach ($labels as $label) {
+            $quotedLabel = preg_quote($label, '/');
+
+            $patterns = [
+                '/(?:' . $quotedLabel . ')[^\d]{0,80}(\d{1,3}(?:[\. ]\d{3})*(?:,\d{1,2})?|\d+(?:,\d{1,2})?)\s*€/iu',
+                '/(\d{1,3}(?:[\. ]\d{3})*(?:,\d{1,2})?|\d+(?:,\d{1,2})?)\s*€[^\n\r]{0,80}(?:' . $quotedLabel . ')/iu',
+            ];
+
+            foreach ($patterns as $pattern) {
+                if (preg_match($pattern, $text, $matches) !== 1) {
+                    continue;
+                }
+
+                $amount = $this->toMoneyValue($matches[1] ?? 0);
+                if ($amount > 0.0) {
+                    return $amount;
+                }
+            }
+        }
+
+        return 0.0;
+    }
+
+    private function toMoneyValue(mixed $value): float
+    {
+        if (is_int($value) || is_float($value)) {
+            return round((float) $value, 2);
+        }
+
+        if (is_string($value)) {
+            $normalized = str_replace([' ', '.'], ['', ''], trim($value));
+            $normalized = str_replace(',', '.', $normalized);
+            if ($normalized !== '' && is_numeric($normalized)) {
+                return round((float) $normalized, 2);
+            }
+        }
+
+        return 0.0;
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function fetchContractsForClient(int $clientId): array
+    {
+        $rows = db('contracts as c')
+            ->join('projects as p', 'p.id', '=', 'c.project_id')
+            ->where('c.client_id', $clientId)
+            ->select([
+                'c.id',
+                'c.client_id',
+                'c.project_id',
+                'c.start_date',
+                'c.end_date',
+                'c.is_active',
+                'c.terms',
+                'c.document_path',
+                'c.created_at',
+                'p.name as project_name',
+            ])
+            ->orderBy('c.created_at', 'desc')
+            ->orderBy('c.id', 'desc')
+            ->get();
+
+        return is_array($rows) ? $rows : [];
+    }
+
+    /** @param array<string, mixed> $row */
+    private function formatContractEntry(array $row, int $clientId, string $downloadBase): array
+    {
+        $payload = $this->decodeContractTermsPayload((string) ($row['terms'] ?? ''));
+        $kind = (string) ($payload['kind'] ?? 'legacy');
+        if (!in_array($kind, ['builder', 'upload', 'legacy'], true)) {
+            $kind = 'legacy';
+        }
+
+        $contractId = (int) ($row['id'] ?? 0);
+        $hasPriorInvoice = $this->hasAnyInvoiceForContract($contractId);
+        $invoiceTemplate = $this->extractContractInvoiceTemplate($payload, $hasPriorInvoice);
+
+        $file = is_array($payload['file'] ?? null) ? $payload['file'] : null;
+        $title = $this->resolveContractTitle($payload, $row, $file);
+
+        $builderText = $kind === 'builder'
+            ? trim((string) ($payload['text'] ?? ''))
+            : '';
+
+        $isActive = (int) ($row['is_active'] ?? 1) === 1;
+
+        $documentPath = trim((string) ($row['document_path'] ?? ''));
+        $storagePath = is_array($file)
+            ? trim((string) ($file['storage_path'] ?? ''))
+            : '';
+        if ($storagePath === '' && $documentPath !== '') {
+            $storagePath = $documentPath;
+        }
+        $hasFile = $storagePath !== '';
+
+        $downloadUrl = null;
+        $previewUrl = null;
+        if ($hasFile) {
+            $downloadUrl = rtrim($downloadBase, '/') . '/' . $clientId . '/contracts/' . (int) ($row['id'] ?? 0) . '/download';
+            $previewUrl = $downloadUrl . '?disposition=inline';
+        }
+
+        $textPreview = $builderText !== ''
+            ? mb_substr($builderText, 0, 260) . (mb_strlen($builderText) > 260 ? '...' : '')
+            : '';
+
+        return [
+            'id' => $contractId,
+            'client_id' => (int) ($row['client_id'] ?? 0),
+            'project_id' => (int) ($row['project_id'] ?? 0),
+            'project_name' => (string) ($row['project_name'] ?? ''),
+            'start_date' => isset($row['start_date']) ? (string) $row['start_date'] : null,
+            'end_date' => isset($row['end_date']) ? (string) $row['end_date'] : null,
+            'created_at' => (string) ($row['created_at'] ?? ''),
+            'contract_type' => $kind,
+            'is_active' => $isActive,
+            'title' => $title,
+            'text_preview' => $textPreview,
+            'full_text' => $builderText,
+            'has_file' => $hasFile,
+            'file_name' => $hasFile ? (string) ($file['original_filename'] ?? basename($storagePath)) : null,
+            'file_mime_type' => $hasFile ? (string) ($file['mime_type'] ?? '') : null,
+            'file_size_bytes' => $hasFile ? (int) ($file['size_bytes'] ?? 0) : null,
+            'preview_url' => $previewUrl,
+            'download_url' => $downloadUrl,
+            'setup_fee' => $invoiceTemplate['setup_fee'],
+            'monthly_fee' => $invoiceTemplate['monthly_fee'],
+            'services' => $invoiceTemplate['services'],
+            'has_prior_invoice' => $invoiceTemplate['has_prior_invoice'],
+            'include_setup_fee' => $invoiceTemplate['include_setup_fee'],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @param array<string, mixed> $row
+     * @param array<string, mixed>|null $file
+     */
+    private function resolveContractTitle(array $payload, array $row, ?array $file): string
+    {
+        $payloadTitle = $this->sanitizeContractTitle((string) ($payload['title'] ?? ''));
+        if ($payloadTitle !== '') {
+            return $payloadTitle;
+        }
+
+        $fileName = trim((string) ($file['original_filename'] ?? ''));
+        if ($fileName !== '') {
+            $base = pathinfo($fileName, PATHINFO_FILENAME);
+            $base = trim((string) $base);
+            if ($base !== '') {
+                $normalized = preg_replace('/[-_]+/', ' ', $base) ?? $base;
+                $normalized = preg_replace('/\s+/', ' ', $normalized) ?? $normalized;
+                $normalized = trim((string) $normalized);
+                if ($normalized !== '') {
+                    return mb_convert_case($normalized, MB_CASE_TITLE, 'UTF-8');
+                }
+            }
+        }
+
+        $projectName = trim((string) ($row['project_name'] ?? ''));
+        if ($projectName !== '') {
+            return $projectName . ' Vertrag';
+        }
+
+        return 'Vertrag';
+    }
+
+    private function sanitizeContractTitle(string $title): string
+    {
+        $title = trim($title);
+        if ($title === '') {
+            return '';
+        }
+
+        if (preg_match('/^vertrag\s*#\s*\d+$/iu', $title) === 1) {
+            return '';
+        }
+
+        return $title;
+    }
+
+    /** @param array<string, mixed> $payload */
+    private function encodeContractTermsPayload(array $payload): string
+    {
+        return '__CONTRACT_PAYLOAD__\n' . json_encode(
+            $payload,
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+        );
+    }
+
+    /** @return array<string, mixed> */
+    private function decodeContractTermsPayload(string $terms): array
+    {
+        $terms = trim($terms);
+        if ($terms === '') {
+            return [
+                'kind' => 'legacy',
+                'title' => '',
+                'text' => '',
+                'active' => true,
+            ];
+        }
+
+        if (!str_starts_with($terms, '__CONTRACT_PAYLOAD__')) {
+            $rawDecoded = json_decode($terms, true);
+            if (is_array($rawDecoded) && array_key_exists('text', $rawDecoded)) {
+                if (!array_key_exists('active', $rawDecoded)) {
+                    $rawDecoded['active'] = true;
+                }
+                if (!array_key_exists('kind', $rawDecoded) || trim((string) $rawDecoded['kind']) === '') {
+                    $rawDecoded['kind'] = 'legacy';
+                }
+                if (!array_key_exists('title', $rawDecoded)) {
+                    $rawDecoded['title'] = '';
+                }
+
+                $rawDecoded['text'] = $this->extractCanonicalContractText($rawDecoded['text'] ?? '');
+
+                return $rawDecoded;
+            }
+
+            return [
+                'kind' => 'legacy',
+                'title' => '',
+                'text' => $this->extractCanonicalContractText($terms),
+                'active' => true,
+            ];
+        }
+
+        $json = trim(substr($terms, strlen('__CONTRACT_PAYLOAD__')));
+        $decoded = json_decode($json, true);
+        if (!is_array($decoded)) {
+            return [
+                'kind' => 'legacy',
+                'title' => '',
+                'text' => $this->extractCanonicalContractText($terms),
+                'active' => true,
+            ];
+        }
+
+        if (!array_key_exists('active', $decoded)) {
+            $decoded['active'] = true;
+        }
+
+        if (array_key_exists('text', $decoded)) {
+            $decoded['text'] = $this->extractCanonicalContractText($decoded['text']);
+        }
+
+        return $decoded;
+    }
+
+    private function extractCanonicalContractText(mixed $raw): string
+    {
+        $candidate = is_string($raw) ? trim($raw) : '';
+        if ($candidate === '') {
+            return '';
+        }
+
+        for ($depth = 0; $depth < 5; $depth++) {
+            if (str_starts_with($candidate, '__CONTRACT_PAYLOAD__')) {
+                $candidate = trim(substr($candidate, strlen('__CONTRACT_PAYLOAD__')));
+                continue;
+            }
+
+            $decoded = json_decode($candidate, true);
+            if (!is_array($decoded)) {
+                break;
+            }
+
+            if (array_key_exists('text', $decoded)) {
+                $next = is_string($decoded['text']) ? trim($decoded['text']) : '';
+                if ($next === '' || $next === $candidate) {
+                    $candidate = $next;
+                    break;
+                }
+                $candidate = $next;
+                continue;
+            }
+
+            break;
+        }
+
+        $normalized = str_replace(["\r\n", "\r"], "\n", $candidate);
+        $normalized = str_replace('\\r\\n', "\n", $normalized);
+        $normalized = str_replace('\\n', "\n", $normalized);
+        $normalized = str_replace('\\r', "\n", $normalized);
+        $normalized = str_replace('\\t', "\t", $normalized);
+        $normalized = str_replace('\\/', '/', $normalized);
+        $normalized = str_replace('\\"', '"', $normalized);
+        $normalized = str_replace("\\'", "'", $normalized);
+        $normalized = str_replace("\\\n", "\n", $normalized);
+        $normalized = preg_replace('/(^|\n)\s*\\+\s*(?=\n|$)/', '$1', $normalized) ?? $normalized;
+
+        $payloadMarkers = [
+            '{"active":',
+            '{\\"active\\":',
+            ',"active":',
+            ',\\"active\\":',
+        ];
+        foreach ($payloadMarkers as $marker) {
+            $markerPos = strpos($normalized, $marker);
+            if ($markerPos !== false) {
+                $normalized = rtrim(substr($normalized, 0, $markerPos));
+                break;
+            }
+        }
+
+        return trim($normalized);
+    }
+
+    /**
+     * @param array<string, mixed> $contractRow
+     * @param array<string, mixed> $termsPayload
+     * @return array<string, mixed>|null
+     */
+    private function hydrateMissingContractFileMeta(array $contractRow, array $termsPayload): ?array
+    {
+        $kind = trim((string) ($termsPayload['kind'] ?? 'legacy'));
+        if ($kind === 'upload') {
+            return null;
+        }
+
+        $contractId = (int) ($contractRow['id'] ?? 0);
+        $clientId = (int) ($contractRow['client_id'] ?? 0);
+        if ($contractId <= 0 || $clientId <= 0) {
+            return null;
+        }
+
+        $text = trim((string) ($termsPayload['text'] ?? ''));
+        if ($text === '') {
+            $text = trim((string) ($contractRow['terms'] ?? ''));
+        }
+        if ($text === '') {
+            return null;
+        }
+
+        $title = $this->sanitizeContractTitle((string) ($termsPayload['title'] ?? ''));
+        if ($title === '') {
+            $title = trim((string) ($contractRow['project_name'] ?? ''));
+        }
+
+        $builderData = is_array($termsPayload['builder_data'] ?? null)
+            ? (array) $termsPayload['builder_data']
+            : [];
+
+        $client = $this->fetchClient($clientId);
+        if (is_array($client)) {
+            if (trim((string) ($builderData['contractor_name'] ?? '')) === '') {
+                $builderData['contractor_name'] = trim((string) ($client['name'] ?? ''));
+            }
+            if (trim((string) ($builderData['contractor_address'] ?? '')) === '') {
+                $builderData['contractor_address'] = trim((string) ($client['address'] ?? ''));
+            }
+        }
+
+        if (trim((string) ($builderData['start_date'] ?? '')) === '') {
+            $builderData['start_date'] = trim((string) ($contractRow['start_date'] ?? ''));
+        }
+        if (trim((string) ($builderData['end_date'] ?? '')) === '') {
+            $builderData['end_date'] = trim((string) ($contractRow['end_date'] ?? ''));
+        }
+
+        try {
+            $pdfMeta = app(ContractPdfService::class)->generateAndStore(
+                $contractId,
+                $title,
+                $text,
+                $builderData
+            );
+        } catch (\Throwable) {
+            return null;
+        }
+
+        $termsPayload['title'] = $title;
+        $termsPayload['text'] = $text;
+        $termsPayload['builder_data'] = $builderData;
+        $termsPayload['kind'] = $kind !== '' ? $kind : 'legacy';
+        if (!array_key_exists('active', $termsPayload)) {
+            $termsPayload['active'] = true;
+        }
+        $termsPayload['file'] = [
+            'storage_path' => (string) ($pdfMeta['storage_path'] ?? ''),
+            'original_filename' => (string) ($pdfMeta['original_filename'] ?? ('vertrag-' . $contractId . '.pdf')),
+            'mime_type' => (string) ($pdfMeta['mime_type'] ?? 'application/pdf'),
+            'size_bytes' => (int) ($pdfMeta['file_size'] ?? 0),
+            'sha256' => (string) ($pdfMeta['sha256'] ?? ''),
+            'generated_at' => (string) ($pdfMeta['generated_at'] ?? date('Y-m-d H:i:s')),
+        ];
+
+        db('contracts')
+            ->where('id', $contractId)
+            ->update([
+                'terms' => $this->encodeContractTermsPayload($termsPayload),
+                'document_path' => trim((string) ($pdfMeta['storage_path'] ?? '')),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+
+        return $termsPayload;
+    }
+
+    /** @return bool|null */
+    private function parseBooleanInput(mixed $value): ?bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_int($value)) {
+            if ($value === 1) {
+                return true;
+            }
+            if ($value === 0) {
+                return false;
+            }
+            return null;
+        }
+
+        if (is_string($value)) {
+            $normalized = strtolower(trim($value));
+            if (in_array($normalized, ['1', 'true', 'yes', 'on'], true)) {
+                return true;
+            }
+            if (in_array($normalized, ['0', 'false', 'no', 'off'], true)) {
+                return false;
+            }
+        }
+
+        return null;
+    }
+
+    /** @param array<string, mixed> $file */
+    private function storeContractUploadFile(array $file): array
+    {
+        $tmpName = (string) ($file['tmp_name'] ?? '');
+        $originalName = trim((string) ($file['name'] ?? ''));
+        $size = (int) ($file['size'] ?? 0);
+
+        if ($tmpName === '' || !is_uploaded_file($tmpName)) {
+            throw new \RuntimeException('invalid_upload');
+        }
+
+        if ($originalName === '') {
+            throw new \RuntimeException('filename_required');
+        }
+
+        if ($size <= 0) {
+            throw new \RuntimeException('empty_file');
+        }
+
+        $maxBytes = $this->resolveContractUploadMaxBytes();
+        if ($size > $maxBytes) {
+            throw new \RuntimeException('file_too_large');
+        }
+
+        $mimeType = '';
+        try {
+            $finfo = new finfo(FILEINFO_MIME_TYPE);
+            $mimeType = trim((string) $finfo->file($tmpName));
+        } catch (\Throwable) {
+            $mimeType = trim((string) ($file['type'] ?? ''));
+        }
+
+        $allowed = [
+            'application/pdf' => 'pdf',
+            'application/msword' => 'doc',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'docx',
+        ];
+
+        if (!isset($allowed[$mimeType])) {
+            throw new \RuntimeException('unsupported_file_type');
+        }
+
+        $extension = $allowed[$mimeType];
+        $safeName = preg_replace('/[^a-zA-Z0-9._-]+/', '-', pathinfo($originalName, PATHINFO_FILENAME));
+        $safeName = trim((string) $safeName, '-_.');
+        if ($safeName === '') {
+            $safeName = 'vertrag';
+        }
+
+        $relativeDirectory = 'storage/media/secure/contracts/' . date('Y/m');
+        $absoluteDirectory = base_path($relativeDirectory);
+        if (!is_dir($absoluteDirectory) && !mkdir($absoluteDirectory, 0775, true) && !is_dir($absoluteDirectory)) {
+            throw new \RuntimeException('storage_not_writable');
+        }
+
+        $storedFileName = $safeName . '-' . bin2hex(random_bytes(8)) . '.' . $extension;
+        $absolutePath = $absoluteDirectory . DIRECTORY_SEPARATOR . $storedFileName;
+
+        if (!move_uploaded_file($tmpName, $absolutePath)) {
+            throw new \RuntimeException('upload_move_failed');
+        }
+
+        $checksum = hash_file('sha256', $absolutePath);
+
+        return [
+            'storage_path' => $relativeDirectory . '/' . $storedFileName,
+            'original_filename' => $originalName,
+            'mime_type' => $mimeType,
+            'size_bytes' => $size,
+            'sha256' => is_string($checksum) ? $checksum : '',
+        ];
+    }
+
+    private function resolveContractUploadMaxBytes(): int
+    {
+        $default = 20 * 1024 * 1024;
+
+        try {
+            $row = db('settings')
+                ->where('`key`', 'media_max_file_size')
+                ->select(['value'])
+                ->first();
+
+            $rawValue = trim((string) ($row['value'] ?? ''));
+            if ($rawValue === '' || !is_numeric($rawValue)) {
+                return $default;
+            }
+
+            $mb = max(1, (int) $rawValue);
+            return min($mb, 5120) * 1024 * 1024;
+        } catch (\Throwable) {
+            return $default;
+        }
     }
 
     /** @return array<int, array<string, mixed>> */

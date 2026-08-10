@@ -261,7 +261,10 @@
             rows = '<tr><td colspan="4" class="admin-clients-empty">Keine Clients gefunden.</td></tr>';
         } else {
             rows = state.clients.map(function (item) {
-                var address = escapeHtml(item.address || '-');
+                var addressText = String(item.address || '').trim();
+                var address = addressText !== ''
+                    ? escapeHtml(addressText).replace(/(?:\r\n|\r|\n)/g, '<br>')
+                    : '-';
                 var phone = escapeHtml(item.phone || '-');
                 return '' +
                     '<tr class="admin-clients-row admin-clients-row--primary" data-row-id="' + item.id + '">' +
@@ -271,7 +274,7 @@
                     '  <td class="admin-clients-desktop-only">' + escapeHtml(item.address || '') + '</td>' +
                     '</tr>' +
                     '<tr class="admin-clients-row admin-clients-row--mobile-meta" data-row-id="' + item.id + '">' +
-                    '  <td>' + address + '</td>' +
+                    '  <td class="admin-clients-address-cell">' + address + '</td>' +
                     '  <td class="admin-clients-desktop-only"></td>' +
                     '  <td class="admin-clients-desktop-only"></td>' +
                     '</tr>';
@@ -328,25 +331,8 @@
             '    <a class="admin-clients-back" href="/clients">Zur Listenansicht</a>' +
             '    <span>Klientenakte: ' + escapeHtml(c.name || '') + ' <span class="admin-clients-id">#' + escapeHtml(String(c.id || '')) + '</span></span>' +
             '  </div>' +
-            '  <div class="admin-clients-tabs" role="tablist">' +
-            tabButton('info', 'Infos') +
-            tabButton('forms', 'Formulare') +
-            (canUseFormTemplates ? tabButton('new-form', 'Formular ausfuellen') : '') +
-            (canUseFormTemplates ? tabButton('export', 'Export') : '') +
-            '  </div>' +
-            '  <div class="admin-clients-detail-content">' + renderActiveTab(c) + '</div>' +
+            '  <div class="admin-clients-detail-content">' + renderInfoTab(c) + '</div>' +
             '</section>';
-    }
-
-    function renderActiveTab(client) {
-        if (!canUseFormTemplates && inArray(state.detailTab, ['new-form', 'export'])) {
-            state.detailTab = 'info';
-        }
-
-        if (state.detailTab === 'forms') return renderFormsTab();
-        if (state.detailTab === 'new-form') return renderNewFormTab();
-        if (state.detailTab === 'export') return renderExportTab();
-        return renderInfoTab(client);
     }
 
     function renderInfoTab(c) {
@@ -435,40 +421,46 @@
                 renderProjectBadge('Contracts', contracts.length) +
                 renderProjectBadge('Invoices', invoices.length) +
                 renderProjectBadge('Phases', phases.length) +
-                renderProjectBadge('TestProtocols', testProtocols.length) +
+                // renderProjectBadge('TestProtocols', testProtocols.length) +
                 renderProjectBadge('Members', members.length) +
-                renderProjectBadge('Files', files.length) +
-                renderProjectBadge('Notes', notes.length) +
+                // renderProjectBadge('Files', files.length) +
+                // renderProjectBadge('Notes', notes.length) +
                 '  </div>' +
                 '  <div class="admin-clients-project-details">' +
                 renderProjectNode('Contracts', contracts.map(function (item) {
-                    return 'Typ: ' + String(item.type || '-') + ' · Referenz: ' + String(item.reference || '-');
+                    var contractId = parsePositiveInt(item && item.id, 0);
+                    var title = trim(String(item && item.title ? item.title : ''));
+                    var start = trim(String(item && item.start_date ? item.start_date : ''));
+                    var end = trim(String(item && item.end_date ? item.end_date : ''));
+                    var label = title !== '' ? title : ('Vertrag #' + (contractId > 0 ? contractId : '-'));
+                    var range = (start !== '' || end !== '') ? (' · Laufzeit: ' + (start !== '' ? start : '-') + ' bis ' + (end !== '' ? end : '-')) : '';
+                    return label + (contractId > 0 ? (' · ID: #' + contractId) : '') + range;
                 })) +
                 renderProjectNode('Invoices', invoices.map(function (item) {
                     var invoiceNo = item && item.invoice_number ? String(item.invoice_number) : String(item && item.id ? item.id : '-');
                     return '#' + invoiceNo + ' · ' + String(item && item.status ? item.status : '-') + ' · ' + formatCurrency(item && item.total_amount, item && item.currency_code ? item.currency_code : 'EUR');
                 })) +
                 renderProjectNode('Phases', phases.map(function (item) {
-                    return String(item && item.phase_name ? item.phase_name : '-') + ' · ' + String(item && item.status ? item.status : '-') + ' · ' + String(item && item.progress ? item.progress : 0) + '%';
+                    return String(item && item.phase_name ? item.phase_name : '-') + ' · ' + String(item && item.status ? item.status : '-') + ' · ' + formatPhaseProgress(item);
                 })) +
-                renderProjectNode('TestProtocols', testProtocols.map(function (item) {
-                    return String(item.template_name || item.template_key || 'Protokoll') + ' · ' + String(item.status || '-') + ' · Phase: ' + String(item.phase_name || '-');
-                })) +
+                // renderProjectNode('TestProtocols', testProtocols.map(function (item) {
+                //     return String(item.template_name || item.template_key || 'Protokoll') + ' · ' + String(item.status || '-') + ' · Phase: ' + String(item.phase_name || '-');
+                // })) +
                 renderProjectNode('Members', members.map(function (item) {
                     var user = item && item.user ? item.user : {};
                     var fullName = trim(String(user.first_name || '') + ' ' + String(user.last_name || ''));
                     return (fullName !== '' ? fullName : String(user.email || '-')) + ' · Rolle: ' + String(item && item.role ? item.role : '-');
                 })) +
-                renderProjectNode('Files', files.map(function (item) {
-                    var base = String(item && item.original_filename ? item.original_filename : 'Anhang');
-                    if (item && item.download_url) {
-                        return '<a class="admin-clients-link" href="' + escapeHtml(String(item.download_url)) + '">' + escapeHtml(base) + '</a>';
-                    }
-                    return escapeHtml(base);
-                }), true) +
-                renderProjectNode('Notes', notes.map(function (item) {
-                    return String(item || '');
-                })) +
+                // renderProjectNode('Files', files.map(function (item) {
+                //     var base = String(item && item.original_filename ? item.original_filename : 'Anhang');
+                //     if (item && item.download_url) {
+                //         return '<a class="admin-clients-link" href="' + escapeHtml(String(item.download_url)) + '">' + escapeHtml(base) + '</a>';
+                //     }
+                //     return escapeHtml(base);
+                // }), true) +
+                // renderProjectNode('Notes', notes.map(function (item) {
+                //     return String(item || '');
+                // })) +
                 loadingHint +
                 '  </div>' +
                 '</article>';
@@ -487,7 +479,7 @@
         var items = Array.isArray(values) ? values : [];
         var body = '';
         if (items.length === 0) {
-            body = '<div class="admin-clients-project-empty">Keine Eintraege vorhanden.</div>';
+            body = '<div class="admin-clients-project-empty">Keine Einträge vorhanden.</div>';
         } else {
             body = '<ul class="admin-clients-project-list">' + items.map(function (value) {
                 var content = alreadyEscaped ? String(value || '') : escapeHtml(String(value || '-'));
@@ -608,11 +600,11 @@
             '  <table class="admin-clients-table">' +
             '    <thead><tr><th>Rechnung</th><th>Termin</th><th>Status</th><th>Betrag</th><th>Fällig</th><th>PDF</th></tr></thead>' +
             '    <tbody>' + rows.map(function (item) {
-                    var invoice = item.invoice || {};
-                    var pdfViewUrl = invoice.pdf_url || '';
-                    var pdfDownloadUrl = invoice.pdf_download_url || invoice.pdf_url || '';
-                    var pdfHtml = pdfViewUrl
-                        ? '<button type="button" class="admin-clients-page-btn" data-open-invoice-pdf="1" data-pdf-url="' + escapeHtml(String(pdfViewUrl)) + '" data-pdf-download-url="' + escapeHtml(String(pdfDownloadUrl)) + '" data-invoice-label="' + escapeHtml(String(invoice.invoice_number || invoice.id || '-')) + '">PDF ansehen</button>'
+                var invoice = item.invoice || {};
+                var pdfViewUrl = invoice.pdf_url || '';
+                var pdfDownloadUrl = invoice.pdf_download_url || invoice.pdf_url || '';
+                var pdfHtml = pdfViewUrl
+                    ? '<button type="button" class="admin-clients-page-btn" data-open-invoice-pdf="1" data-pdf-url="' + escapeHtml(String(pdfViewUrl)) + '" data-pdf-download-url="' + escapeHtml(String(pdfDownloadUrl)) + '" data-invoice-label="' + escapeHtml(String(invoice.invoice_number || invoice.id || '-')) + '">PDF ansehen</button>'
                     : '<span class="admin-clients-muted">Nicht verfuegbar</span>';
                 return '' +
                     '<tr>' +
@@ -695,74 +687,6 @@
                 (actionButtons !== '' ? '<div class="admin-clients-inline-actions" style="margin-top:0.5rem;">' + actionButtons + '</div>' : '') +
                 '</article>';
         }).join('') + '</div>';
-    }
-
-    function renderFormsTab() {
-        var rows = state.formRecords.length === 0
-            ? '<tr><td colspan="6" class="admin-clients-empty">Keine Formulareintraege vorhanden.</td></tr>'
-            : state.formRecords.map(function (r) {
-                var detailAction = canUseFormTemplates
-                    ? '<button type="button" class="admin-clients-page-btn" data-open-record="' + escapeHtml(String(r.id || '')) + '">Ansehen</button>'
-                    : '';
-                return '' +
-                    '<tr>' +
-                    '  <td>' + escapeHtml(String(r.id || '-')) + '</td>' +
-                    '  <td>' + escapeHtml(r.template && r.template.name ? r.template.name : ('Template #' + String(r.template_id || '-'))) + '</td>' +
-                    '  <td>' + escapeHtml(String(r.template && r.template.version_no ? r.template.version_no : '-')) + '</td>' +
-                    '  <td>' + escapeHtml(String(r.status || '-')) + '</td>' +
-                    '  <td>' + escapeHtml(formatDateTime(r.updated_at || r.created_at)) + '</td>' +
-                    '  <td>' +
-                    '    <div class="admin-clients-inline-actions">' +
-                    '      ' + detailAction +
-                    '      <button type="button" class="admin-clients-page-btn" data-open-attachments="' + escapeHtml(String(r.id || '')) + '">Anhaenge</button>' +
-                    '    </div>' +
-                    '  </td>' +
-                    '</tr>';
-            }).join('');
-
-        return '' +
-            '<section class="admin-clients-card">' +
-            '  <h3 class="admin-clients-card-title">Formularhistorie (Draft + Final)</h3>' +
-            (state.loadingRecords ? '<div class="admin-clients-empty">Lade Formulare...</div>' : '') +
-            '  <div class="admin-clients-table-wrap">' +
-            '    <table class="admin-clients-table admin-clients-table--forms">' +
-            '      <thead><tr><th>ID</th><th>Template</th><th>Version</th><th>Status</th><th>Aktualisiert</th><th>Aktion</th></tr></thead>' +
-            '      <tbody>' + rows + '</tbody>' +
-            '    </table>' +
-            '  </div>' +
-            '</section>';
-    }
-
-    function renderNewFormTab() {
-        var bookingOptions = state.bookings.map(function (b) {
-            return '<option value="' + escapeHtml(String(b.booking_id || '')) + '">#' + escapeHtml(String(b.booking_id || '')) + ' - ' + escapeHtml(formatDateTime(b.booking_scheduled_at)) + '</option>';
-        }).join('');
-        if (bookingOptions === '') bookingOptions = '<option value="">Keine Buchung verfuegbar</option>';
-
-        var templateOptions = state.templates.map(function (t) {
-            return '<option value="' + t.id + '" ' + (state.selectedTemplateId === t.id ? 'selected' : '') + '>' +
-                escapeHtml(t.name) + ' (v' + escapeHtml(String(t.currentVersionNo)) + ')' +
-                '</option>';
-        }).join('');
-        if (templateOptions === '') templateOptions = '<option value="">Keine aktiven Templates verfuegbar</option>';
-
-        var selectedTemplate = findTemplateById(state.selectedTemplateId);
-        var selectedVersionId = selectedTemplate ? selectedTemplate.currentVersionId : 0;
-        var formTemplateHtml = renderTemplateForm(selectedTemplate);
-
-        return '' +
-            '<section class="admin-clients-card">' +
-            '  <h3 class="admin-clients-card-title">Neues Formular ausfuellen</h3>' +
-            '  <p class="admin-clients-help">Felder werden direkt aus der neuesten Template-Version gerendert und clientseitig validiert.</p>' +
-            '  <div class="admin-clients-form-grid">' +
-            '    <div><label class="admin-clients-label" for="recordBookingId">Buchung</label><select id="recordBookingId" class="admin-clients-input">' + bookingOptions + '</select></div>' +
-            '    <div><label class="admin-clients-label" for="recordTemplateId">Template</label><select id="recordTemplateId" class="admin-clients-input">' + templateOptions + '</select></div>' +
-            '    <div><label class="admin-clients-label">Aktuelle Version</label><input id="recordTemplateVersionLabel" class="admin-clients-input" type="text" value="' + (selectedTemplate ? ('v' + selectedTemplate.currentVersionNo + ' (ID ' + selectedVersionId + ')') : '-') + '" disabled /></div>' +
-            '  </div>' +
-            '  <input id="recordTemplateVersionId" type="hidden" value="' + escapeHtml(String(selectedVersionId || 0)) + '" />' +
-            formTemplateHtml +
-            '  <div class="admin-clients-actions"><button type="button" class="admin-clients-page-btn" data-create-record>Formulardaten speichern</button></div>' +
-            '</section>';
     }
 
     function renderTemplateForm(template) {
@@ -901,19 +825,6 @@
                 '  <span>' + escapeHtml(optionText) + '</span>' +
                 '</label>';
         }).join('') + '</div>';
-    }
-
-    function renderExportTab() {
-        return '' +
-            '<section class="admin-clients-card">' +
-            '  <h3 class="admin-clients-card-title">Klientenakte exportieren</h3>' +
-            '  <p class="admin-clients-help">Erstellt einen DSAR-Export fuer die gesamte Akte des aktuell ausgewaehlten Klienten.</p>' +
-            '  <div class="admin-clients-actions"><button type="button" class="admin-clients-page-btn" data-create-export>Export erstellen</button></div>' +
-            '  <div class="admin-clients-inline">' +
-            '    <input id="exportJobId" class="admin-clients-input" type="number" min="1" placeholder="Job-ID fuer Statuspruefung" />' +
-            '    <button type="button" class="admin-clients-page-btn" data-load-export-status>Status laden</button>' +
-            '  </div>' +
-            '</section>';
     }
 
     function tabButton(tabKey, label) {
@@ -2441,12 +2352,13 @@
         var all = items.map(function (project) {
             var projectId = parsePositiveInt(project && project.id, 0);
             if (projectId <= 0) return Promise.resolve();
+            var projectContracts = normalizeProjectContracts(project && project.contracts);
 
             state.projectDetails[projectId] = {
                 loading: true,
                 phases: [],
                 members: [],
-                contracts: [],
+                contracts: projectContracts,
                 testProtocols: [],
                 files: [],
                 notes: [],
@@ -2467,7 +2379,7 @@
                 var phasesRaw = phasesRes && phasesRes.status === 200 && phasesRes.json && phasesRes.json.data && Array.isArray(phasesRes.json.data.phases)
                     ? phasesRes.json.data.phases
                     : [];
-                var phases = phasesRaw.filter(isPhaseActive);
+                var phases = phasesRaw;
                 var members = membersRes && membersRes.status === 200 && membersRes.json && membersRes.json.data && Array.isArray(membersRes.json.data.members)
                     ? membersRes.json.data.members
                     : [];
@@ -2476,7 +2388,7 @@
                     loading: false,
                     phases: phases,
                     members: members,
-                    contracts: [],
+                    contracts: projectContracts,
                     testProtocols: flattenProjectTestProtocols(phases),
                     files: flattenProjectFiles(projectId, phases),
                     notes: trim(projectMeta && projectMeta.description ? String(projectMeta.description) : '') !== ''
@@ -2488,7 +2400,7 @@
                     loading: false,
                     phases: [],
                     members: [],
-                    contracts: [],
+                    contracts: projectContracts,
                     testProtocols: [],
                     files: [],
                     notes: [],
@@ -2562,6 +2474,42 @@
             }
         }
         return result;
+    }
+
+    function normalizeProjectContracts(contracts) {
+        var list = Array.isArray(contracts) ? contracts : [];
+        return list.map(function (item) {
+            var contract = item && typeof item === 'object' ? item : {};
+            return {
+                id: parsePositiveInt(contract.id, 0),
+                title: trim(String(contract.title || '')),
+                start_date: contract.start_date ? String(contract.start_date) : '',
+                end_date: contract.end_date ? String(contract.end_date) : '',
+                setup_fee: Number(contract.setup_fee || 0),
+                monthly_fee: Number(contract.monthly_fee || 0),
+                services: Array.isArray(contract.services) ? contract.services : [],
+                include_setup_fee: !!contract.include_setup_fee,
+                has_prior_invoice: !!contract.has_prior_invoice,
+            };
+        }).filter(function (item) {
+            return item.id > 0;
+        });
+    }
+
+    function phaseProgressValue(phase) {
+        var item = phase && typeof phase === 'object' ? phase : {};
+        var raw = item.progress;
+        if (raw === undefined || raw === null || raw === '') raw = item.progress_percent;
+        if (raw === undefined || raw === null || raw === '') raw = item.progress_percentage;
+        if (raw === undefined || raw === null || raw === '') raw = item.completion_percentage;
+
+        var value = Number(raw);
+        if (!Number.isFinite(value)) return 0;
+        return Math.max(0, Math.min(100, Math.round(value)));
+    }
+
+    function formatPhaseProgress(phase) {
+        return String(phaseProgressValue(phase)) + '%';
     }
 
     function isProjectActive(project) {
@@ -3492,6 +3440,13 @@
             });
         }
 
+        var contractSelect = document.getElementById('clientInvoiceContractId');
+        if (contractSelect) {
+            contractSelect.addEventListener('change', function () {
+                applyInvoiceItemsFromSelectedContract();
+            });
+        }
+
         var addItemBtn = document.getElementById('clientInvoiceAddItem');
         if (addItemBtn) {
             addItemBtn.addEventListener('click', function () {
@@ -3540,17 +3495,106 @@
         if (!contractSelect) return;
 
         var project = findProjectById(projectId);
-        var contracts = project && Array.isArray(project.contracts) ? project.contracts : [];
+        var allContracts = Array.isArray(state.contracts) ? state.contracts : [];
+        var contracts = allContracts.filter(function (contract) {
+            var contractProjectId = parsePositiveInt(contract && contract.project_id, 0);
+            var isActive = !(contract && Object.prototype.hasOwnProperty.call(contract, 'is_active')) || !!contract.is_active;
+            return contractProjectId === projectId && isActive;
+        });
+
+        if (contracts.length === 0) {
+            contracts = project && Array.isArray(project.contracts) ? project.contracts.filter(function (contract) {
+                var isActive = !(contract && Object.prototype.hasOwnProperty.call(contract, 'is_active')) || !!contract.is_active;
+                return isActive;
+            }) : [];
+        }
 
         var options = '<option value="">Kein Vertrag</option>';
         options += contracts.map(function (contract) {
             var start = contract && contract.start_date ? String(contract.start_date) : '-';
             var end = contract && contract.end_date ? String(contract.end_date) : '-';
             var contractId = parsePositiveInt(contract && contract.id, 0);
-            return '<option value="' + contractId + '">#' + contractId + ' (' + escapeHtml(start) + ' bis ' + escapeHtml(end) + ')</option>';
+            var title = trim(String(contract && contract.title ? contract.title : ''));
+            var label = title !== '' ? title : ('Vertrag #' + contractId);
+            var setupFee = Number(contract && contract.setup_fee ? contract.setup_fee : 0);
+            var monthlyFee = Number(contract && contract.monthly_fee ? contract.monthly_fee : 0);
+            var includeSetup = !!(contract && contract.include_setup_fee);
+            var services = Array.isArray(contract && contract.services) ? contract.services : [];
+            return '<option value="' + contractId + '"' +
+                ' data-setup-fee="' + escapeHtml(String(setupFee)) + '"' +
+                ' data-monthly-fee="' + escapeHtml(String(monthlyFee)) + '"' +
+                ' data-include-setup="' + (includeSetup ? '1' : '0') + '"' +
+                ' data-services="' + escapeHtml(JSON.stringify(services)) + '">' +
+                escapeHtml(label) + ' (#' + contractId + ', ' + escapeHtml(start) + ' bis ' + escapeHtml(end) + ')</option>';
         }).join('');
 
         contractSelect.innerHTML = options;
+        if (contracts.length > 0) {
+            contractSelect.value = String(parsePositiveInt(contracts[0] && contracts[0].id, 0));
+        }
+        applyInvoiceItemsFromSelectedContract();
+    }
+
+    function applyInvoiceItemsFromSelectedContract() {
+        var contractSelect = document.getElementById('clientInvoiceContractId');
+        if (!contractSelect) return;
+
+        var contractId = parsePositiveInt(contractSelect.value, 0);
+        if (contractId <= 0) {
+            return;
+        }
+
+        var contract = findContractById(contractId);
+        var selected = contractSelect.options[contractSelect.selectedIndex];
+        if (!contract && !selected) {
+            return;
+        }
+
+        var setupFee = contract
+            ? parseNumberLocale(contract.setup_fee)
+            : parseNumberLocale(selected.getAttribute('data-setup-fee') || '0');
+        var monthlyFee = contract
+            ? parseNumberLocale(contract.monthly_fee)
+            : parseNumberLocale(selected.getAttribute('data-monthly-fee') || '0');
+        var includeSetupFee = contract
+            ? !!contract.include_setup_fee
+            : String(selected.getAttribute('data-include-setup') || '0') === '1';
+        var services = contract && Array.isArray(contract.services)
+            ? contract.services.map(function (entry) { return trim(String(entry || '')); }).filter(Boolean)
+            : [];
+
+        if (services.length === 0 && selected) {
+            var servicesRaw = String(selected.getAttribute('data-services') || '[]');
+            try {
+                var parsedServices = JSON.parse(servicesRaw);
+                services = Array.isArray(parsedServices) ? parsedServices.map(function (entry) { return trim(String(entry || '')); }).filter(Boolean) : [];
+            } catch (_err) {
+                services = [];
+            }
+        }
+
+        var items = [];
+        if (includeSetupFee && setupFee > 0) {
+            items.push({ description: 'Einrichtungsgebühr', quantity: '1', unit_price: setupFee.toFixed(2) });
+        }
+        if (monthlyFee > 0) {
+            items.push({ description: 'Service / Wartung', quantity: '1', unit_price: monthlyFee.toFixed(2) });
+        }
+
+        if (services.length > 0) {
+            items.push({
+                description: 'Leistungsumfang: ' + services.join(', '),
+                quantity: '1',
+                unit_price: '0.00',
+            });
+        }
+
+        if (items.length === 0) {
+            items.push({ description: '', quantity: '1', unit_price: '' });
+        }
+
+        renderInvoiceItemRows(items);
+        updateInvoiceTotals();
     }
 
     function renderInvoiceItemRows(items) {

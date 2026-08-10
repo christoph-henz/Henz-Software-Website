@@ -308,6 +308,8 @@ CREATE TABLE IF NOT EXISTS contracts (
     start_date DATE NOT NULL,
     end_date DATE,
     terms TEXT,
+    document_path VARCHAR(500) DEFAULT NULL,
+    is_active TINYINT(1) NOT NULL DEFAULT '1',
     created_by INT,
     FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL,
     updated_by INT,

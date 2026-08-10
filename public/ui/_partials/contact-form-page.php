@@ -22,6 +22,7 @@ $successRedirectUrl = (string) ($form['success_redirect_url'] ?? '/kontakt/erfol
 $processSteps = is_array($process['steps'] ?? null) ? $process['steps'] : [];
 
 $slotPickerEndpoint = (string) ($slotPicker['slots_endpoint'] ?? '/v1/availability/slots');
+$slotPickerDaysEndpoint = (string) ($slotPicker['days_endpoint'] ?? '/v1/availability/days');
 $slotPickerTimezone = (string) ($slotPicker['timezone'] ?? 'Europe/Berlin');
 $slotPickerStepMinutes = (int) ($slotPicker['slot_step_minutes'] ?? 30);
 if ($slotPickerStepMinutes < 5) {
@@ -350,6 +351,7 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
                 method="<?= htmlspecialchars($method, ENT_QUOTES, 'UTF-8'); ?>"
                 data-success-url="<?= htmlspecialchars($successRedirectUrl, ENT_QUOTES, 'UTF-8'); ?>"
                 data-slots-endpoint="<?= htmlspecialchars($slotPickerEndpoint, ENT_QUOTES, 'UTF-8'); ?>"
+                data-days-endpoint="<?= htmlspecialchars($slotPickerDaysEndpoint, ENT_QUOTES, 'UTF-8'); ?>"
                 data-slots-timezone="<?= htmlspecialchars($slotPickerTimezone, ENT_QUOTES, 'UTF-8'); ?>"
                 data-slot-step-minutes="<?= htmlspecialchars((string) $slotPickerStepMinutes, ENT_QUOTES, 'UTF-8'); ?>"
                 data-slot-min-notice-hours="<?= htmlspecialchars((string) $slotPickerMinNoticeHours, ENT_QUOTES, 'UTF-8'); ?>"
@@ -407,8 +409,290 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
             import { FormValidator } from "/ui/_assets/js/form-validators.js";
             document.addEventListener("DOMContentLoaded", () => {
                 const form = document.querySelector("#booking-form");
+                if (window.initBookingAvailabilityPicker && form) {
+                    window.initBookingAvailabilityPicker(form);
+                } else if (form) {
+                    initContactAvailabilityPickerFallback(form);
+                }
                 const validator = new FormValidator(form);
                 const successUrl = form.dataset.successUrl || "/kontakt/erfolg";
+
+                function initContactAvailabilityPickerFallback(currentForm) {
+                    const serviceField = currentForm.querySelector('select[name$=".service"]');
+                    const dateField = currentForm.querySelector('input[name$=".appointment_date"]');
+                    const timeField = currentForm.querySelector('input[name$=".appointment_time"]');
+
+                    if (!(serviceField instanceof HTMLSelectElement) || !(dateField instanceof HTMLInputElement) || !(timeField instanceof HTMLInputElement)) {
+                        return;
+                    }
+
+                    const slotsEndpoint = String(currentForm.dataset.slotsEndpoint || "").trim();
+                    const daysEndpoint = String(currentForm.dataset.daysEndpoint || "").trim();
+                    const timezone = String(currentForm.dataset.slotsTimezone || "Europe/Berlin").trim() || "Europe/Berlin";
+                    const slotStepMinutes = Math.max(5, parseInt(String(currentForm.dataset.slotStepMinutes || "30"), 10) || 30);
+                    const minNoticeHours = Math.max(0, parseInt(String(currentForm.dataset.slotMinNoticeHours || "24"), 10) || 24);
+                    const advanceDays = Math.max(1, parseInt(String(currentForm.dataset.slotAdvanceDays || "60"), 10) || 60);
+
+                    const now = new Date();
+                    const minDateTime = new Date(now.getTime() + (minNoticeHours * 60 * 60 * 1000));
+                    const maxDate = new Date(now.getTime() + (advanceDays * 24 * 60 * 60 * 1000));
+
+                    const dayOptions = parseDayWindows(String(currentForm.dataset.slotWorkWindows || "{}"));
+
+                    const dateSelect = replaceInputWithSelect(dateField, "Datum wählen …");
+                    const timeSelect = replaceInputWithSelect(timeField, "Uhrzeit wählen …");
+                    if (!(dateSelect instanceof HTMLSelectElement) || !(timeSelect instanceof HTMLSelectElement)) {
+                        return;
+                    }
+
+                    if (String(serviceField.value || "").trim() === "") {
+                        const firstEnabled = Array.from(serviceField.options || []).find(option => {
+                            return !option.disabled && String(option.value || "").trim() !== "";
+                        });
+                        if (firstEnabled) {
+                            serviceField.value = String(firstEnabled.value || "").trim();
+                        }
+                    }
+
+                    const toYmd = date => {
+                        const y = date.getFullYear();
+                        const m = String(date.getMonth() + 1).padStart(2, "0");
+                        const d = String(date.getDate()).padStart(2, "0");
+                        return `${y}-${m}-${d}`;
+                    };
+
+                    const formatLabel = date => new Intl.DateTimeFormat("de-DE", {
+                        weekday: "short",
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                    }).format(date);
+
+                    const enumerateDays = () => {
+                        const out = [];
+                        const cursor = new Date(minDateTime.getFullYear(), minDateTime.getMonth(), minDateTime.getDate());
+                        const end = new Date(maxDate.getFullYear(), maxDate.getMonth(), maxDate.getDate());
+                        while (cursor <= end) {
+                            out.push(new Date(cursor.getTime()));
+                            cursor.setDate(cursor.getDate() + 1);
+                        }
+                        return out;
+                    };
+
+                    const availableDatesForService = async serviceSlug => {
+                        const availabilityByDate = new Map();
+                        if (!daysEndpoint || !serviceSlug) {
+                            return availabilityByDate;
+                        }
+
+                        const months = [];
+                        const cursor = new Date(minDateTime.getFullYear(), minDateTime.getMonth(), 1);
+                        const end = new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
+                        while (cursor <= end) {
+                            months.push(`${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`);
+                            cursor.setMonth(cursor.getMonth() + 1);
+                        }
+
+                        for (const month of months) {
+                            const url = new URL(daysEndpoint, window.location.origin);
+                            url.searchParams.set("service_slug", serviceSlug);
+                            url.searchParams.set("month", month);
+                            url.searchParams.set("timezone", timezone);
+
+                            try {
+                                const res = await fetch(url.toString(), { headers: { Accept: "application/json" } });
+                                if (!res.ok) {
+                                    continue;
+                                }
+
+                                const json = await res.json().catch(() => ({}));
+                                const days = Array.isArray(json?.data?.days) ? json.data.days : [];
+                                days.forEach(day => {
+                                    if (!day || !day.date) {
+                                        return;
+                                    }
+
+                                    availabilityByDate.set(String(day.date), {
+                                        hasAvailability: day.has_availability === true,
+                                        fullDayBlocked: day.full_day_blocked === true,
+                                        reason: typeof day.unavailable_reason === "string" ? day.unavailable_reason.trim() : "",
+                                    });
+                                });
+                            } catch (_err) {
+                            }
+                        }
+
+                        return availabilityByDate;
+                    };
+
+                    const availableTimesForDate = async (serviceSlug, selectedDate) => {
+                        const availability = {
+                            availableTimes: new Set(),
+                            blockedReasons: new Map(),
+                        };
+                        if (!slotsEndpoint || !serviceSlug || !selectedDate) {
+                            return availability;
+                        }
+
+                        const from = `${selectedDate}T00:00:00`;
+                        const next = new Date(`${selectedDate}T00:00:00`);
+                        next.setDate(next.getDate() + 1);
+                        const to = `${toYmd(next)}T00:00:00`;
+
+                        const url = new URL(slotsEndpoint, window.location.origin);
+                        url.searchParams.set("service_slug", serviceSlug);
+                        url.searchParams.set("from", from);
+                        url.searchParams.set("to", to);
+                        url.searchParams.set("timezone", timezone);
+
+                        try {
+                            const res = await fetch(url.toString(), { headers: { Accept: "application/json" } });
+                            if (!res.ok) {
+                                return availability;
+                            }
+
+                            const json = await res.json().catch(() => ({}));
+                            const slots = Array.isArray(json?.data?.slots) ? json.data.slots : [];
+                            slots.forEach(slot => {
+                                const start = String(slot?.start || "");
+                                if (start.length >= 16 && start.slice(0, 10) === selectedDate) {
+                                    availability.availableTimes.add(start.slice(11, 16));
+                                }
+                            });
+
+                            const unavailableSlots = Array.isArray(json?.data?.unavailable_slots)
+                                ? json.data.unavailable_slots
+                                : [];
+
+                            unavailableSlots.forEach(slot => {
+                                const start = String(slot?.start || "");
+                                if (start.length < 16 || start.slice(0, 10) !== selectedDate) {
+                                    return;
+                                }
+
+                                const time = start.slice(11, 16);
+                                const reason = String(slot?.reason || "").trim();
+                                availability.blockedReasons.set(time, reason !== "" ? reason : "belegt");
+                            });
+                        } catch (_err) {
+                        }
+
+                        return availability;
+                    };
+
+                    const candidateTimes = selectedDate => {
+                        const date = new Date(`${selectedDate}T00:00:00`);
+                        const day = date.getDay() === 0 ? 7 : date.getDay();
+                        const windows = Array.isArray(dayOptions[day]) ? dayOptions[day] : [];
+                        const out = [];
+
+                        windows.forEach(window => {
+                            const start = timeToMinutes(window.start);
+                            const end = timeToMinutes(window.end);
+                            if (start === null || end === null || end <= start) {
+                                return;
+                            }
+
+                            for (let minute = start; minute < end; minute += slotStepMinutes) {
+                                out.push(`${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`);
+                            }
+                        });
+
+                        return Array.from(new Set(out)).sort();
+                    };
+
+                    const renderDateOptions = async () => {
+                        const serviceSlug = String(serviceField.value || "").trim();
+                        const dateAvailability = await availableDatesForService(serviceSlug);
+
+                        dateSelect.innerHTML = '<option value="">Datum wählen …</option>';
+                        let firstAvailable = "";
+                        enumerateDays().forEach(day => {
+                            const ymd = toYmd(day);
+                            const dayMeta = dateAvailability.get(ymd) || null;
+                            const available = dayMeta ? dayMeta.hasAvailability : false;
+                            const option = document.createElement("option");
+                            option.value = ymd;
+                            option.disabled = !available;
+                            option.textContent = available ? formatLabel(day) : `${formatLabel(day)} (nicht verfügbar)`;
+                            if (available && firstAvailable === "") {
+                                firstAvailable = ymd;
+                            }
+                            dateSelect.appendChild(option);
+                        });
+
+                        if (firstAvailable !== "") {
+                            dateSelect.value = firstAvailable;
+                        }
+
+                        await renderTimeOptions();
+                    };
+
+                    const renderTimeOptions = async () => {
+                        const serviceSlug = String(serviceField.value || "").trim();
+                        const selectedDate = String(dateSelect.value || "").trim();
+                        const slotAvailability = await availableTimesForDate(serviceSlug, selectedDate);
+                        const availableTimes = slotAvailability.availableTimes;
+
+                        timeSelect.innerHTML = '<option value="">Uhrzeit wählen …</option>';
+                        candidateTimes(selectedDate).forEach(time => {
+                            const option = document.createElement("option");
+                            option.value = time;
+                            option.disabled = !availableTimes.has(time);
+                            option.textContent = availableTimes.has(time)
+                                ? time
+                                : `${time} (nicht verfügbar)`;
+                            timeSelect.appendChild(option);
+                        });
+                    };
+
+                    serviceField.addEventListener("change", () => {
+                        renderDateOptions().catch(() => {});
+                    });
+                    dateSelect.addEventListener("change", () => {
+                        renderTimeOptions().catch(() => {});
+                    });
+
+                    renderDateOptions().catch(() => {});
+
+                    function replaceInputWithSelect(input, placeholder) {
+                        const select = document.createElement("select");
+                        select.name = input.name;
+                        select.id = input.id;
+                        select.className = input.className;
+                        select.required = input.required;
+                        if (input.hasAttribute("style")) {
+                            select.setAttribute("style", input.getAttribute("style") || "");
+                        }
+                        if (input.dataset.validators) {
+                            select.dataset.validators = input.dataset.validators;
+                        }
+                        select.innerHTML = `<option value="">${placeholder}</option>`;
+                        input.parentNode.replaceChild(select, input);
+                        return select;
+                    }
+
+                    function parseDayWindows(raw) {
+                        try {
+                            const data = JSON.parse(raw || "{}");
+                            return data && typeof data === "object" ? data : {};
+                        } catch (_err) {
+                            return {};
+                        }
+                    }
+
+                    function timeToMinutes(value) {
+                        const text = String(value || "").trim();
+                        if (!/^\d{2}:\d{2}$/.test(text)) {
+                            return null;
+                        }
+                        const [h, m] = text.split(":").map(v => parseInt(v, 10));
+                        if (!Number.isFinite(h) || !Number.isFinite(m) || h < 0 || h > 23 || m < 0 || m > 59) {
+                            return null;
+                        }
+                        return (h * 60) + m;
+                    }
+                }
 
                 form.addEventListener("submit", async e => {
                     e.preventDefault();
@@ -552,8 +836,15 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
                         required: "Dieses Feld ist erforderlich.",
                         email: "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
                         invalid_option: "Bitte wählen Sie einen gültigen Wert aus.",
+                        appointments_disabled: "Terminbuchung ist derzeit deaktiviert.",
+                        tickets_disabled: "Tickets sind derzeit deaktiviert.",
                         invalid_service: "Bitte wählen Sie ein gültiges Angebot aus.",
                         invalid_datetime: "Bitte geben Sie ein gültiges Datum und eine gültige Uhrzeit an.",
+                        min_notice: "Der gewünschte Termin liegt zu nah in der Zukunft. Bitte wählen Sie einen späteren Termin.",
+                        max_advance: "Der gewünschte Termin liegt zu weit in der Zukunft. Bitte wählen Sie einen früheren Termin.",
+                        invalid_slot_interval: "Bitte wählen Sie eine Uhrzeit im vorgegebenen Zeitraster.",
+                        outside_working_hours: "Die gewählte Uhrzeit liegt außerhalb der verfügbaren Zeiten.",
+                        termin_not_available: "Dieser Termin ist bereits belegt oder gesperrt. Bitte wählen Sie einen anderen Slot.",
                         invalid_client_number: "Bitte geben Sie eine gültige Kundennummer an.",
                     };
 

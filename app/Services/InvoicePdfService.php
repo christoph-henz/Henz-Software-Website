@@ -164,6 +164,10 @@ final class InvoicePdfService
     private function renderHtml(array $invoice, array $client, array $booking, array $items): string
     {
         $clientName = trim((string) (($client['first_name'] ?? '') . ' ' . ($client['last_name'] ?? '')));
+        if ($clientName === '') {
+            $clientName = trim((string) ($client['name'] ?? ''));
+        }
+        $companyName = trim((string) ($client['company_name'] ?? ''));
         $invoiceNumber = (int) ($invoice['invoice_number'] ?? 0);
         $currency = strtoupper(trim((string) ($invoice['currency_code'] ?? 'EUR')));
         if ($currency === '') {
@@ -300,12 +304,11 @@ final class InvoicePdfService
                <tr>'
             . '<tr>
                     <td width="55%" style="vertical-align:top; padding-right:4mm;">';
-            // TODO: Add company_name processing in frontend and backend
             $html .= '
-                        <div>' . htmlspecialchars($client['company_name']) . '</div>
-                        <div>' . htmlspecialchars($client['name']) . '</div>
-                        <div>' . htmlspecialchars($street) . '</div>
-                        <div>' . htmlspecialchars($city) . '</div>
+                    <div>' . htmlspecialchars($companyName, ENT_QUOTES, 'UTF-8') . '</div>
+                    <div>' . htmlspecialchars($clientName, ENT_QUOTES, 'UTF-8') . '</div>
+                    <div>' . htmlspecialchars($street, ENT_QUOTES, 'UTF-8') . '</div>
+                    <div>' . htmlspecialchars($city, ENT_QUOTES, 'UTF-8') . '</div>
                     </td>
                     <td width="45%" style="vertical-align:top; text-align:right; padding-right:2mm;">
                         <div style=" margin-top:-2cm;">
@@ -439,7 +442,7 @@ final class InvoicePdfService
                     <strong style="display:block; color:#374151; margin-bottom:6px;">
                         Unternehmensdaten
                     </strong>'
-        //. 'USt-IdNr: ' . $bank_data['ust_id'] .'<br>'
+        . 'USt-IdNr: ' . $bank_data['ust_id'] .'<br>'
         . 'USt-IdNr: wird nachgetragen<br>'
         . 'Amtsgericht: Aschaffenburg<br>
                     Inhaber: Christoph Henz<br>

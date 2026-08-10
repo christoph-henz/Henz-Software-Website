@@ -57,7 +57,7 @@ return [
                 'label' => 'Termine',
                 'href' => '/appointments',
                 'exact' => false,
-                'icon' => 'calendar',
+                'icon' => 'appointments',
                 'permission_bit' => Role::resolve("view_appointments"), // view_bookings (1) | manage_bookings (2)
                 'match_patterns' => [],
             ],
@@ -73,7 +73,7 @@ return [
                 'label' => 'Projekte',
                 'href' => '/projects',
                 'exact' => false,
-                'icon' => 'calendar',
+                'icon' => 'projects',
                 'permission_bit' => Role::resolve("view_projects"), // view_bookings (1) | manage_bookings (2)
                 'match_patterns' => [],
             ],

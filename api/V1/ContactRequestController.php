@@ -8,6 +8,7 @@ use App\Controllers\Api\BaseApiController;
 use App\Core\Http\Request;
 use App\Core\Http\Response;
 use App\Services\ContactFormConfigValidator;
+use Throwable;
 
 final class ContactRequestController extends BaseApiController
 {
@@ -34,6 +35,18 @@ final class ContactRequestController extends BaseApiController
             return $this->fail('Validation failed', 422, $dynamicErrors);
         }
 
+        if ($serviceType === 'contact' && !$this->readAvailabilityRuleBool('appointments_enabled', true)) {
+            return $this->fail('Terminbuchung ist derzeit deaktiviert.', 409, [
+                'service_type' => ['appointments_disabled'],
+            ]);
+        }
+
+        if (in_array($serviceType, ['service', 'ticket'], true) && !$this->readAvailabilityRuleBool('tickets_enabled', true)) {
+            return $this->fail('Ticketsystem ist derzeit deaktiviert.', 409, [
+                'service_type' => ['tickets_disabled'],
+            ]);
+        }
+
         if (in_array($serviceType, ['contact', 'service'], true)) {
             return $this->appointmentController->storeFromContactForm($data, $serviceType);
         }
@@ -45,6 +58,29 @@ final class ContactRequestController extends BaseApiController
         return $this->fail('Validation failed', 422, [
             'service_type' => ['invalid_option'],
         ]);
+    }
+
+    private function readAvailabilityRuleBool(string $ruleKey, bool $default): bool
+    {
+        try {
+            $row = db('availability_rules')
+                ->where('rule_key', $ruleKey)
+                ->select(['rule_value'])
+                ->first();
+        } catch (Throwable) {
+            return $default;
+        }
+
+        if (!is_array($row)) {
+            return $default;
+        }
+
+        $raw = strtolower(trim((string) ($row['rule_value'] ?? '')));
+        if ($raw === '') {
+            return $default;
+        }
+
+        return in_array($raw, ['1', 'true', 'yes', 'on'], true);
     }
 
     /**
