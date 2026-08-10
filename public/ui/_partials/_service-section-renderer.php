@@ -72,6 +72,23 @@ $imageSource = static function (array $node) use ($imageSlots): string {
 	return $fallback !== '' ? $fallback : '/ui/_assets/images/profile-placeholder.svg';
 };
 
+$optimizedImageSource = static function (string $src, string $suffix): string {
+	$path = parse_url($src, PHP_URL_PATH);
+	if (!is_string($path) || $path === '') {
+		return $src;
+	}
+
+	$fileName = basename($path);
+	$optimizedFile = preg_replace('/\.[^.]+$/', $suffix, $fileName) ?? $fileName;
+	$optimizedPath = base_path('/storage/media/referenced_projects/' . $optimizedFile);
+
+	if (is_file($optimizedPath)) {
+		return '/storage/media/referenced_projects/' . rawurlencode($optimizedFile);
+	}
+
+	return $src;
+};
+
 $sectionId = $stringFromData($data, 'slug');
 ?>
 <section<?= $sectionId !== '' ? ' id="' . $escape($sectionId) . '"' : ''; ?> class="relative py-24 lg:py-32 overflow-hidden">
@@ -158,7 +175,7 @@ $sectionId = $stringFromData($data, 'slug');
 								<span class="text-xs uppercase tracking-[0.3em]" style="color: var(--muted-foreground); font-family: 'JetBrains Mono', monospace;">software.blueprint</span>
 								<span class="w-2.5 h-2.5 rounded-full bg-green-400"></span>
 							</div>
-							<img src="<?= $escape($imageSrc); ?>" alt="<?= $escape($imageAlt); ?>" class="w-full h-full object-cover aspect-[4/3]">
+							<img src="<?= $escape($optimizedImageSource($imageSrc, '-960.jpg')); ?>" alt="<?= $escape($imageAlt); ?>" fetchpriority="high" decoding="async" class="w-full h-full object-cover aspect-[4/3]">
 						</div>
 					</div>
 				</div>
@@ -219,7 +236,7 @@ $sectionId = $stringFromData($data, 'slug');
 					</div>
 					<div class="relative min-h-[320px] lg:min-h-[100%] <?= $reverse ? 'lg:order-1' : ''; ?>" style="background: color-mix(in srgb, var(--card) 94%, var(--background) 6%);">
 						<div class="absolute inset-0 bg-gradient-to-br from-cyan-400/10 to-transparent"></div>
-						<img src="<?= $escape($imageSrc); ?>" alt="<?= $escape($imageAlt); ?>" class="relative w-full h-full min-h-[320px] object-cover">
+						<img src="<?= $escape($optimizedImageSource($imageSrc, '-960.jpg')); ?>" alt="<?= $escape($imageAlt); ?>" loading="lazy" decoding="async" class="relative w-full h-full min-h-[320px] object-cover">
 					</div>
 				</div>
 			<?php elseif ($type === 'feature_grid'): ?>

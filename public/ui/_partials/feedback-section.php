@@ -21,6 +21,12 @@ $resolveIconPath = static function (array $item): string {
         return '/ui/_assets/images/profile-placeholder.svg';
     }
 
+    $optimizedFile = preg_replace('/\.[^.]+$/', '-96.jpg', $iconFile) ?? $iconFile;
+    $optimizedPath = base_path('/storage/media/referenced_projects/' . $optimizedFile);
+    if (is_file($optimizedPath)) {
+        return '/storage/media/referenced_projects/' . rawurlencode($optimizedFile);
+    }
+
     return '/storage/media/referenced_projects/' . rawurlencode($iconFile);
 };
 if (empty($items)) {
@@ -112,7 +118,7 @@ if (empty($items)) {
                         data-fg-d3bl218="0.8:1.32440:/src/app/App.tsx:673:19:27193:475:e:div:x"
                         data-fgid-d3bl218=":r7h:"
                         style="background: rgba(0, 200, 255, 0.1); color: rgb(0, 200, 255); font-family: &quot;JetBrains Mono&quot;, monospace; border: 1px solid rgba(0, 200, 255, 0.2);">
-                        <img class="w-full h-full object-cover"
+                        <img class="w-full h-full object-cover" loading="lazy" decoding="async"
                             src="<?= $icon; ?>" alt="<?= $name; ?>">
                     </div>
                     <div data-fg-d3bl220="0.8:1.32440:/src/app/App.tsx:684:19:27687:308:e:div:ete"

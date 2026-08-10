@@ -7,8 +7,12 @@ declare(strict_types=1);
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Henz Software</title>
-  <link rel="stylesheet" href="/ui/_assets/css/theme.css" />
-  <link rel="stylesheet" href="/ui/_assets/css/tailwind.css" />
+  <link rel="preload" href="/ui/_assets/css/theme.css" as="style" onload="this.onload=null;this.rel='stylesheet'" />
+  <link rel="preload" href="/ui/_assets/css/tailwind.css" as="style" onload="this.onload=null;this.rel='stylesheet'" />
+  <noscript>
+    <link rel="stylesheet" href="/ui/_assets/css/theme.css" />
+    <link rel="stylesheet" href="/ui/_assets/css/tailwind.css" />
+  </noscript>
 </head>
 <body<?= in_array(strtolower(trim((string) ($_COOKIE['hs_essential_cookies'] ?? ''))), ['accepted', '1', 'true', 'yes'], true) ? '' : ' class="gb-essential-cookie-locked"'; ?>>
   <?php require __DIR__ . '/../_partials/navbar.php'; ?>
@@ -27,5 +31,6 @@ declare(strict_types=1);
 
   <?php require __DIR__ . '/../_partials/footer.php'; ?>
   <script src="/ui/_assets/js/navbar.js" defer></script>
+  <script src="/ui/_assets/js/project-media.js" defer></script>
 </body>
 </html>

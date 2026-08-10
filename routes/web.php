@@ -85,7 +85,7 @@ if (!function_exists('serveMediaFileFromStorage')) {
 
         return new Response($body, 200, [
             'Content-Type' => $mimeType,
-            'Cache-Control' => 'public, max-age=604800',
+            'Cache-Control' => 'public, max-age=31536000, immutable',
         ]);
     }
 }
