@@ -208,7 +208,6 @@ final class ClientAdminController extends BaseApiController
             $pdo = app(Database::class)->connection();
             $insertSql = 'INSERT INTO clients (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $placeholders) . ')';
             $stmt = $pdo->prepare($insertSql);
-            var_dump($insertSql, $bindings); // Debugging line to check the SQL and bindings
             $stmt->execute($bindings);
 
             $newId = (int) $pdo->lastInsertId();
@@ -1051,6 +1050,15 @@ final class ClientAdminController extends BaseApiController
             if ($contractRow === null) {
                 $errors['contract_id'][] = 'invalid_for_project';
             }
+        }
+
+        if ($items === [] && is_array($contractRow)) {
+            $hasPriorInvoiceUsage = $this->hasAnyInvoiceForContract($contractId ?? 0);
+            $items = $this->buildInvoiceItemsFromContract($contractRow, $hasPriorInvoiceUsage);
+        }
+
+        if ($items === []) {
+            $errors['items'][] = 'at_least_one_item_required';
         }
 
         if ($items === [] && is_array($contractRow)) {
@@ -2460,6 +2468,156 @@ final class ClientAdminController extends BaseApiController
             ->first();
 
         return is_array($row) ? $row : null;
+    }
+
+    private function hasAnyInvoiceForContract(int $contractId): bool
+    {
+        if ($contractId <= 0) {
+            return false;
+        }
+
+        $columns = $this->invoiceColumnSet();
+        if (!isset($columns['contract_id'])) {
+            return false;
+        }
+
+        $row = db('invoices')
+            ->where('contract_id', $contractId)
+            ->select(['id'])
+            ->first();
+
+        return is_array($row) && (int) ($row['id'] ?? 0) > 0;
+    }
+
+    /**
+     * @param array<string, mixed> $contractRow
+     * @return array<int, array{description: string, quantity: float, unit_price: float}>
+     */
+    private function buildInvoiceItemsFromContract(array $contractRow, bool $hasPriorInvoice): array
+    {
+        $payload = $this->decodeContractTermsPayload((string) ($contractRow['terms'] ?? ''));
+        $template = $this->extractContractInvoiceTemplate($payload, $hasPriorInvoice);
+
+        $items = [];
+        if ($template['include_setup_fee'] && $template['setup_fee'] > 0.0) {
+            $items[] = [
+                'description' => 'Einrichtungsgebühr',
+                'quantity' => 1.0,
+                'unit_price' => $template['setup_fee'],
+            ];
+        }
+
+        if ($template['monthly_fee'] > 0.0) {
+            $items[] = [
+                'description' => 'Service / Wartung',
+                'quantity' => 1.0,
+                'unit_price' => $template['monthly_fee'],
+            ];
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{setup_fee: float, monthly_fee: float, services: array<int, string>, has_prior_invoice: bool, include_setup_fee: bool}
+     */
+    private function extractContractInvoiceTemplate(array $payload, bool $hasPriorInvoice): array
+    {
+        $builderData = is_array($payload['builder_data'] ?? null)
+            ? (array) $payload['builder_data']
+            : [];
+
+        $setupFee = $this->toMoneyValue($builderData['setup_fee'] ?? 0);
+        $monthlyFee = $this->toMoneyValue($builderData['monthly_fee'] ?? 0);
+
+        $contractText = trim((string) ($payload['text'] ?? ''));
+        if ($setupFee <= 0.0) {
+            $setupFee = $this->extractFeeFromContractText(
+                $contractText,
+                ['einrichtungsgebühr', 'einrichtungsgebuehr']
+            );
+        }
+        if ($monthlyFee <= 0.0) {
+            $monthlyFee = $this->extractFeeFromContractText(
+                $contractText,
+                ['wartungsgebühr', 'wartungsgebuehr', 'monatliche vergütung', 'monatliche verguetung']
+            );
+        }
+
+        $services = [];
+        $rawServices = $builderData['services'] ?? [];
+        if (is_array($rawServices)) {
+            foreach ($rawServices as $line) {
+                $text = trim((string) $line);
+                if ($text !== '') {
+                    $services[] = $text;
+                }
+            }
+        } elseif (is_string($rawServices)) {
+            foreach (preg_split('/\R/u', $rawServices) ?: [] as $line) {
+                $text = trim((string) $line);
+                if ($text !== '') {
+                    $services[] = $text;
+                }
+            }
+        }
+
+        return [
+            'setup_fee' => $setupFee,
+            'monthly_fee' => $monthlyFee,
+            'services' => $services,
+            'has_prior_invoice' => $hasPriorInvoice,
+            'include_setup_fee' => $hasPriorInvoice,
+        ];
+    }
+
+    /** @param array<int, string> $labels */
+    private function extractFeeFromContractText(string $contractText, array $labels): float
+    {
+        $text = trim($contractText);
+        if ($text === '' || $labels === []) {
+            return 0.0;
+        }
+
+        foreach ($labels as $label) {
+            $quotedLabel = preg_quote($label, '/');
+
+            $patterns = [
+                '/(?:' . $quotedLabel . ')[^\d]{0,80}(\d{1,3}(?:[\. ]\d{3})*(?:,\d{1,2})?|\d+(?:,\d{1,2})?)\s*€/iu',
+                '/(\d{1,3}(?:[\. ]\d{3})*(?:,\d{1,2})?|\d+(?:,\d{1,2})?)\s*€[^\n\r]{0,80}(?:' . $quotedLabel . ')/iu',
+            ];
+
+            foreach ($patterns as $pattern) {
+                if (preg_match($pattern, $text, $matches) !== 1) {
+                    continue;
+                }
+
+                $amount = $this->toMoneyValue($matches[1] ?? 0);
+                if ($amount > 0.0) {
+                    return $amount;
+                }
+            }
+        }
+
+        return 0.0;
+    }
+
+    private function toMoneyValue(mixed $value): float
+    {
+        if (is_int($value) || is_float($value)) {
+            return round((float) $value, 2);
+        }
+
+        if (is_string($value)) {
+            $normalized = str_replace([' ', '.'], ['', ''], trim($value));
+            $normalized = str_replace(',', '.', $normalized);
+            if ($normalized !== '' && is_numeric($normalized)) {
+                return round((float) $normalized, 2);
+            }
+        }
+
+        return 0.0;
     }
 
     private function hasAnyInvoiceForContract(int $contractId): bool
