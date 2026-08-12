@@ -238,7 +238,7 @@ final class InvoicePdfService
         $dueDateRaw = trim((string) ($invoice['due_date'] ?? ''));
         $dueDateLabel = $dueDateRaw !== ''
             ? $this->formatDate($dueDateRaw)
-            : 'Keine Faelligkeit (Zahlung vor Termin erforderlich)';
+            : 'Keine Fälligkeit (Zahlung vor Termin erforderlich)';
         $paymentNotice = $dueDateRaw === ''
             ? 'Wichtiger Hinweis: Die Leistung wird nur erbracht, wenn der Betrag vor Leistungsantritt des vollständig beglichen wurde.'
             : 'Hinweis: Die Leistung wird erst nach vollständigem Zahlungseingang erbracht.';

@@ -43,7 +43,7 @@ if (!function_exists('operations_not_found_response')) {
         $title = 'Seite nicht gefunden';
         $message = 'Diese Route ist nur auf der Operations-Subdomain verfuegbar.';
         $hints = [
-            'Rufe den Bereich ueber die Operations-Subdomain auf.',
+            'Rufe den Bereich über die Operations-Subdomain auf.',
             'Auf der Hauptdomain sind diese Routen absichtlich nicht verfuegbar.',
         ];
 

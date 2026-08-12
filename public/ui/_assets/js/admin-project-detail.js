@@ -104,7 +104,7 @@
                     '<strong class="admin-project-meta-value"><span class="admin-project-status-pill">' + esc(mappedStatus) + '</span></strong>' +
                 '</article>' +
                 '<article class="admin-project-meta-card">' +
-                    '<span class="admin-project-meta-label">Faellig</span>' +
+                    '<span class="admin-project-meta-label">Fällig</span>' +
                     '<strong class="admin-project-meta-value">' + esc(state.project.due_date || '-') + '</strong>' +
                 '</article>' +
                 '<article class="admin-project-meta-card admin-project-meta-card--description">' +
@@ -181,7 +181,7 @@
 
         var phaseActionsHeader = canManage ? '<th>Aktionen</th>' : '';
         container.innerHTML =
-            '<table class="admin-users-table"><thead><tr><th>Phase</th><th>Progress</th><th>Status</th><th>Faellig</th>' + phaseActionsHeader + '</tr></thead><tbody>' + rows + '</tbody></table>';
+            '<table class="admin-users-table"><thead><tr><th>Phase</th><th>Progress</th><th>Status</th><th>Fällig</th>' + phaseActionsHeader + '</tr></thead><tbody>' + rows + '</tbody></table>';
 
         container.querySelectorAll('[data-action="open-test"]').forEach(function (btn) {
             btn.addEventListener('click', function () {
@@ -386,7 +386,7 @@
     }
 
     function renderChoiceGroup(fieldKey, type, options, currentValue, readOnly) {
-        var normalized = Array.isArray(options) && options.length > 0 ? options : (type === 'checkbox_single' ? ['Ja, bestaetigen'] : ['Option 1']);
+        var normalized = Array.isArray(options) && options.length > 0 ? options : (type === 'checkbox_single' ? ['Ja, bestätigen'] : ['Option 1']);
         var disabledAttr = readOnly ? ' disabled' : '';
         var selectedArray = Array.isArray(currentValue) ? currentValue : [];
         var selectedSingle = currentValue == null ? '' : String(currentValue);

@@ -368,7 +368,7 @@ if (!function_exists('project_page_default_payload')) {
                 'lead' => $description,
                 'primary_cta' => $projectUrl !== '' ? ['label' => 'Projekt besuchen', 'href' => $projectUrl] : ['label' => 'Zurueck zu Referenzen', 'href' => '/#referenzen'],
                 'main_image_alt' => $title,
-                'detail_slug' => 'projektueberblick',
+                'detail_slug' => 'projektüberblick',
                 'detail_title' => 'Projekt',
                 'detail_accent' => 'im Einsatz',
                 'detail_body' => $description,

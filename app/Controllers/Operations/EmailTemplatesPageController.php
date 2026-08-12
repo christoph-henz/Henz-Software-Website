@@ -67,7 +67,7 @@ final class EmailTemplatesPageController
             ]);
 
         if ($updated <= 0) {
-            admin_flash('error', 'Vorlage wurde nicht gespeichert (nicht gefunden oder unveraendert).');
+            admin_flash('error', 'Vorlage wurde nicht gespeichert (nicht gefunden oder unverändert).');
         } else {
             admin_flash('success', 'Vorlage wurde gespeichert.');
         }

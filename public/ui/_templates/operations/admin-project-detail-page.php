@@ -46,7 +46,7 @@ ob_start();
                 <input id="phaseName" class="admin-users-input" type="text" required />
             </div>
             <div>
-                <label class="admin-users-label" for="phaseDueDate">Faelligkeit</label>
+                <label class="admin-users-label" for="phaseDueDate">Fälligkeit</label>
                 <input id="phaseDueDate" class="admin-users-input" type="date" />
             </div>
             <div>

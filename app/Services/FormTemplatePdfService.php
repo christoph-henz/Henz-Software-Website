@@ -84,7 +84,7 @@ final class FormTemplatePdfService
             . ($letterhead['context_line'] !== '' ? '<div style="margin-top:2px; color:#6b7280;">' . $this->esc($letterhead['context_line']) . '</div>' : '')
             . '</div>'
             . '<div>Version: <strong>' . $this->esc((string) $versionNo) . '</strong></div>'
-            . '<div>Veroeffentlicht: <strong>' . $this->esc($publishedAt) . '</strong></div>'
+            . '<div>Veröffentlicht: <strong>' . $this->esc($publishedAt) . '</strong></div>'
             . '<div>PDF erstellt: <strong>' . $this->esc($generatedAt) . '</strong></div>'
             . '</header>'
             . '<section><h2 style="font-size:14px; margin:0 0 8px;">Formularaufbau</h2>' . $schemaHtml . '</section>'

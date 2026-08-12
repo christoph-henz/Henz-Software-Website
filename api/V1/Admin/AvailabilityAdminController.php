@@ -107,8 +107,8 @@ final class AvailabilityAdminController extends BaseApiController
             'max_appointments_per_day' => 'Maximale Anzahl Termine pro Tag (0 = unbegrenzt)',
             'appointments_min_hours_notice' => 'Mindestvorlaufzeit in Stunden',
             'appointments_advance_days' => 'Maximale Vorausplanung in Tagen',
-            'appointments_day_start_hour' => 'Frueheste Stunde fuer Tagesansicht',
-            'appointments_day_end_hour' => 'Spaeteste Stunde fuer Tagesansicht',
+            'appointments_day_start_hour' => 'Früheste Stunde für Tagesansicht',
+            'appointments_day_end_hour' => 'Späteste Stunde für Tagesansicht',
             'cancellation_hours_notice' => 'Stornofrist in Stunden vor Termin',
             'reminder_hours_before' => 'Erinnerung in Stunden vor Termin',
         ];

@@ -1,20 +1,20 @@
 # Henz Software Website
 
-> Offizielle Uebersicht fuer KI-Agenten zur Navigation, Kontaktaufnahme und rechtlichen Informationen auf henz-software.de.
+> Offizielle Uebersicht für KI-Agenten zur Navigation, Kontaktaufnahme und rechtlichen Informationen auf henz-software.de.
 
 Diese Datei beschreibt die wichtigsten Seiten und deren Zweck in kompakter Form.
-Interaktive Formulare sind fuer agentische Nutzung mit WebMCP-Annotationen versehen.
+Interaktive Formulare sind für agentische Nutzung mit WebMCP-Annotationen versehen.
 
 ## Hauptseiten
 
-- [Startseite](/): Ueberblick ueber Leistungen, Referenzen, Technologien und Kontakt.
+- [Startseite](/): Ueberblick über Leistungen, Referenzen, Technologien und Kontakt.
 - [Leistungen](/leistungen): Leistungen und Angebotsbereiche.
 - [Technologien](/technology): Verwendete Technologien und Schwerpunkte.
-- [Kontakt](/kontakt): Kontaktformular fuer Anfragen und Terminwuensche.
+- [Kontakt](/kontakt): Kontaktformular für Anfragen und Terminwuensche.
 
 ## Projekte
 
-- [Sitemap](/sitemap.xml): Vollstaendige Liste indexierbarer Seiten inklusive aktiver Projektseiten.
+- [Sitemap](/sitemap.xml): Vollständige Liste indexierbarer Seiten inklusive aktiver Projektseiten.
 
 ## Rechtliches
 
@@ -25,5 +25,5 @@ Interaktive Formulare sind fuer agentische Nutzung mit WebMCP-Annotationen verse
 
 ## Optional
 
-- [robots.txt](/robots.txt): Crawl-Regeln fuer klassische Bots.
-- [Status API](/status.json): Technischer Status-Endpunkt (nicht fuer Indexierung gedacht).
+- [robots.txt](/robots.txt): Crawl-Regeln für klassische Bots.
+- [Status API](/status.json): Technischer Status-Endpunkt (nicht für Indexierung gedacht).

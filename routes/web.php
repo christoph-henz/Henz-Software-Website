@@ -462,7 +462,7 @@ Router::get('/zielgruppen', function (): Response {
 })->name('zielgruppen');
 
 /**
- * Renders the ueber-uns page.
+ * Renders the über-uns page.
  *
  * @return Response HTML response for the ueber-mich page.
  */

@@ -169,7 +169,7 @@
 
     function render() {
         if (!canView) {
-            root.innerHTML = '<div class="admin-clients-empty">Keine Berechtigung fuer die Clientansicht.</div>';
+            root.innerHTML = '<div class="admin-clients-empty">Keine Berechtigung für die Clientansicht.</div>';
             return;
         }
 
@@ -797,7 +797,7 @@
     function renderOptionGroup(field, fieldKey, type, value, invalidClass) {
         var options = Array.isArray(field.options) ? field.options : [];
         if (options.length === 0) {
-            options = type === 'checkbox_single' ? ['Ja, bestaetigen'] : ['Option 1'];
+            options = type === 'checkbox_single' ? ['Ja, bestätigen'] : ['Option 1'];
         }
 
         var selectedArray = Array.isArray(value) ? value : [];
@@ -1254,7 +1254,7 @@
 
     function renderTicketProtocolHistory(protocols) {
         if (!Array.isArray(protocols) || protocols.length === 0) {
-            return '<div class="admin-clients-empty">Noch keine Protokolleintraege vorhanden.</div>';
+            return '<div class="admin-clients-empty">Noch keine Protokolleinträge vorhanden.</div>';
         }
 
         return '<div class="admin-clients-stack">' + protocols.map(function (entry) {
@@ -3387,7 +3387,7 @@
 
         var projects = Array.isArray(state.projects) ? state.projects : [];
         if (projects.length === 0) {
-            notify('warning', 'Es sind keine Projekte fuer diesen Client vorhanden.');
+            notify('warning', 'Es sind keine Projekte für diesen Client vorhanden.');
             return;
         }
 
@@ -3407,7 +3407,7 @@
             '    <div><label class="admin-clients-label" for="clientInvoiceProjectId">Projekt</label><select id="clientInvoiceProjectId" class="admin-clients-input">' + projectOptions + '</select></div>' +
             '    <div><label class="admin-clients-label" for="clientInvoiceContractId">Vertrag (optional)</label><select id="clientInvoiceContractId" class="admin-clients-input"></select></div>' +
             '    <div><label class="admin-clients-label" for="clientInvoiceDate">Rechnungsdatum</label><input id="clientInvoiceDate" class="admin-clients-input" type="date" value="' + invoiceDateDefault + '" /></div>' +
-            '    <div><label class="admin-clients-label" for="clientInvoiceDueDate">Faelligkeitsdatum</label><input id="clientInvoiceDueDate" class="admin-clients-input" type="date" value="' + dueDateDefault + '" /></div>' +
+            '    <div><label class="admin-clients-label" for="clientInvoiceDueDate">Fälligkeitsdatum</label><input id="clientInvoiceDueDate" class="admin-clients-input" type="date" value="' + dueDateDefault + '" /></div>' +
             '    <div><label class="admin-clients-label" for="clientInvoiceDiscount">Rabatt (EUR)</label><input id="clientInvoiceDiscount" class="admin-clients-input" type="number" min="0" step="0.01" value="0" /></div>' +
             '  </div>' +
             '  <div style="margin-top:0.85rem;">' +
