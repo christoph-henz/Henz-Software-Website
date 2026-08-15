@@ -44,6 +44,24 @@ final class AppointmentAdminController extends BaseApiController
         $sorting = $this->resolveSorting($request);
         $statusFilter = strtolower(trim((string) $request->query('status', '')));
         $searchTerm = strtolower(trim((string) $request->query('q', '')));
+        $dateFrom = $this->resolveDateFilter($request->query('date_from', ''));
+        $dateTo = $this->resolveDateFilter($request->query('date_to', ''));
+
+        if ($dateFrom === null && $dateTo === null) {
+            $today = new DateTimeImmutable('today', $this->berlinTimezone());
+            $dateFrom = $today->modify('-1 month')->format('Y-m-d');
+            $dateTo = $today->modify('+3 months')->format('Y-m-d');
+        }
+
+        if ($dateFrom !== null && $dateTo === null) {
+            $dateTo = $dateFrom;
+        } elseif ($dateFrom === null && $dateTo !== null) {
+            $dateFrom = $dateTo;
+        }
+
+        if ($dateFrom !== null && $dateTo !== null && $dateFrom > $dateTo) {
+            [$dateFrom, $dateTo] = [$dateTo, $dateFrom];
+        }
 
         $allowedStatuses = ['pending', 'accepted', 'declined', 'completed', 'storno', 'no_show'];
         if ($statusFilter !== '' && !in_array($statusFilter, $allowedStatuses, true)) {
@@ -52,8 +70,8 @@ final class AppointmentAdminController extends BaseApiController
             ]);
         }
 
-        $total = $this->countAppointmentRows($statusFilter, $searchTerm);
-        $rows = $this->fetchAppointmentRows($pagination, $sorting, $statusFilter, $searchTerm);
+        $total = $this->countAppointmentRows($statusFilter, $searchTerm, $dateFrom, $dateTo);
+        $rows = $this->fetchAppointmentRows($pagination, $sorting, $statusFilter, $searchTerm, $dateFrom, $dateTo);
 
         $appointments = array_map(fn (array $row): array => $this->formatAppointment($row), $rows);
 
@@ -89,12 +107,17 @@ final class AppointmentAdminController extends BaseApiController
             ''
         );
 
+        $pendingCount = 0;
         $outstandingCount = 0;
         $outstandingTotal = 0.0;
 
         foreach ($rows as $row) {
             if (!is_array($row)) {
                 continue;
+            }
+
+            if (strtolower(trim((string) ($row['status'] ?? ''))) === 'pending') {
+                $pendingCount++;
             }
 
             $amount = $this->resolveOpenPaymentAmount($row);
@@ -108,6 +131,7 @@ final class AppointmentAdminController extends BaseApiController
 
         return $this->ok([
             'summary' => [
+                'pending_count' => $pendingCount,
                 'outstanding_count' => $outstandingCount,
                 'outstanding_total' => round($outstandingTotal, 2),
             ],
@@ -365,9 +389,9 @@ final class AppointmentAdminController extends BaseApiController
         }
 
         $currentStatus = strtolower(trim((string) ($appointment['status'] ?? 'pending')));
-        if ($currentStatus !== 'accepted') {
+        if (!in_array($currentStatus, ['pending', 'accepted'], true)) {
             return $this->fail('Invalid appointment state', 409, [
-                'status' => ['reschedule_allowed_only_for_accepted'],
+                'status' => ['reschedule_allowed_only_for_pending_or_accepted'],
             ]);
         }
 
@@ -899,12 +923,12 @@ final class AppointmentAdminController extends BaseApiController
     private function resolvePagination(Request $request): array
     {
         $page = max(1, (int) $request->query('page', 1));
-        $perPage = (int) $request->query('per_page', 20);
+        $perPage = (int) $request->query('per_page', 10);
 
         if ($perPage < 1) {
-            $perPage = 20;
+            $perPage = 10;
         }
-        $perPage = min($perPage, 100);
+        $perPage = min($perPage, 10);
 
         $offsetRaw = $request->query('offset', null);
         if (is_numeric($offsetRaw)) {
@@ -1024,18 +1048,19 @@ final class AppointmentAdminController extends BaseApiController
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function fetchAppointmentRows(array $pagination, array $sorting, string $statusFilter, string $searchTerm): array
+    private function fetchAppointmentRows(array $pagination, array $sorting, string $statusFilter, string $searchTerm, ?string $dateFrom = null, ?string $dateTo = null): array
     {
         $database = app(Database::class);
         $pdo = $database->connection();
 
         $sql = $this->buildAppointmentSql();
-        $sql .= $this->buildAppointmentWhereSql($statusFilter, $searchTerm);
-        $sql .= ' ORDER BY ' . $sorting['column'] . ' ' . strtoupper($sorting['direction']);
+        $sql .= $this->buildAppointmentWhereSql($statusFilter, $searchTerm, $dateFrom, $dateTo);
+        $sql .= ' ORDER BY CASE WHEN LOWER(b.status) IN (\'pending\', \'open\', \'new\') THEN 0 ELSE 1 END ASC, '
+            . $sorting['column'] . ' ' . strtoupper($sorting['direction']);
         $sql .= ' LIMIT :limit OFFSET :offset';
 
         $stmt = $pdo->prepare($sql);
-        foreach ($this->buildAppointmentParams($statusFilter, $searchTerm) as $key => $value) {
+        foreach ($this->buildAppointmentParams($statusFilter, $searchTerm, $dateFrom, $dateTo) as $key => $value) {
             $stmt->bindValue(':' . $key, $value);
         }
         $stmt->bindValue(':limit', (int) $pagination['per_page'], \PDO::PARAM_INT);
@@ -1046,7 +1071,7 @@ final class AppointmentAdminController extends BaseApiController
         return is_array($rows) ? $rows : [];
     }
 
-    private function countAppointmentRows(string $statusFilter, string $searchTerm): int
+    private function countAppointmentRows(string $statusFilter, string $searchTerm, ?string $dateFrom = null, ?string $dateTo = null): int
     {
         $database = app(Database::class);
         $pdo = $database->connection();
@@ -1054,10 +1079,10 @@ final class AppointmentAdminController extends BaseApiController
         $sql = 'SELECT COUNT(*) AS aggregate FROM appointments b'
             . ' LEFT JOIN clients c ON c.id = b.client_id'
             . ' INNER JOIN services s ON s.id = b.service_id';
-        $sql .= $this->buildAppointmentWhereSql($statusFilter, $searchTerm);
+        $sql .= $this->buildAppointmentWhereSql($statusFilter, $searchTerm, $dateFrom, $dateTo);
 
         $stmt = $pdo->prepare($sql);
-        foreach ($this->buildAppointmentParams($statusFilter, $searchTerm) as $key => $value) {
+        foreach ($this->buildAppointmentParams($statusFilter, $searchTerm, $dateFrom, $dateTo) as $key => $value) {
             $stmt->bindValue(':' . $key, $value);
         }
         $stmt->execute();
@@ -1150,12 +1175,19 @@ final class AppointmentAdminController extends BaseApiController
         }
     }
 
-    private function buildAppointmentWhereSql(string $statusFilter, string $searchTerm): string
+    private function buildAppointmentWhereSql(string $statusFilter, string $searchTerm, ?string $dateFrom = null, ?string $dateTo = null): string
     {
         $parts = [];
 
         if ($statusFilter !== '' && $this->isAppointmentColumnAvailable('status')) {
             $parts[] = 'b.status = :status_filter';
+        }
+
+        if ($dateFrom !== null) {
+            $parts[] = 'b.appointment_date >= :date_from';
+        }
+        if ($dateTo !== null) {
+            $parts[] = 'b.appointment_date < DATE_ADD(:date_to, INTERVAL 1 DAY)';
         }
 
         if ($searchTerm !== '') {
@@ -1173,12 +1205,19 @@ final class AppointmentAdminController extends BaseApiController
     /**
      * @return array<string, mixed>
      */
-    private function buildAppointmentParams(string $statusFilter, string $searchTerm): array
+    private function buildAppointmentParams(string $statusFilter, string $searchTerm, ?string $dateFrom = null, ?string $dateTo = null): array
     {
         $params = [];
 
         if ($statusFilter !== '' && $this->isAppointmentColumnAvailable('status')) {
             $params['status_filter'] = $statusFilter;
+        }
+
+        if ($dateFrom !== null) {
+            $params['date_from'] = $dateFrom . ' 00:00:00';
+        }
+        if ($dateTo !== null) {
+            $params['date_to'] = $dateTo . ' 00:00:00';
         }
 
         if ($searchTerm !== '') {
@@ -1190,6 +1229,16 @@ final class AppointmentAdminController extends BaseApiController
         }
 
         return $params;
+    }
+
+    private function resolveDateFilter(mixed $value): ?string
+    {
+        $date = trim((string) $value);
+        $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+
+        return $date !== '' && $parsed instanceof DateTimeImmutable && $parsed->format('Y-m-d') === $date
+            ? $date
+            : null;
     }
 
     /**

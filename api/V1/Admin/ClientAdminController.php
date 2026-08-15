@@ -1458,6 +1458,38 @@ final class ClientAdminController extends BaseApiController
         ]);
     }
 
+    public function ticketsSummary(Request $request): Response
+    {
+        if (!$this->canViewClients($request)) {
+            return $this->fail('Forbidden', 403, [
+                'permission' => ['insufficient_role'],
+            ]);
+        }
+
+        if (!$this->isTicketsTableAvailable()) {
+            return $this->ok(['summary' => ['open_count' => 0]]);
+        }
+
+        $rows = db('tickets')
+            ->select(['status'])
+            ->get();
+
+        $closedStatuses = ['closed', 'resolved', 'cancelled', 'archived'];
+        $openCount = 0;
+        foreach ((array) $rows as $row) {
+            $status = strtolower(trim((string) ($row['status'] ?? '')));
+            if ($status !== '' && !in_array($status, $closedStatuses, true)) {
+                $openCount++;
+            }
+        }
+
+        return $this->ok([
+            'summary' => [
+                'open_count' => $openCount,
+            ],
+        ]);
+    }
+
     public function tickets(Request $request): Response
     {
         if (!$this->canViewClients($request)) {

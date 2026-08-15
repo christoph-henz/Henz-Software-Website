@@ -16,11 +16,13 @@
         isLoading: false,
         isDetailLoading: false,
         page: parsePositiveInt(cfg.default_page, 1),
-        perPage: parsePositiveInt(cfg.per_page, 25),
+        perPage: parsePositiveInt(cfg.per_page, 10),
         sort: String(cfg.default_sort || 'scheduled_at'),
         direction: String(cfg.default_direction || 'asc'),
         query: '',
         status: '',
+        dateFrom: defaultDateFilter(-1),
+        dateTo: defaultDateFilter(3),
         totalPages: 1,
         total: 0,
         items: [],
@@ -35,6 +37,16 @@
     function parsePositiveInt(value, fallback) {
         var n = parseInt(String(value || ''), 10);
         return Number.isFinite(n) && n > 0 ? n : fallback;
+    }
+
+    function defaultDateFilter(monthOffset) {
+        var date = new Date();
+        date.setHours(12, 0, 0, 0);
+        date.setMonth(date.getMonth() + monthOffset);
+
+        return date.getFullYear() + '-' +
+            String(date.getMonth() + 1).padStart(2, '0') + '-' +
+            String(date.getDate()).padStart(2, '0');
     }
 
     function hydrateFromQuery() {
@@ -59,6 +71,20 @@
         if (status !== '') {
             state.status = status;
         }
+
+        var hasDateFrom = qs.has('date_from');
+        var hasDateTo = qs.has('date_to');
+        if (hasDateFrom) {
+            state.dateFrom = String(qs.get('date_from') || '').trim();
+        }
+        if (hasDateTo) {
+            state.dateTo = String(qs.get('date_to') || '').trim();
+        }
+        if (hasDateFrom && !hasDateTo) {
+            state.dateTo = '';
+        } else if (!hasDateFrom && hasDateTo) {
+            state.dateFrom = '';
+        }
     }
 
     function writeStateToUrl() {
@@ -69,6 +95,12 @@
         }
         if (state.status !== '') {
             qs.set('status', state.status);
+        }
+        if (state.dateFrom !== '') {
+            qs.set('date_from', state.dateFrom);
+        }
+        if (state.dateTo !== '') {
+            qs.set('date_to', state.dateTo);
         }
 
         var basePath = state.selectedId ? '/appointments/' + state.selectedId : '/appointments';
@@ -110,6 +142,12 @@
         if (state.status !== '') {
             params.set('status', state.status);
         }
+        if (state.dateFrom !== '') {
+            params.set('date_from', state.dateFrom);
+        }
+        if (state.dateTo !== '') {
+            params.set('date_to', state.dateTo);
+        }
 
         fetch(apiUrl(cfg.api && cfg.api.list) + '?' + params.toString(), {
             credentials: 'include',
@@ -118,7 +156,7 @@
             .then(function (res) { return res.json(); })
             .then(function (json) {
                 var data = json && json.data ? json.data : {};
-                state.items = Array.isArray(data.appointments) ? data.appointments : [];
+                state.items = sortCurrentPageAppointments(Array.isArray(data.appointments) ? data.appointments : []);
                 state.total = parsePositiveInt(data.meta && data.meta.total, 0);
                 state.totalPages = parsePositiveInt(data.meta && data.meta.total_pages, 1);
 
@@ -147,6 +185,47 @@
                 writeStateToUrl();
                 render();
             });
+    }
+
+    function sortCurrentPageAppointments(items) {
+        return items
+            .map(function (item, index) {
+                return { item: item, index: index };
+            })
+            .sort(function (left, right) {
+                var leftStatus = String(left.item && left.item.status || '').toLowerCase();
+                var rightStatus = String(right.item && right.item.status || '').toLowerCase();
+                var leftPriority = appointmentStatusPriority(leftStatus);
+                var rightPriority = appointmentStatusPriority(rightStatus);
+
+                if (leftPriority !== rightPriority) {
+                    return leftPriority - rightPriority;
+                }
+
+                var leftDate = appointmentTimestamp(left.item && left.item.scheduled_at);
+                var rightDate = appointmentTimestamp(right.item && right.item.scheduled_at);
+                if (leftDate !== rightDate) {
+                    return leftDate - rightDate;
+                }
+
+                return left.index - right.index;
+            })
+            .map(function (entry) {
+                return entry.item;
+            });
+    }
+
+    function appointmentStatusPriority(status) {
+        if (status === 'pending' || status === 'open' || status === 'new') {
+            return 0;
+        }
+
+        return status === 'completed' ? 2 : 1;
+    }
+
+    function appointmentTimestamp(value) {
+        var parsed = new Date(String(value || '').replace(' ', 'T')).getTime();
+        return Number.isNaN(parsed) ? Number.MAX_SAFE_INTEGER : parsed;
     }
 
     function fetchDetail(id) {
@@ -615,6 +694,8 @@
             '    <div class="admin-appointments-toolbar">' +
             '      <form data-appointments-search class="admin-appointments-search">' +
             '        <input name="q" type="search" class="admin-appointments-input" placeholder="Suche nach Client oder Service" value="' + escapeHtml(state.query) + '" />' +
+            '        <label class="admin-appointments-hint">Von <input name="date_from" type="date" class="admin-appointments-input" value="' + escapeHtml(state.dateFrom) + '" /></label>' +
+            '        <label class="admin-appointments-hint">Bis <input name="date_to" type="date" class="admin-appointments-input" value="' + escapeHtml(state.dateTo) + '" /></label>' +
             '        <select name="status" class="admin-appointments-select">' +
             '          <option value="">Alle Stati</option>' +
             '          <option value="pending"' + (state.status === 'pending' ? ' selected' : '') + '>Ausstehend</option>' +
@@ -683,7 +764,7 @@
         var notes = parseNotes(item.notes);
         var status = String(item.status || '').toLowerCase();
         var canAct = canManage && status === 'pending';
-        var canReschedule = canManage && status === 'accepted';
+        var canReschedule = canManage && (status === 'pending' || status === 'accepted');
         var canCancel = canStorno && status === 'accepted';
         var canNoShow = canManage && status === 'completed';
 
@@ -716,6 +797,8 @@
                 var fd = new FormData(form);
                 state.query = String(fd.get('q') || '').trim();
                 state.status = String(fd.get('status') || '').trim();
+                state.dateFrom = String(fd.get('date_from') || '').trim();
+                state.dateTo = String(fd.get('date_to') || '').trim();
                 state.page = 1;
                 fetchList();
             });

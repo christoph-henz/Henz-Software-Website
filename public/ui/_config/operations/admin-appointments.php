@@ -6,7 +6,7 @@ return [
 	'default_sort' => 'scheduled_at',
 	'default_direction' => 'asc',
 	'default_page' => 1,
-	'per_page' => 25,
+	'per_page' => 10,
 	'timezone' => 'Europe/Berlin',
 	'status_labels' => [
 		'pending' => 'Ausstehend',

@@ -105,6 +105,7 @@ Router::group('', function (): void {
     Router::get('/calendar', [CalendarPageController::class, 'index'])->name('admin.calendar.index');
     Router::get('/dashboard/appointments', [AppointmentAdminController::class, 'index'])->name('admin.dashboard.appointments.index');
     Router::get('/appointments/data/meta', [AppointmentAdminController::class, 'meta'])->name('admin.appointments.data.meta');
+    Router::get('/appointments/data/summary', [AppointmentAdminController::class, 'summary'])->name('admin.appointments.data.summary');
     Router::get('/appointments/data/blocked', [AppointmentAdminController::class, 'listBlocked'])->name('admin.appointments.data.blocked.index');
     Router::delete('/appointments/data/blocked/{id}', [AppointmentAdminController::class, 'deleteBlocked'])->name('admin.appointments.data.blocked.delete');
     Router::get('/appointments/data', [AppointmentAdminController::class, 'index'])->name('admin.appointments.data.index');
@@ -187,6 +188,7 @@ Router::group('', function (): void {
     Router::get('/clients/data/{id}/consents', [ClientAdminController::class, 'consents'])->name('admin.clients.data.consents');
     Router::get('/clients/data/{id}/tickets', [ClientAdminController::class, 'tickets'])->name('admin.clients.data.tickets');
     Router::get('/tickets/data', [ClientAdminController::class, 'ticketsIndex'])->name('admin.tickets.data.index');
+    Router::get('/tickets/data/summary', [ClientAdminController::class, 'ticketsSummary'])->name('admin.tickets.data.summary');
     Router::get('/tickets/data/{ticket_id}', [ClientAdminController::class, 'ticketDetail'])->name('admin.tickets.data.show');
     Router::patch('/tickets/data/{ticket_id}', [ClientAdminController::class, 'updateTicket'])->name('admin.tickets.data.update');
     Router::post('/tickets/data/{ticket_id}/protocols', [ClientAdminController::class, 'createTicketProtocol'])->name('admin.tickets.data.protocols.create');
