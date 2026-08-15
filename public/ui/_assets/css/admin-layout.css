@@ -922,6 +922,11 @@ body.admin-page {
   border-color: rgba(255, 71, 87, 0.3);
 }
 
+.admin-appointments-status--no_show {
+  background: rgba(255, 120, 0, 0.18);
+  border-color: rgba(255, 120, 0, 0.34);
+}
+
 @media (max-width: 1023px) {
   .admin-calendar-layout,
   .admin-appointments-grid {

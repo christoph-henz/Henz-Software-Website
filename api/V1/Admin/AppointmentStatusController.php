@@ -98,7 +98,7 @@ final class AppointmentStatusController extends BaseApiController
 
             $updatedBooking = $this->fetchBooking($id);
             $paymentMailClientId = (int) (($updatedBooking['client_id'] ?? $booking['client_id']) ?? 0);
-            app(EmailAutomationService::class)->dispatch('booking.payment_received', [
+            app(EmailAutomationService::class)->dispatch('invoice.payment_received', [
                 'booking_id' => $id,
                 'client_id' => $paymentMailClientId,
             ]);
@@ -251,15 +251,26 @@ final class AppointmentStatusController extends BaseApiController
         ]);
 
         $updatedBooking = $this->fetchBooking($id);
-        if ($newStatus === 'cancelled') {
-            app(EmailAutomationService::class)->dispatch('booking.canceled', [
+        $mailClientId = (int) (($updatedBooking['client_id'] ?? $booking['client_id']) ?? 0);
+        if ($newStatus === 'confirmed' && $currentStatus === 'pending') {
+            app(EmailAutomationService::class)->dispatch('appointment.accepted', [
                 'booking_id' => $id,
-                'client_id' => (int) (($updatedBooking['client_id'] ?? $booking['client_id']) ?? 0),
+                'client_id' => $mailClientId,
+            ]);
+        } elseif ($newStatus === 'cancelled' && $currentStatus === 'pending') {
+            app(EmailAutomationService::class)->dispatch('appointment.rejected', [
+                'booking_id' => $id,
+                'client_id' => $mailClientId,
+            ]);
+        } elseif ($newStatus === 'cancelled') {
+            app(EmailAutomationService::class)->dispatch('appointment.canceled', [
+                'booking_id' => $id,
+                'client_id' => $mailClientId,
             ]);
         } elseif ($newStatus === 'no_show') {
-            app(EmailAutomationService::class)->dispatch('booking.no_show', [
+            app(EmailAutomationService::class)->dispatch('appointment.no_show', [
                 'booking_id' => $id,
-                'client_id' => (int) (($updatedBooking['client_id'] ?? $booking['client_id']) ?? 0),
+                'client_id' => $mailClientId,
             ]);
         }
 

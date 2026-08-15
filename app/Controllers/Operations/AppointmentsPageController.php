@@ -13,6 +13,7 @@ final class AppointmentsPageController
 {
     private const VIEW_APPOINTMENTS_BIT = 1;
     private const MANAGE_APPOINTMENTS_BIT = 2;
+    private const STORNO_APPOINTMENTS_BIT = 4;
 
     public function index(Request $request): Response
     {
@@ -34,9 +35,11 @@ final class AppointmentsPageController
         $roleMask = (int) ($adminUser['role_mask'] ?? 0);
         $viewBit = PermissionBits::resolve('view_appointments', self::VIEW_APPOINTMENTS_BIT);
         $manageBit = PermissionBits::resolve('manage_appointments', self::MANAGE_APPOINTMENTS_BIT);
+        $stornoBit = PermissionBits::resolve('storno_appointment', self::STORNO_APPOINTMENTS_BIT);
 
         $canView = (($roleMask & $viewBit) !== 0) || (($roleMask & $manageBit) !== 0);
         $canManage = (($roleMask & $manageBit) !== 0);
+        $canStorno = (($roleMask & $stornoBit) !== 0);
 
         if (!$canView) {
             return Response::json([
@@ -51,6 +54,7 @@ final class AppointmentsPageController
         $config = require base_path('public/ui/_config/operations/admin-appointments.php');
         $config['can_view_appointments'] = $canView;
         $config['can_manage_appointments'] = $canManage;
+        $config['can_storno_appointments'] = $canStorno;
         $config['initial_appointment_id'] = $bookingId;
 
         return $this->render('admin-appointments-page.php', [

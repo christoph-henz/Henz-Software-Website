@@ -268,7 +268,7 @@ JSON_OBJECT(
     'title', 'Restaurant Parga',
     'title_accent', 'Managementsystem im Einsatz',
     'lead', 'Entwicklung eines webbasierten Restaurantmanagementsystems zur Verwaltung von Bestellungen, Speisekarten, Reservierungen und Benutzern.',
-    'primary_cta', JSON_OBJECT('label', 'Zurueck zu Referenzen', 'href', '/#referenzen'),
+    'primary_cta', JSON_OBJECT('label', 'Zurück zu Referenzen', 'href', '/#referenzen'),
     'main_image_alt', 'Restaurant Parga Managementsystem',
     'detail_slug', 'prozesslandschaft',
     'detail_title', 'Bestellungen, Reservierungen und',

@@ -246,7 +246,7 @@
             '  <div class="admin-clients-pagination">' +
             '    <div class="admin-clients-pagination-info">Seite ' + state.page + ' / ' + state.totalPages + '</div>' +
             '    <div class="admin-clients-pagination-controls">' +
-            '      <button type="button" class="admin-clients-page-btn" data-page-prev ' + (state.page <= 1 ? 'disabled' : '') + '>Zurueck</button>' +
+            '      <button type="button" class="admin-clients-page-btn" data-page-prev ' + (state.page <= 1 ? 'disabled' : '') + '>Zurück</button>' +
             '      <button type="button" class="admin-clients-page-btn" data-page-next ' + (state.page >= state.totalPages ? 'disabled' : '') + '>Weiter</button>' +
             '    </div>' +
             '  </div>' +
@@ -308,7 +308,7 @@
             '  <div class="admin-clients-pagination">' +
             '    <div class="admin-clients-pagination-info">Seite ' + state.page + ' / ' + state.totalPages + '</div>' +
             '    <div class="admin-clients-pagination-controls">' +
-            '      <button type="button" class="admin-clients-page-btn" data-page-prev ' + (state.page <= 1 ? 'disabled' : '') + '>Zurueck</button>' +
+            '      <button type="button" class="admin-clients-page-btn" data-page-prev ' + (state.page <= 1 ? 'disabled' : '') + '>Zurück</button>' +
             '      <button type="button" class="admin-clients-page-btn" data-page-next ' + (state.page >= state.totalPages ? 'disabled' : '') + '>Weiter</button>' +
             '    </div>' +
             '  </div>' +
@@ -3413,7 +3413,7 @@
             '  <div style="margin-top:0.85rem;">' +
             '    <div class="admin-clients-inline-actions" style="margin-bottom:0.55rem;">' +
             '      <strong>Positionen</strong>' +
-            '      <button type="button" class="admin-clients-page-btn" id="clientInvoiceAddItem">Position hinzufuegen</button>' +
+            '      <button type="button" class="admin-clients-page-btn" id="clientInvoiceAddItem">Position hinzufügen</button>' +
             '    </div>' +
             '    <div id="clientInvoiceItems"></div>' +
             '  </div>' +

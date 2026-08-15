@@ -111,29 +111,62 @@ final class EmailTemplatesPageController
         $htmlBody = $this->renderTemplate($htmlTemplate, $dummyData, true);
         $htmlBodyForDelivery = $this->absolutizeEmailAssetUrls($htmlBody);
 
-        $recipient = $this->supportMailAddress();
-        $sent = $this->sendHtmlMail($recipient, $subject, $htmlBodyForDelivery);
+        $recipients = $this->resolveTestRecipients((string) ($row['template_key'] ?? ''));
+        if ($recipients === []) {
+            admin_flash('error', 'Testmail konnte nicht gesendet werden: keine gueltige Empfaengeradresse vorhanden.');
+            return Response::redirect('/email-templates');
+        }
 
-        if ($sent['success']) {
-            if (($sent['transport'] ?? 'mail') === 'file') {
+        $successfulRecipients = [];
+        $failedRecipients = [];
+        $lastSendResult = ['success' => false, 'error' => 'send_failed', 'transport' => ''];
+
+        foreach ($recipients as $recipient) {
+            $sendResult = $this->sendHtmlMail($recipient, $subject, $htmlBodyForDelivery);
+            $lastSendResult = $sendResult;
+
+            if ($sendResult['success']) {
+                $successfulRecipients[] = $recipient;
+                continue;
+            }
+
+            $failedRecipients[] = $recipient . ': ' . (string) ($sendResult['error'] ?? 'send_failed');
+        }
+
+        if ($successfulRecipients !== []) {
+            if (($lastSendResult['transport'] ?? 'mail') === 'file') {
                 admin_flash(
                     'warning',
                     sprintf(
                         'SMTP/mail nicht verfuegbar. Testmail für "%s" wurde als Datei gespeichert: %s',
                         (string) ($row['display_name'] ?? 'Vorlage'),
-                        (string) ($sent['fallback_path'] ?? 'storage/logs/mail-fallback')
+                        (string) ($lastSendResult['fallback_path'] ?? 'storage/logs/mail-fallback')
+                    )
+                );
+            } elseif ($failedRecipients !== []) {
+                admin_flash(
+                    'warning',
+                    sprintf(
+                        'Testmail für "%s" wurde nur teilweise gesendet. Erfolgreich: %s. Fehler: %s',
+                        (string) ($row['display_name'] ?? 'Vorlage'),
+                        implode(', ', $successfulRecipients),
+                        implode(' | ', $failedRecipients)
                     )
                 );
             } else {
                 admin_flash(
                     'success',
-                    sprintf('Testmail für "%s" wurde an %s gesendet.', (string) ($row['display_name'] ?? 'Vorlage'), $recipient)
+                    sprintf(
+                        'Testmail für "%s" wurde an %s gesendet.',
+                        (string) ($row['display_name'] ?? 'Vorlage'),
+                        implode(', ', $successfulRecipients)
+                    )
                 );
             }
         } else {
             admin_flash(
                 'error',
-                sprintf('Testmail konnte nicht gesendet werden: %s', (string) ($sent['error'] ?? 'Unbekannter Fehler'))
+                sprintf('Testmail konnte nicht gesendet werden: %s', implode(' | ', $failedRecipients))
             );
         }
 
@@ -252,23 +285,83 @@ final class EmailTemplatesPageController
         return [
             'client' => [
                 '{{client.id}}',
+                '{{client.first_name}}',
+                '{{client.last_name}}',
                 '{{client.name}}',
                 '{{client.email}}',
                 '{{client.phone}}',
                 '{{client.address}}',
+                '{{client.date_of_birth}}',
+                '{{client.medical_notes}}',
                 '{{client.created_at}}',
                 '{{client.updated_at}}',
             ],
             'appointment' => [
-                '{{appointment.id}}',
-                '{{appointment.client_id}}',
-                '{{appointment.service_slug}}',
-                '{{appointment.status}}',
-                '{{appointment.desired_at}}',
-                '{{appointment.contact_preference}}',
-                '{{appointment.notes}}',
-                '{{appointment.created_at}}',
-                '{{appointment.updated_at}}',
+                '{{appointment.date}}',
+                '{{appointment.time}}',
+                '{{appointment.datetime}}',
+            ],
+            'request' => [
+                '{{request.id}}',
+                '{{request.client_id}}',
+                '{{request.type}}',
+                '{{request.type_label}}',
+                '{{request.service_slug}}',
+                '{{request.service_action}}',
+                '{{request.project_name}}',
+                '{{request.project_number}}',
+                '{{request.ticket_category}}',
+                '{{request.status}}',
+                '{{request.desired_at}}',
+                '{{request.contact_preference}}',
+                '{{request.notes}}',
+                '{{request.detail_primary_label}}',
+                '{{request.detail_primary_value}}',
+                '{{request.detail_secondary_label}}',
+                '{{request.detail_secondary_value}}',
+                '{{request.detail_tertiary_label}}',
+                '{{request.detail_tertiary_value}}',
+                '{{request.details_text}}',
+                '{{request.details_html}}',
+                '{{request.customer_details_text}}',
+                '{{request.customer_details_html}}',
+                '{{request.admin_details_text}}',
+                '{{request.admin_details_html}}',
+                '{{request.package_id}}',
+                '{{request.created_at}}',
+                '{{request.updated_at}}',
+            ],
+            'booking' => [
+                '{{booking.id}}',
+                '{{booking.client_id}}',
+                '{{booking.service_id}}',
+                '{{booking.status}}',
+                '{{booking.payment_status}}',
+                '{{booking.scheduled_at}}',
+                '{{booking.started_at}}',
+                '{{booking.notes}}',
+                '{{booking.cancellation_reason}}',
+                '{{booking.cancelled_at}}',
+                '{{booking.package_purchase_id}}',
+                '{{booking.is_package_booking}}',
+                '{{booking.package_session_no}}',
+                '{{booking.package_session_state}}',
+                '{{booking.created_at}}',
+                '{{booking.updated_at}}',
+            ],
+            'form' => [
+                '{{form}}',
+                '{{form.service_type.contact.firstname}}',
+                '{{form.service_type.contact.lastname}}',
+                '{{form.service_type.contact.email}}',
+                '{{form.service_type.contact.service}}',
+                '{{form.service_type.contact.appointment_date}}',
+                '{{form.service_type.contact.appointment_time}}',
+                '{{form.service_type.contact.message}}',
+                '{{form.service_type.service.client_number}}',
+                '{{form.service_type.service.service_action}}',
+                '{{form.service_type.ticket.client_number}}',
+                '{{form.service_type.ticket.ticket_category}}',
             ],
             'contract / projects' => [
                 '{{contract.id}}',
@@ -326,7 +419,7 @@ final class EmailTemplatesPageController
     private function dummyTemplateData(): array
     {
         $now = new \DateTimeImmutable('now', new \DateTimeZone('Europe/Berlin'));
-        $appointment = $now->modify('+10 days')->setTime(10, 0);
+        $appointmentAt = $now->modify('+10 days')->setTime(10, 0);
         $rawServiceSlug = 'einzelbegleitung-60';
         $parsedServiceSlug = $this->formatServiceSlugForEmail($rawServiceSlug);
 
@@ -345,11 +438,41 @@ final class EmailTemplatesPageController
             'request' => [
                 'id' => 1201,
                 'client_id' => 501,
+                'type' => 'contact',
+                'type_label' => 'Angebot anfragen',
                 'service_slug' => $parsedServiceSlug,
+                'service_action' => '',
+                'project_name' => '',
+                'project_number' => '',
+                'ticket_category' => '',
                 'status' => 'new',
-                'desired_at' => $appointment->format('d.m.Y H:i'),
+                'desired_at' => $appointmentAt->format('d.m.Y H:i'),
                 'contact_preference' => 'email',
                 'notes' => 'Dies ist ein Dummy-Datensatz fÜr den Testversand.',
+                'detail_primary_label' => 'Gewünschtees Termindatum',
+                'detail_primary_value' => $appointmentAt->format('d.m.Y H:i'),
+                'detail_secondary_label' => 'Serviceart',
+                'detail_secondary_value' => $parsedServiceSlug,
+                'detail_tertiary_label' => 'Kurzbeschreibung',
+                'detail_tertiary_value' => 'Dies ist ein Dummy-Datensatz fÜr den Testversand.',
+                'details_text' => 'Gewünschtees Termindatum: ' . $appointmentAt->format('d.m.Y H:i') . "\n"
+                    . 'Serviceart: ' . $parsedServiceSlug . "\n"
+                    . 'Kurzbeschreibung: Dies ist ein Dummy-Datensatz fÜr den Testversand.',
+                'details_html' => '<div style="margin:0 0 8px;font-size:14px;line-height:1.6;color:#334155;"><strong>Gewünschtees Termindatum:</strong> ' . $appointmentAt->format('d.m.Y H:i') . '</div>'
+                    . '<div style="margin:0 0 8px;font-size:14px;line-height:1.6;color:#334155;"><strong>Serviceart:</strong> ' . htmlspecialchars($parsedServiceSlug, ENT_QUOTES, 'UTF-8') . '</div>'
+                    . '<div style="margin:0 0 8px;font-size:14px;line-height:1.6;color:#334155;"><strong>Kurzbeschreibung:</strong> Dies ist ein Dummy-Datensatz fÜr den Testversand.</div>',
+                'customer_details_text' => 'Gewünschtees Termindatum: ' . $appointmentAt->format('d.m.Y H:i') . "\n"
+                    . 'Serviceart: ' . $parsedServiceSlug . "\n"
+                    . 'Kurzbeschreibung: Dies ist ein Dummy-Datensatz fÜr den Testversand.',
+                'customer_details_html' => '<div style="margin:0 0 8px;font-size:14px;line-height:1.6;color:#334155;"><strong>Gewünschtees Termindatum:</strong> ' . $appointmentAt->format('d.m.Y H:i') . '</div>'
+                    . '<div style="margin:0 0 8px;font-size:14px;line-height:1.6;color:#334155;"><strong>Serviceart:</strong> ' . htmlspecialchars($parsedServiceSlug, ENT_QUOTES, 'UTF-8') . '</div>'
+                    . '<div style="margin:0 0 8px;font-size:14px;line-height:1.6;color:#334155;"><strong>Kurzbeschreibung:</strong> Dies ist ein Dummy-Datensatz fÜr den Testversand.</div>',
+                'admin_details_text' => 'Gewünschtees Termindatum: ' . $appointmentAt->format('d.m.Y H:i') . "\n"
+                    . 'Serviceart: ' . $parsedServiceSlug . "\n"
+                    . 'Kurzbeschreibung: Dies ist ein Dummy-Datensatz fÜr den Testversand.',
+                'admin_details_html' => '<div style="margin:0 0 8px;font-size:14px;line-height:1.6;color:#334155;"><strong>Gewünschtees Termindatum:</strong> ' . $appointmentAt->format('d.m.Y H:i') . '</div>'
+                    . '<div style="margin:0 0 8px;font-size:14px;line-height:1.6;color:#334155;"><strong>Serviceart:</strong> ' . htmlspecialchars($parsedServiceSlug, ENT_QUOTES, 'UTF-8') . '</div>'
+                    . '<div style="margin:0 0 8px;font-size:14px;line-height:1.6;color:#334155;"><strong>Kurzbeschreibung:</strong> Dies ist ein Dummy-Datensatz fÜr den Testversand.</div>',
                 'package_id' => 0,
                 'created_at' => $now->format('d.m.Y H:i'),
                 'updated_at' => $now->format('d.m.Y H:i'),
@@ -360,8 +483,8 @@ final class EmailTemplatesPageController
                 'service_id' => 2,
                 'status' => 'pending',
                 'payment_status' => 'pending',
-                'scheduled_at' => $appointment->format('d.m.Y H:i'),
-                'started_at' => $appointment->format('d.m.Y H:i'),
+                'scheduled_at' => $appointmentAt->format('d.m.Y H:i'),
+                'started_at' => $appointmentAt->format('d.m.Y H:i'),
                 'notes' => 'Dummy-Buchung fÜr Testmail',
                 'cancellation_reason' => '',
                 'cancelled_at' => '',
@@ -371,6 +494,32 @@ final class EmailTemplatesPageController
                 'package_session_state' => 'none',
                 'created_at' => $now->format('d.m.Y H:i'),
                 'updated_at' => $now->format('d.m.Y H:i'),
+            ],
+            'appointment' => [
+                'date' => $appointmentAt->format('d.m.Y'),
+                'time' => $appointmentAt->format('H:i'),
+                'datetime' => $appointmentAt->format('d.m.Y H:i'),
+            ],
+            'form' => [
+                'service_type' => [
+                    'contact' => [
+                        'firstname' => 'Testina',
+                        'lastname' => 'Muster',
+                        'email' => 'testina.muster@example.test',
+                        'service' => $parsedServiceSlug,
+                        'appointment_date' => $appointmentAt->format('Y-m-d'),
+                        'appointment_time' => $appointmentAt->format('H:i'),
+                        'message' => 'Ich moechte einen Termin für Einzelbegleitung anfragen.',
+                    ],
+                    'service' => [
+                        'client_number' => '501',
+                        'service_action' => 'update',
+                    ],
+                    'ticket' => [
+                        'client_number' => '501',
+                        'ticket_category' => 'technical',
+                    ],
+                ],
             ],
             'invoice' => [
                 'id' => 7701,
@@ -386,7 +535,7 @@ final class EmailTemplatesPageController
                 'due_date' => $now->modify('+7 days')->format('d.m.Y'),
                 'acceptance_message' => 'deine Anfrage wurde angenommen. Deinen Termin reserviere ich für dich, sobald der Rechnungsbetrag eingegangen ist.',
                 'payment_notice' => 'Bitte überweise den offenen Betrag bis zum Fälligkeitsdatum. Erst nach Zahlungseingang wird der Termin verbindlich bestätigt.',
-                'tax_exemption_notice' => 'Umsatzsteuerfreie Heilbehandlung gemäß § 4 Nr. 14 UStG.',
+                'tax_exemption_notice' => '',
                 'items_html' => '<tr><td style="padding:10px 0;border-bottom:1px solid #e7ddd1;color:#3d3127;">Paket: 3er-Begleitung (Einzelbegleitung (60 Minuten))</td><td style="padding:10px 0;border-bottom:1px solid #e7ddd1;text-align:center;color:#6a5645;">1</td><td style="padding:10px 0;border-bottom:1px solid #e7ddd1;text-align:right;color:#3d3127;">260,00 EUR</td></tr>',
                 'sent_at' => '',
                 'created_at' => $now->format('d.m.Y H:i'),
@@ -498,6 +647,7 @@ final class EmailTemplatesPageController
 
             $fullKey = $prefix === '' ? $keyName : $prefix . '.' . $keyName;
             if (is_array($value)) {
+                $flat[$fullKey] = $this->stringifyTemplateValue($value);
                 $flat += $this->flattenTemplateValues($value, $fullKey);
                 continue;
             }
@@ -511,6 +661,20 @@ final class EmailTemplatesPageController
         }
 
         return $flat;
+    }
+
+    /** @param mixed $value */
+    private function stringifyTemplateValue(mixed $value): string
+    {
+        if (is_array($value)) {
+            try {
+                return (string) json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            } catch (\Throwable) {
+                return '';
+            }
+        }
+
+        return (string) $value;
     }
 
     /**
@@ -633,6 +797,38 @@ final class EmailTemplatesPageController
         return 'info@henz-software.de';
     }
 
+    /** @return list<string> */
+    private function resolveTestRecipients(string $templateKey): array
+    {
+        $recipients = [$this->supportMailAddress()];
+
+        if ($templateKey === 'admin_request_info') {
+            $recipients[] = 'christophhenz@gmail.com';
+        }
+
+        return $this->normalizeRecipientList($recipients);
+    }
+
+    /**
+     * @param list<string> $recipients
+     * @return list<string>
+     */
+    private function normalizeRecipientList(array $recipients): array
+    {
+        $unique = [];
+
+        foreach ($recipients as $recipient) {
+            $email = strtolower(trim($recipient));
+            if ($email === '' || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+                continue;
+            }
+
+            $unique[$email] = true;
+        }
+
+        return array_keys($unique);
+    }
+
     /** @return array<string, string> */
     private function paymentTemplateData(int $invoiceNumber = 0): array
     {
@@ -648,7 +844,7 @@ final class EmailTemplatesPageController
                 'type' => 'bank_transfer',
                 'title' => 'Banküberweisung',
                 'lines' => [
-                    'Kontoinhaber: ' . $this->fallbackText($this->readSettingValue('bank_transfer_account_holder', ''), '-'),
+                    'Kontoinhaber: ' . $this->fallbackText($this->readSettingValue('bank_transfer_account_holder', 'Christoph Henz'), '-'),
                     'IBAN: ' . $this->fallbackText($this->readSettingValue('bank_transfer_iban', ''), '-'),
                     'BIC: ' . $this->fallbackText($this->readSettingValue('bank_transfer_bic', ''), '-'),
                     'Bank: ' . $this->fallbackText($this->readSettingValue('bank_transfer_bank_name', ''), '-'),

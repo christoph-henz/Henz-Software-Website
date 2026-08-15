@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Core\Logging\Logger;
 use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;
@@ -11,6 +12,13 @@ use DateTimeZone;
 final class EmailAutomationService
 {
     private ?bool $invoiceTableAvailable = null;
+    private ?bool $bookingsTableAvailable = null;
+    private ?bool $appointmentsTableAvailable = null;
+    /** @var array<string, bool> */
+    private array $appointmentsColumnAvailability = [];
+    private ?bool $invoicesBookingIdAvailable = null;
+    private ?bool $invoicesAppointmentIdAvailable = null;
+    private ?bool $invoicePdfPathColumnAvailable = null;
 
     /**
      * @var array<string, list<array{template_key: string, recipient: string, sender: string}>>
@@ -20,40 +28,61 @@ final class EmailAutomationService
             ['template_key' => 'request_confirmation', 'recipient' => 'client', 'sender' => 'communication'],
             ['template_key' => 'admin_request_info', 'recipient' => 'support', 'sender' => 'support'],
         ],
-        'request.accepted' => [
-            ['template_key' => 'request_accepted', 'recipient' => 'client', 'sender' => 'communication'],
+        'appointment.accepted' => [
+            ['template_key' => 'appointment_accepted', 'recipient' => 'client', 'sender' => 'communication'],
         ],
-        'request.rejected' => [
-            ['template_key' => 'request_rejected', 'recipient' => 'client', 'sender' => 'communication'],
+        'appointment.rejected' => [
+            ['template_key' => 'appointment_rejected', 'recipient' => 'client', 'sender' => 'communication'],
         ],
-        'booking.canceled' => [
-            ['template_key' => 'booking_cancelled', 'recipient' => 'client', 'sender' => 'communication'],
+        'appointment.storno' => [
+            ['template_key' => 'appointment_storno', 'recipient' => 'client', 'sender' => 'communication'],
         ],
-        'booking.no_show' => [
-            ['template_key' => 'booking_no_show', 'recipient' => 'client', 'sender' => 'communication'],
+        'appointment.reschedule' => [
+            ['template_key' => 'appointment_reschedule', 'recipient' => 'client', 'sender' => 'communication'],
         ],
-        'booking.payment_received' => [
-            ['template_key' => 'booking_payment_received', 'recipient' => 'client', 'sender' => 'communication'],
+        'appointment.no_show' => [
+            ['template_key' => 'appointment_no_show', 'recipient' => 'client', 'sender' => 'communication'],
         ],
-        'booking.payment_reminder_1' => [
-            ['template_key' => 'payment_reminder_1', 'recipient' => 'client', 'sender' => 'communication'],
+        'ticket.opened' => [
+            ['template_key' => 'ticket_opened', 'recipient' => 'client', 'sender' => 'communication'],
         ],
-        'booking.payment_reminder_2' => [
-            ['template_key' => 'payment_reminder_2', 'recipient' => 'client', 'sender' => 'communication'],
+        'ticket.closed' => [
+            ['template_key' => 'ticket_closed', 'recipient' => 'client', 'sender' => 'communication'],
         ],
         'invoice.created' => [
             ['template_key' => 'invoice_created', 'recipient' => 'client', 'sender' => 'communication'],
         ],
+        'invoice.payment_received' => [
+            ['template_key' => 'payment_received', 'recipient' => 'client', 'sender' => 'communication'],
+        ],
+        'invoice.payment_reminder_1' => [
+            ['template_key' => 'payment_reminder_1', 'recipient' => 'client', 'sender' => 'communication'],
+        ],
+        'invoice.payment_reminder_2' => [
+            ['template_key' => 'payment_reminder_2', 'recipient' => 'client', 'sender' => 'communication'],
+        ],
     ];
 
     /**
-     * @param array{request_id?: int, booking_id?: int, client_id?: int, invoice_id?: int} $references
+     * @param array{request_id?: int, booking_id?: int, appointment_id?: int, client_id?: int, invoice_id?: int, recipient_email?: string, client_first_name?: string, client_last_name?: string, form_data?: array<string, mixed>} $references
      * @return array{event: string, sent: int, skipped: int, results: list<array<string, mixed>>}
      */
     public function dispatch(string $event, array $references = []): array
     {
         $definitions = self::EVENT_TEMPLATE_MAP[$event] ?? [];
+        $this->logAutomation('info', 'email.dispatch.start', [
+            'event' => $event,
+            'reference_keys' => array_keys($references),
+            'request_id' => (int) ($references['request_id'] ?? 0),
+            'booking_id' => (int) ($references['booking_id'] ?? 0),
+            'appointment_id' => (int) ($references['appointment_id'] ?? 0),
+            'client_id' => (int) ($references['client_id'] ?? 0),
+        ]);
+
         if ($definitions === []) {
+            $this->logAutomation('warning', 'email.dispatch.no_definitions', [
+                'event' => $event,
+            ]);
             return [
                 'event' => $event,
                 'sent' => 0,
@@ -68,7 +97,18 @@ final class EmailAutomationService
 
         try {
             $context = $this->buildContext($references);
+            $this->logAutomation('info', 'email.dispatch.context_ready', [
+                'event' => $event,
+                'client_id' => (int) ($context['client']['id'] ?? 0),
+                'booking_id' => (int) ($context['booking']['id'] ?? 0),
+                'request_id' => (int) ($context['request']['id'] ?? 0),
+                'client_email_present' => trim((string) ($context['client']['email'] ?? '')) !== '',
+            ]);
         } catch (\Throwable $exception) {
+            $this->logAutomation('error', 'email.dispatch.context_failed', [
+                'event' => $event,
+                'error' => $exception->getMessage(),
+            ]);
             return [
                 'event' => $event,
                 'sent' => 0,
@@ -82,6 +122,11 @@ final class EmailAutomationService
 
         foreach ($definitions as $definition) {
             if (!$automationEnabled && !$this->shouldSendWhenAutomationDisabled($event, $definition['template_key'])) {
+                $this->logAutomation('warning', 'email.dispatch.skipped', [
+                    'event' => $event,
+                    'template_key' => $definition['template_key'],
+                    'reason' => 'automation_disabled',
+                ]);
                 $results[] = [
                     'template_key' => $definition['template_key'],
                     'status' => 'skipped',
@@ -98,6 +143,18 @@ final class EmailAutomationService
                 $definition['sender'],
                 $context
             );
+
+            $resultStatus = (string) ($result['status'] ?? 'skipped');
+            $this->logAutomation($resultStatus === 'sent' ? 'info' : 'warning', 'email.dispatch.result', [
+                'event' => $event,
+                'template_key' => $definition['template_key'],
+                'status' => $resultStatus,
+                'reason' => (string) ($result['reason'] ?? ''),
+                'recipient' => $this->maskEmail((string) ($result['recipient'] ?? '')),
+                'recipients_count' => is_array($result['recipients'] ?? null) ? count($result['recipients']) : 0,
+                'transport' => (string) ($result['transport'] ?? ''),
+                'fallback_path' => (string) ($result['fallback_path'] ?? ''),
+            ]);
 
             $results[] = $result;
             if (($result['status'] ?? 'skipped') === 'sent') {
@@ -120,9 +177,13 @@ final class EmailAutomationService
     private function buildContext(array $references): array
     {
         $requestId = (int) ($references['request_id'] ?? 0);
-        $bookingId = (int) ($references['booking_id'] ?? 0);
+        $bookingId = (int) ($references['booking_id'] ?? ($references['appointment_id'] ?? 0));
         $clientId = (int) ($references['client_id'] ?? 0);
         $invoiceId = (int) ($references['invoice_id'] ?? 0);
+        $recipientEmail = strtolower(trim((string) ($references['recipient_email'] ?? '')));
+        $fallbackFirstName = trim((string) ($references['client_first_name'] ?? ''));
+        $fallbackLastName = trim((string) ($references['client_last_name'] ?? ''));
+        $formData = $this->normalizeFormData($references['form_data'] ?? []);
 
         $request = $requestId > 0 ? $this->loadRequestData($requestId) : [];
         if ($bookingId <= 0) {
@@ -141,14 +202,593 @@ final class EmailAutomationService
 
         $client = $clientId > 0 ? $this->loadClientData($clientId) : [];
 
+        if ($client === [] && $recipientEmail !== '' && filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
+            $client = [
+                'id' => 0,
+                'first_name' => $fallbackFirstName,
+                'last_name' => $fallbackLastName,
+                'email' => $recipientEmail,
+                'phone' => '',
+                'date_of_birth' => '',
+                'medical_notes' => '',
+                'created_at' => '',
+                'updated_at' => '',
+            ];
+        }
+
+        $appointment = $this->appointmentTemplateData($request, $booking, $formData);
+        $requestContext = $this->requestTemplateData($request, $appointment, $formData, $client);
+
         return [
             'client' => $client,
-            'request' => $request,
+            'request' => $requestContext,
             'booking' => $booking,
+            'appointment' => $appointment,
+            'form' => $formData,
             'invoice' => $invoice,
             'payment' => $this->paymentTemplateData($invoice),
             'system' => $this->systemTemplateData(),
         ];
+    }
+
+    /** @param array<string, mixed> $request
+     *  @param array<string, mixed> $booking
+     *  @param array<string, mixed> $formData
+     *  @return array<string, string>
+     */
+    private function appointmentTemplateData(array $request, array $booking, array $formData): array
+    {
+        $scheduledAt = trim((string) ($booking['scheduled_at'] ?? $request['desired_at'] ?? ''));
+
+        $formDate = trim((string) (
+            $formData['service_type']['contact']['appointment_date']
+            ?? $formData['appointment_date']
+            ?? ''
+        ));
+        $formTime = trim((string) (
+            $formData['service_type']['contact']['appointment_time']
+            ?? $formData['appointment_time']
+            ?? ''
+        ));
+
+        $date = '';
+        $time = '';
+        $dateTime = '';
+
+        if ($scheduledAt !== '') {
+            $dateTime = $scheduledAt;
+
+            try {
+                $parsed = DateTimeImmutable::createFromFormat('d.m.Y H:i', $scheduledAt)
+                    ?: DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $scheduledAt)
+                    ?: DateTimeImmutable::createFromFormat('Y-m-d H:i', $scheduledAt)
+                    ?: new DateTimeImmutable($scheduledAt);
+                $date = $parsed->format('d.m.Y');
+                $time = $parsed->format('H:i');
+            } catch (\Throwable) {
+                // Keep fallback values below.
+            }
+        }
+
+        if ($date === '' && $formDate !== '') {
+            $date = $this->formatDateForTemplate($formDate);
+        }
+        if ($time === '' && $formTime !== '') {
+            $time = $formTime;
+        }
+        if ($dateTime === '' && $date !== '' && $time !== '') {
+            $dateTime = trim($date . ' ' . $time);
+        }
+
+        return [
+            'date' => $date,
+            'time' => $time,
+            'datetime' => $dateTime,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $request
+     * @param array<string, string> $appointment
+     * @param array<string, mixed> $formData
+     * @param array<string, mixed> $client
+     * @return array<string, mixed>
+     */
+    private function requestTemplateData(array $request, array $appointment, array $formData, array $client): array
+    {
+        $clientId = (int) ($client['id'] ?? ($request['client_id'] ?? 0));
+        $base = [
+            'id' => (int) ($request['id'] ?? 0),
+            'client_id' => $clientId,
+            'booking_id' => (int) ($request['booking_id'] ?? 0),
+            'service_slug' => trim((string) ($request['service_slug'] ?? '')),
+            'status' => trim((string) ($request['status'] ?? 'new')),
+            'desired_at' => trim((string) ($request['desired_at'] ?? '')),
+            'contact_preference' => trim((string) ($request['contact_preference'] ?? 'email')),
+            'notes' => trim((string) ($request['notes'] ?? '')),
+            'package_id' => (int) ($request['package_id'] ?? 0),
+            'created_at' => trim((string) ($request['created_at'] ?? '')),
+            'updated_at' => trim((string) ($request['updated_at'] ?? '')),
+            'type' => '',
+            'type_label' => '',
+            'service_action' => '',
+            'project_name' => '',
+            'project_number' => '',
+            'contract_name' => '',
+            'contract_number' => '',
+            'ticket_category' => '',
+            'detail_primary_label' => '',
+            'detail_primary_value' => '',
+            'detail_secondary_label' => '',
+            'detail_secondary_value' => '',
+            'detail_tertiary_label' => '',
+            'detail_tertiary_value' => '',
+            'details_text' => '',
+            'details_html' => '',
+            'customer_details_text' => '',
+            'customer_details_html' => '',
+            'admin_details_text' => '',
+            'admin_details_html' => '',
+        ];
+
+        $serviceType = strtolower($this->stringifyFormValue($formData['service_type'] ?? ''));
+        if ($serviceType === '') {
+            return $base;
+        }
+
+        $base['type'] = $serviceType;
+        $base['type_label'] = $this->requestTypeLabel($serviceType);
+
+        $details = [];
+        $customerDetails = [];
+        $adminDetails = [];
+
+        if ($serviceType === 'contact') {
+            $serviceName = $this->resolveServiceDisplayName($this->stringifyFormValue($formData['service_type']['contact']['service'] ?? ''));
+            $description = $this->stringifyFormValue($formData['service_type']['contact']['message'] ?? '');
+            $desiredAt = trim((string) ($appointment['datetime'] ?? ''));
+
+            $base['service_slug'] = $this->coalesceTemplateString($base['service_slug'], $serviceName);
+            $base['desired_at'] = $this->coalesceTemplateString($base['desired_at'], $desiredAt);
+            $base['notes'] = $this->coalesceTemplateString($base['notes'], $description);
+
+            $details = [
+                ['label' => 'Gewünschtees Termindatum', 'value' => $desiredAt],
+                ['label' => 'Serviceart', 'value' => $serviceName],
+                ['label' => 'Kurzbeschreibung', 'value' => $description],
+            ];
+            $customerDetails = $details;
+            $adminDetails = $details;
+        } elseif ($serviceType === 'service') {
+            $action = strtolower($this->stringifyFormValue($formData['service_type']['service']['service_action'] ?? ''));
+            $actionLabel = $this->serviceActionLabel($action);
+            $projectNumber = $this->stringifyFormValue($formData['service_type']['service']['project_number'] ?? '');
+            $contractNumber = $this->stringifyFormValue($formData['service_type']['service']['contract_number'] ?? '');
+            $projectMeta = $this->resolveProjectTemplateMeta($projectNumber, $clientId);
+            $contractMeta = $this->resolveContractTemplateMeta($contractNumber, $clientId);
+            $description = $this->firstFilledTemplateString([
+                $this->stringifyFormValue($formData['service_type']['service']['service_action']['update']['update_details'] ?? ''),
+                $this->stringifyFormValue($formData['service_type']['service']['service_action']['cancel']['message'] ?? ''),
+                $this->stringifyFormValue($formData['service_type']['service']['service_action']['other']['message'] ?? ''),
+            ]);
+
+            $base['service_action'] = $actionLabel;
+            $base['project_name'] = $projectMeta['customer_value'];
+            $base['project_number'] = $projectMeta['number'];
+            $base['contract_name'] = $contractMeta['customer_value'];
+            $base['contract_number'] = $contractMeta['number'];
+            $base['service_slug'] = $this->coalesceTemplateString($base['service_slug'], $actionLabel);
+            $base['desired_at'] = $this->coalesceTemplateString($base['desired_at'], $projectMeta['customer_value']);
+            $base['notes'] = $this->coalesceTemplateString($base['notes'], $description);
+
+            $customerDetails = [
+                ['label' => 'Gewünschtee Aktion', 'value' => $actionLabel],
+                ['label' => 'Projekt', 'value' => $projectMeta['customer_value']],
+                ['label' => 'Vertrag', 'value' => $contractMeta['customer_value']],
+                ['label' => 'Kurzbeschreibung', 'value' => $description],
+            ];
+            $adminDetails = [
+                ['label' => 'Gewünschtee Aktion', 'value' => $actionLabel],
+                ['label' => 'Projekt', 'value' => $projectMeta['admin_value']],
+                ['label' => 'Vertrag', 'value' => $contractMeta['admin_value']],
+                ['label' => 'Kurzbeschreibung', 'value' => $description],
+            ];
+            $details = $customerDetails;
+        } elseif ($serviceType === 'ticket') {
+            $category = strtolower($this->stringifyFormValue($formData['service_type']['ticket']['ticket_category'] ?? ''));
+            $categoryLabel = $this->ticketCategoryLabel($category);
+            $description = $this->firstFilledTemplateString([
+                $this->stringifyFormValue($formData['service_type']['ticket']['ticket_category']['technical']['steps'] ?? ''),
+                $this->stringifyFormValue($formData['service_type']['ticket']['ticket_category']['invoice']['message'] ?? ''),
+                $this->stringifyFormValue($formData['service_type']['ticket']['ticket_category']['other']['message'] ?? ''),
+            ]);
+
+            $base['ticket_category'] = $categoryLabel;
+            $base['service_slug'] = $this->coalesceTemplateString($base['service_slug'], $categoryLabel);
+            $base['notes'] = $this->coalesceTemplateString($base['notes'], $description);
+
+            $details = [
+                ['label' => 'Problemkategorie', 'value' => $categoryLabel],
+                ['label' => 'Kurzbeschreibung', 'value' => $description],
+            ];
+            $customerDetails = $details;
+            $adminDetails = $details;
+        }
+
+        if ($customerDetails === []) {
+            $customerDetails = $details;
+        }
+        if ($adminDetails === []) {
+            $adminDetails = $details;
+        }
+
+        $details = array_values(array_filter($details, static function (array $detail): bool {
+            return trim((string) ($detail['value'] ?? '')) !== '';
+        }));
+        $customerDetails = array_values(array_filter($customerDetails, static function (array $detail): bool {
+            return trim((string) ($detail['value'] ?? '')) !== '';
+        }));
+        $adminDetails = array_values(array_filter($adminDetails, static function (array $detail): bool {
+            return trim((string) ($detail['value'] ?? '')) !== '';
+        }));
+
+        if (isset($details[0])) {
+            $base['detail_primary_label'] = (string) ($details[0]['label'] ?? '');
+            $base['detail_primary_value'] = (string) ($details[0]['value'] ?? '');
+        }
+        if (isset($details[1])) {
+            $base['detail_secondary_label'] = (string) ($details[1]['label'] ?? '');
+            $base['detail_secondary_value'] = (string) ($details[1]['value'] ?? '');
+        }
+        if (isset($details[2])) {
+            $base['detail_tertiary_label'] = (string) ($details[2]['label'] ?? '');
+            $base['detail_tertiary_value'] = (string) ($details[2]['value'] ?? '');
+        }
+
+        $base['details_text'] = $this->requestDetailsText($details);
+        $base['details_html'] = $this->requestDetailsHtml($details);
+        $base['customer_details_text'] = $this->requestDetailsText($customerDetails);
+        $base['customer_details_html'] = $this->requestDetailsHtml($customerDetails);
+        $base['admin_details_text'] = $this->requestDetailsText($adminDetails);
+        $base['admin_details_html'] = $this->requestDetailsHtml($adminDetails);
+
+        return $base;
+    }
+
+    /** @param mixed $rawFormData
+     *  @return array<string, mixed>
+     */
+    private function normalizeFormData(mixed $rawFormData): array
+    {
+        if (!is_array($rawFormData)) {
+            return [];
+        }
+
+        $normalized = [];
+
+        foreach ($rawFormData as $key => $value) {
+            $keyName = trim((string) $key);
+            if ($keyName === '') {
+                continue;
+            }
+
+            $path = explode('.', $keyName);
+            $cursor = &$normalized;
+            $pathCount = count($path);
+
+            foreach ($path as $index => $segment) {
+                $segment = trim((string) $segment);
+                if ($segment === '') {
+                    continue;
+                }
+
+                $isLeaf = $index === ($pathCount - 1);
+                if ($isLeaf) {
+                    $cursor[$segment] = $value;
+                    continue;
+                }
+
+                if (!isset($cursor[$segment])) {
+                    $cursor[$segment] = [];
+                } elseif (!is_array($cursor[$segment])) {
+                    $cursor[$segment] = [
+                        '__value' => $cursor[$segment],
+                    ];
+                }
+
+                $cursor = &$cursor[$segment];
+            }
+
+            unset($cursor);
+        }
+
+        return $normalized;
+    }
+
+    private function requestTypeLabel(string $serviceType): string
+    {
+        return match ($serviceType) {
+            'contact' => 'Angebot anfragen',
+            'service' => 'Bestehender Service',
+            'ticket' => 'Problem melden',
+            default => ucfirst($serviceType),
+        };
+    }
+
+    private function serviceActionLabel(string $action): string
+    {
+        return match ($action) {
+            'update' => 'Service aktualisieren / erweitern',
+            'cancel' => 'Service kündigen',
+            'other' => 'Sonstiges',
+            default => $action !== '' ? ucfirst($action) : '',
+        };
+    }
+
+    private function ticketCategoryLabel(string $category): string
+    {
+        return match ($category) {
+            'technical' => 'Technisches Problem',
+            'invoice' => 'Rechnung / Zahlung',
+            'other' => 'Sonstiges',
+            default => $category !== '' ? ucfirst($category) : '',
+        };
+    }
+
+    private function resolveServiceDisplayName(string $serviceValue): string
+    {
+        $serviceValue = trim($serviceValue);
+        if ($serviceValue === '') {
+            return '';
+        }
+
+        try {
+            if (ctype_digit($serviceValue)) {
+                $service = db('services')
+                    ->where('id', (int) $serviceValue)
+                    ->select(['name', 'slug'])
+                    ->first();
+
+                if (is_array($service)) {
+                    $name = trim((string) ($service['name'] ?? ''));
+                    if ($name !== '') {
+                        return $name;
+                    }
+
+                    return $this->formatServiceSlugForEmail((string) ($service['slug'] ?? ''));
+                }
+            }
+        } catch (\Throwable) {
+            // Fall through to slug formatting.
+        }
+
+        return $this->formatServiceSlugForEmail($serviceValue);
+    }
+
+    private function resolveProjectDisplayName(string $projectNumber, int $clientId): string
+    {
+        $projectNumber = trim($projectNumber);
+        if ($projectNumber === '') {
+            return '';
+        }
+
+        $numeric = preg_replace('/\D+/', '', $projectNumber) ?? '';
+        if ($numeric === '') {
+            return $projectNumber;
+        }
+
+        try {
+            $query = db('projects')
+                ->where('id', (int) $numeric)
+                ->select(['id', 'name', 'client_id']);
+
+            if ($clientId > 0) {
+                $query->where('client_id', $clientId);
+            }
+
+            $project = $query->first();
+            if (is_array($project)) {
+                $projectName = trim((string) ($project['name'] ?? ''));
+                if ($projectName !== '') {
+                    return $projectName . ' (#' . $numeric . ')';
+                }
+            }
+        } catch (\Throwable) {
+            // Fall back to the submitted project number if lookup is unavailable.
+        }
+
+        return 'Projekt #' . $numeric;
+    }
+
+    /**
+     * @return array{number:string, customer_value:string, admin_value:string}
+     */
+    private function resolveProjectTemplateMeta(string $projectNumber, int $clientId): array
+    {
+        $projectNumber = trim($projectNumber);
+        if ($projectNumber === '') {
+            return [
+                'number' => '',
+                'customer_value' => '',
+                'admin_value' => '',
+            ];
+        }
+
+        $numeric = preg_replace('/\D+/', '', $projectNumber) ?? '';
+        if ($numeric === '') {
+            return [
+                'number' => $projectNumber,
+                'customer_value' => 'Unbekanntes Projekt (' . $projectNumber . ')',
+                'admin_value' => 'Falsche Projektnummer (' . $projectNumber . ')',
+            ];
+        }
+
+        try {
+            $project = db('projects')
+                ->where('id', (int) $numeric)
+                ->select(['id', 'name', 'client_id'])
+                ->first();
+
+            if (is_array($project)) {
+                $matchesClient = (int) ($project['client_id'] ?? 0) > 0 && (int) ($project['client_id'] ?? 0) === $clientId;
+                $projectName = trim((string) ($project['name'] ?? ''));
+
+                if ($matchesClient && $projectName !== '') {
+                    return [
+                        'number' => $numeric,
+                        'customer_value' => $projectName,
+                        'admin_value' => $projectName,
+                    ];
+                }
+
+                return [
+                    'number' => $numeric,
+                    'customer_value' => 'Unbekanntes Projekt (#' . $numeric . ')',
+                    'admin_value' => 'Falsche Projektnummer (#' . $numeric . ')',
+                ];
+            }
+        } catch (\Throwable) {
+            // Fall back to unknown/fault markers.
+        }
+
+        return [
+            'number' => $numeric,
+            'customer_value' => 'Unbekanntes Projekt (#' . $numeric . ')',
+            'admin_value' => 'Falsche Projektnummer (#' . $numeric . ')',
+        ];
+    }
+
+    /**
+     * @return array{number:string, customer_value:string, admin_value:string}
+     */
+    private function resolveContractTemplateMeta(string $contractNumber, int $clientId): array
+    {
+        $contractNumber = trim($contractNumber);
+        if ($contractNumber === '') {
+            return [
+                'number' => '',
+                'customer_value' => '',
+                'admin_value' => '',
+            ];
+        }
+
+        $numeric = preg_replace('/\D+/', '', $contractNumber) ?? '';
+        if ($numeric === '') {
+            return [
+                'number' => $contractNumber,
+                'customer_value' => 'Unbekannter Vertrag (' . $contractNumber . ')',
+                'admin_value' => 'Falsche Vertragsnummer (' . $contractNumber . ')',
+            ];
+        }
+
+        try {
+            $contract = db('contracts')
+                ->where('id', (int) $numeric)
+                ->select(['id', 'client_id'])
+                ->first();
+
+            if (is_array($contract)) {
+                $matchesClient = (int) ($contract['client_id'] ?? 0) > 0 && (int) ($contract['client_id'] ?? 0) === $clientId;
+                if ($matchesClient) {
+                    return [
+                        'number' => $numeric,
+                        'customer_value' => 'Vertrag #' . $numeric,
+                        'admin_value' => 'Vertrag #' . $numeric,
+                    ];
+                }
+
+                return [
+                    'number' => $numeric,
+                    'customer_value' => 'Unbekannter Vertrag (#' . $numeric . ')',
+                    'admin_value' => 'Falsche Vertragsnummer (#' . $numeric . ')',
+                ];
+            }
+        } catch (\Throwable) {
+            // Fall back to unknown/fault markers.
+        }
+
+        return [
+            'number' => $numeric,
+            'customer_value' => 'Unbekannter Vertrag (#' . $numeric . ')',
+            'admin_value' => 'Falsche Vertragsnummer (#' . $numeric . ')',
+        ];
+    }
+
+    /**
+     * @param list<array{label: string, value: string}> $details
+     */
+    private function requestDetailsText(array $details): string
+    {
+        $lines = [];
+
+        foreach ($details as $detail) {
+            $label = trim((string) ($detail['label'] ?? ''));
+            $value = trim((string) ($detail['value'] ?? ''));
+            if ($label === '' || $value === '') {
+                continue;
+            }
+
+            $lines[] = $label . ': ' . $value;
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * @param list<array{label: string, value: string}> $details
+     */
+    private function requestDetailsHtml(array $details): string
+    {
+        $html = '';
+
+        foreach ($details as $detail) {
+            $label = trim((string) ($detail['label'] ?? ''));
+            $value = trim((string) ($detail['value'] ?? ''));
+            if ($label === '' || $value === '') {
+                continue;
+            }
+
+            $html .= '<div style="margin:0 0 8px;font-size:14px;line-height:1.6;color:#334155;">'
+                . '<strong>' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . ':</strong> '
+                . nl2br(htmlspecialchars($value, ENT_QUOTES, 'UTF-8'))
+                . '</div>';
+        }
+
+        return $html;
+    }
+
+    /** @param list<string> $values */
+    private function firstFilledTemplateString(array $values): string
+    {
+        foreach ($values as $value) {
+            $trimmed = trim($value);
+            if ($trimmed !== '') {
+                return $trimmed;
+            }
+        }
+
+        return '';
+    }
+
+    private function coalesceTemplateString(string $currentValue, string $fallbackValue): string
+    {
+        $currentValue = trim($currentValue);
+        if ($currentValue !== '') {
+            return $currentValue;
+        }
+
+        return trim($fallbackValue);
+    }
+
+    /** @param mixed $value */
+    private function stringifyFormValue(mixed $value): string
+    {
+        if (is_array($value)) {
+            $selectedValue = $value['__value'] ?? '';
+            return is_scalar($selectedValue) ? trim((string) $selectedValue) : '';
+        }
+
+        return trim((string) $value);
     }
 
     /** @param array<string, mixed> $invoice
@@ -171,10 +811,10 @@ final class EmailAutomationService
                 'type' => 'bank_transfer',
                 'title' => 'Banküberweisung',
                 'lines' => [
-                    'Kontoinhaber: ' . $this->fallbackText($this->readSettingValue('bank_transfer_account_holder', ''), '-'),
-                    'IBAN: ' . $this->fallbackText($this->readSettingValue('bank_transfer_iban', ''), '-'),
-                    'BIC: ' . $this->fallbackText($this->readSettingValue('bank_transfer_bic', ''), '-'),
-                    'Bank: ' . $this->fallbackText($this->readSettingValue('bank_transfer_bank_name', ''), '-'),
+                    'Kontoinhaber: ' . $this->fallbackText($this->readSettingValue('bank_transfer_account_holder', 'Christoph Henz'), '-'),
+                    'IBAN: ' . $this->fallbackText($this->readSettingValue('bank_data_iban', ''), '-'),
+                    'BIC: ' . $this->fallbackText($this->readSettingValue('bank_data_bic', ''), '-'),
+                    'Bank: ' . $this->fallbackText($this->readSettingValue('bank_data_name', ''), '-'),
                     'Verwendungszweck: ' . $this->fallbackText($reference, '-'),
                 ],
             ];
@@ -313,25 +953,54 @@ final class EmailAutomationService
     /** @return array<string, mixed> */
     private function loadBookingData(int $bookingId): array
     {
-        $row = db('bookings')
-            ->where('id', $bookingId)
-            ->select([
+        $row = null;
+
+        if ($this->isBookingsTableAvailable()) {
+            $row = db('bookings')
+                ->where('id', $bookingId)
+                ->select([
+                    'id',
+                    'client_id',
+                    'service_id',
+                    'scheduled_at',
+                    'status',
+                    'payment_status',
+                    'notes',
+                    'cancellation_reason',
+                    'cancelled_at',
+                    'package_purchase_id',
+                    'is_package_booking',
+                    'package_session_no',
+                    'package_session_state',
+                    'created_at',
+                ])
+                ->first();
+        } elseif ($this->isAppointmentsTableAvailable()) {
+            $appointmentSelect = [
                 'id',
                 'client_id',
                 'service_id',
-                'scheduled_at',
+                'appointment_date',
                 'status',
-                'payment_status',
                 'notes',
-                'cancellation_reason',
-                'cancelled_at',
-                'package_purchase_id',
-                'is_package_booking',
-                'package_session_no',
-                'package_session_state',
                 'created_at',
-            ])
-            ->first();
+            ];
+
+            foreach (['payment_status', 'cancellation_reason', 'cancelled_at', 'package_purchase_id', 'is_package_booking', 'package_session_no', 'package_session_state'] as $optionalColumn) {
+                if ($this->isAppointmentsColumnAvailable($optionalColumn)) {
+                    $appointmentSelect[] = $optionalColumn;
+                }
+            }
+
+            $row = db('appointments')
+                ->where('id', $bookingId)
+                ->select($appointmentSelect)
+                ->first();
+
+            if (is_array($row)) {
+                $row['scheduled_at'] = (string) ($row['appointment_date'] ?? '');
+            }
+        }
 
         if (!is_array($row)) {
             return [];
@@ -376,7 +1045,7 @@ final class EmailAutomationService
         }
 
         $dueDateRaw = trim((string) ($row['due_date'] ?? ''));
-        $paymentNotice = 'Bitte beachten Sie: Der Termin gilt erst nach Zahlungseingang als verbindlich bestätigt.';
+        $paymentNotice = 'Bitte beachten Sie: Die Leistung wird erst nach Zahlungseingang erbracht.';
         if ($dueDateRaw === '') {
             $paymentNotice = 'Wichtiger Hinweis: Es wurde aufgrund der knappen Terminbuchung kein Fälligkeitsdatum gesetzt.
  Die Leistung wird nur erbracht, wenn der Betrag vor Antritt des Termins vollständig beglichen wurde.';
@@ -386,7 +1055,7 @@ final class EmailAutomationService
             'id' => (int) ($row['id'] ?? 0),
             'invoice_number' => (int) ($row['invoice_number'] ?? 0),
             'client_id' => (int) ($row['client_id'] ?? 0),
-            'booking_id' => (int) ($row['booking_id'] ?? 0),
+            'booking_id' => (int) (($row['booking_id'] ?? $row['appointment_id']) ?? 0),
             'currency_code' => (string) ($row['currency_code'] ?? 'EUR'),
             'sub_total_amount' => isset($row['sub_total_amount']) ? (float) $row['sub_total_amount'] : 0.0,
             'discount_amount' => isset($row['discount_amount']) ? (float) $row['discount_amount'] : 0.0,
@@ -396,7 +1065,7 @@ final class EmailAutomationService
             'due_date' => $this->formatDateForTemplate($dueDateRaw),
             'acceptance_message' => 'Ihre Anfrage wurde angenommen. Mit dieser Mail erhalten Sie die Rechnung zu Ihrem Termin.',
             'payment_notice' => $paymentNotice,
-            'tax_exemption_notice' => 'Umsatzsteuerfreie Heilbehandlung gemäß § 4 Nr. 14 UStG.',
+            'tax_exemption_notice' => '',
             'items_html' => $this->loadInvoiceItemsHtml($invoiceId),
             'sent_at' => $this->formatDateTimeForTemplate((string) ($row['sent_at'] ?? '')),
             'created_at' => $this->formatDateTimeForTemplate((string) ($row['created_at'] ?? '')),
@@ -446,8 +1115,16 @@ final class EmailAutomationService
             return 0;
         }
 
-        $row = db('invoices')
-            ->where('booking_id', $bookingId)
+        $query = db('invoices');
+        if ($this->isInvoicesBookingIdAvailable()) {
+            $query->where('booking_id', $bookingId);
+        } elseif ($this->isInvoicesAppointmentIdAvailable()) {
+            $query->where('appointment_id', $bookingId);
+        } else {
+            return 0;
+        }
+
+        $row = $query
             ->select(['id'])
             ->orderBy('id', 'desc')
             ->first();
@@ -475,22 +1152,144 @@ final class EmailAutomationService
         }
     }
 
+    private function isBookingsTableAvailable(): bool
+    {
+        if ($this->bookingsTableAvailable !== null) {
+            return $this->bookingsTableAvailable;
+        }
+
+        $this->bookingsTableAvailable = $this->isTableAvailable('bookings');
+        return $this->bookingsTableAvailable;
+    }
+
+    private function isAppointmentsTableAvailable(): bool
+    {
+        if ($this->appointmentsTableAvailable !== null) {
+            return $this->appointmentsTableAvailable;
+        }
+
+        $this->appointmentsTableAvailable = $this->isTableAvailable('appointments');
+        return $this->appointmentsTableAvailable;
+    }
+
+    private function isAppointmentsColumnAvailable(string $columnName): bool
+    {
+        if (array_key_exists($columnName, $this->appointmentsColumnAvailability)) {
+            return $this->appointmentsColumnAvailability[$columnName];
+        }
+
+        if (!$this->isAppointmentsTableAvailable()) {
+            $this->appointmentsColumnAvailability[$columnName] = false;
+            return false;
+        }
+
+        try {
+            $pdo = app(\App\Core\Database\Database::class)->connection();
+            $statement = $pdo->prepare(
+                'SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = :table_name AND column_name = :column_name LIMIT 1'
+            );
+            $statement->execute([
+                'table_name' => 'appointments',
+                'column_name' => $columnName,
+            ]);
+
+            $this->appointmentsColumnAvailability[$columnName] = $statement->fetchColumn() !== false;
+        } catch (\Throwable) {
+            $this->appointmentsColumnAvailability[$columnName] = false;
+        }
+
+        return $this->appointmentsColumnAvailability[$columnName];
+    }
+
+    private function isInvoicesBookingIdAvailable(): bool
+    {
+        if ($this->invoicesBookingIdAvailable !== null) {
+            return $this->invoicesBookingIdAvailable;
+        }
+
+        $this->invoicesBookingIdAvailable = $this->isInvoiceColumnAvailable('booking_id');
+        return $this->invoicesBookingIdAvailable;
+    }
+
+    private function isInvoicesAppointmentIdAvailable(): bool
+    {
+        if ($this->invoicesAppointmentIdAvailable !== null) {
+            return $this->invoicesAppointmentIdAvailable;
+        }
+
+        $this->invoicesAppointmentIdAvailable = $this->isInvoiceColumnAvailable('appointment_id');
+        return $this->invoicesAppointmentIdAvailable;
+    }
+
+    private function isTableAvailable(string $tableName): bool
+    {
+        try {
+            $pdo = app(\App\Core\Database\Database::class)->connection();
+            $statement = $pdo->prepare(
+                'SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = :table_name LIMIT 1'
+            );
+            $statement->execute(['table_name' => $tableName]);
+            return $statement->fetchColumn() !== false;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    private function isInvoiceColumnAvailable(string $columnName): bool
+    {
+        if (!$this->isInvoiceTableAvailable()) {
+            return false;
+        }
+
+        try {
+            $pdo = app(\App\Core\Database\Database::class)->connection();
+            $statement = $pdo->prepare(
+                'SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = :table_name AND column_name = :column_name LIMIT 1'
+            );
+            $statement->execute([
+                'table_name' => 'invoices',
+                'column_name' => $columnName,
+            ]);
+
+            return $statement->fetchColumn() !== false;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
     /** @return array<string, mixed> */
     private function loadClientData(int $clientId): array
     {
-        $row = db('clients')
-            ->where('id', $clientId)
-            ->select([
-                'id',
-                'first_name',
-                'last_name',
-                'email',
-                'phone',
-                'date_of_birth',
-                'medical_notes',
-                'created_at',
-            ])
-            ->first();
+        $row = null;
+
+        try {
+            $row = db('clients')
+                ->where('id', $clientId)
+                ->select([
+                    'id',
+                    'first_name',
+                    'last_name',
+                    'name',
+                    'email',
+                    'phone',
+                    'date_of_birth',
+                    'medical_notes',
+                    'created_at',
+                ])
+                ->first();
+        } catch (\Throwable) {
+            // Backward compatibility for older schemas that only expose a combined name.
+            $row = db('clients')
+                ->where('id', $clientId)
+                ->select([
+                    'id',
+                    'name',
+                    'email',
+                    'phone',
+                    'created_at',
+                ])
+                ->first();
+        }
 
         if (!is_array($row)) {
             return [];
@@ -498,10 +1297,23 @@ final class EmailAutomationService
 
         $row = app(ClientFieldEncryptionService::class)->decryptClientRow($row);
 
+        $firstName = trim((string) ($row['first_name'] ?? ''));
+        $lastName = trim((string) ($row['last_name'] ?? ''));
+        if ($firstName === '' && $lastName === '') {
+            $fullName = trim((string) ($row['name'] ?? ''));
+            if ($fullName !== '') {
+                $parts = preg_split('/\s+/', $fullName) ?: [];
+                if ($parts !== []) {
+                    $firstName = (string) array_shift($parts);
+                    $lastName = trim(implode(' ', $parts));
+                }
+            }
+        }
+
         return [
             'id' => (int) ($row['id'] ?? 0),
-            'first_name' => (string) ($row['first_name'] ?? ''),
-            'last_name' => (string) ($row['last_name'] ?? ''),
+            'first_name' => $firstName,
+            'last_name' => $lastName,
             'email' => strtolower(trim((string) ($row['email'] ?? ''))),
             'phone' => (string) ($row['phone'] ?? ''),
             'date_of_birth' => (string) ($row['date_of_birth'] ?? ''),
@@ -569,7 +1381,11 @@ final class EmailAutomationService
 
     private function shouldSendWhenAutomationDisabled(string $event, string $templateKey): bool
     {
-        return $event === 'request.submitted' && $templateKey === 'admin_request_info';
+        if ($event === 'request.submitted' && $templateKey === 'admin_request_info') {
+            return true;
+        }
+
+        return in_array($event, ['appointment.accepted', 'appointment.rejected', 'appointment.storno', 'appointment.reschedule', 'invoice.created'], true);
     }
 
     /** @return array<string, mixed> */
@@ -582,6 +1398,11 @@ final class EmailAutomationService
                 ->first();
 
             if (!is_array($template)) {
+                $this->logAutomation('warning', 'email.template.skipped', [
+                    'event' => $event,
+                    'template_key' => $templateKey,
+                    'reason' => 'template_missing',
+                ]);
                 return [
                     'template_key' => $templateKey,
                     'status' => 'skipped',
@@ -590,6 +1411,11 @@ final class EmailAutomationService
             }
 
             if (!$this->normalizeBool($template['is_active'] ?? false)) {
+                $this->logAutomation('warning', 'email.template.skipped', [
+                    'event' => $event,
+                    'template_key' => $templateKey,
+                    'reason' => 'template_inactive',
+                ]);
                 return [
                     'template_key' => $templateKey,
                     'status' => 'skipped',
@@ -597,8 +1423,21 @@ final class EmailAutomationService
                 ];
             }
 
-            $recipient = $this->resolveRecipientAddress($recipientType, $context);
-            if (!filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
+            $effectiveRecipientType = $recipientType;
+            if (in_array($event, ['ticket.opened', 'ticket.closed'], true)) {
+                $effectiveRecipientType = 'client';
+            }
+
+            $recipients = $this->resolveRecipientAddresses($templateKey, $effectiveRecipientType, $context);
+            if ($recipients === []) {
+                $this->logAutomation('warning', 'email.template.skipped', [
+                    'event' => $event,
+                    'template_key' => $templateKey,
+                    'reason' => 'recipient_missing',
+                    'recipient_type' => $effectiveRecipientType,
+                    'client_id' => (int) ($context['client']['id'] ?? 0),
+                    'client_email' => $this->maskEmail((string) ($context['client']['email'] ?? '')),
+                ]);
                 return [
                     'template_key' => $templateKey,
                     'status' => 'skipped',
@@ -609,22 +1448,44 @@ final class EmailAutomationService
             $subject = $this->renderTemplate((string) ($template['subject_template'] ?? ''), $context, false);
             $htmlBody = $this->renderTemplate((string) ($template['html_template'] ?? ''), $context, true);
             $deliveryHtml = $this->absolutizeEmailAssetUrls($htmlBody);
-            $mailResult = $this->sendHtmlMail($recipient, $subject, $deliveryHtml, $senderType);
+            $attachments = $this->resolveAttachmentsForEvent($event, $context);
+            $successfulRecipients = [];
+            $failedRecipients = [];
+            $lastMailResult = ['success' => false, 'error' => 'send_failed', 'transport' => ''];
 
-            if ($mailResult['success']) {
-                $this->logSentEmail($event, $templateKey, $context, $recipient, $subject, $deliveryHtml, $senderType);
+            foreach ($recipients as $recipient) {
+                $mailResult = $this->sendHtmlMail($recipient, $subject, $deliveryHtml, $senderType, $attachments);
+                $lastMailResult = $mailResult;
+
+                if ($mailResult['success']) {
+                    $successfulRecipients[] = $recipient;
+                    $this->logSentEmail($event, $templateKey, $context, $recipient, $subject, $deliveryHtml, $senderType);
+                    continue;
+                }
+
+                $failedRecipients[] = $recipient . ': ' . (string) ($mailResult['error'] ?? 'send_failed');
             }
+
+            $allSent = count($successfulRecipients) === count($recipients);
+            $anySent = $successfulRecipients !== [];
 
             return [
                 'template_key' => $templateKey,
                 'display_name' => (string) ($template['display_name'] ?? $templateKey),
-                'recipient' => $recipient,
-                'status' => $mailResult['success'] ? 'sent' : 'skipped',
-                'transport' => (string) ($mailResult['transport'] ?? ''),
-                'reason' => $mailResult['success'] ? '' : (string) ($mailResult['error'] ?? 'send_failed'),
-                'fallback_path' => $mailResult['fallback_path'] ?? null,
+                'recipient' => (string) ($successfulRecipients[0] ?? $recipients[0]),
+                'recipients' => $recipients,
+                'status' => $allSent || $anySent ? 'sent' : 'skipped',
+                'transport' => (string) ($lastMailResult['transport'] ?? ''),
+                'attachments_count' => count($attachments),
+                'reason' => $failedRecipients === [] ? '' : implode(' | ', $failedRecipients),
+                'fallback_path' => $lastMailResult['fallback_path'] ?? null,
             ];
         } catch (\Throwable $exception) {
+            $this->logAutomation('error', 'email.template.exception', [
+                'event' => $event,
+                'template_key' => $templateKey,
+                'error' => $exception->getMessage(),
+            ]);
             return [
                 'template_key' => $templateKey,
                 'status' => 'skipped',
@@ -633,13 +1494,45 @@ final class EmailAutomationService
         }
     }
 
-    private function resolveRecipientAddress(string $recipientType, array $context): string
+    /**
+     * @param array<string, mixed> $context
+     * @return list<string>
+     */
+    private function resolveRecipientAddresses(string $templateKey, string $recipientType, array $context): array
     {
         if ($recipientType === 'support') {
-            return $this->supportMailAddress();
+            $recipients = [$this->supportMailAddress()];
+
+            if ($templateKey === 'admin_request_info') {
+                $recipients[] = 'christophhenz@gmail.com';
+            }
+
+            return $this->normalizeRecipientList($recipients);
         }
 
-        return strtolower(trim((string) ($context['client']['email'] ?? '')));
+        return $this->normalizeRecipientList([
+            strtolower(trim((string) ($context['client']['email'] ?? ''))),
+        ]);
+    }
+
+    /**
+     * @param list<string> $recipients
+     * @return list<string>
+     */
+    private function normalizeRecipientList(array $recipients): array
+    {
+        $unique = [];
+
+        foreach ($recipients as $recipient) {
+            $email = strtolower(trim($recipient));
+            if ($email === '' || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+                continue;
+            }
+
+            $unique[$email] = true;
+        }
+
+        return array_keys($unique);
     }
 
     /**
@@ -661,7 +1554,10 @@ final class EmailAutomationService
             $replacements['{{ ' . $key . ' }}'] = $safeValue;
         }
 
-        return strtr($template, $replacements);
+        $rendered = strtr($template, $replacements);
+
+        // Remove unresolved placeholders so raw {{...}} tokens are never sent to recipients.
+        return preg_replace('/\{\{\s*[^{}]+\s*\}\}/', '', $rendered) ?? $rendered;
     }
 
     /**
@@ -680,6 +1576,7 @@ final class EmailAutomationService
 
             $fullKey = $prefix === '' ? $keyName : $prefix . '.' . $keyName;
             if (is_array($value)) {
+                $flat[$fullKey] = $this->stringifyTemplateValue($value);
                 $flat += $this->flattenTemplateValues($value, $fullKey);
                 continue;
             }
@@ -693,6 +1590,20 @@ final class EmailAutomationService
         }
 
         return $flat;
+    }
+
+    /** @param mixed $value */
+    private function stringifyTemplateValue(mixed $value): string
+    {
+        if (is_array($value)) {
+            try {
+                return (string) json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            } catch (\Throwable) {
+                return '';
+            }
+        }
+
+        return (string) $value;
     }
 
     private function formatServiceSlugForEmail(string $serviceSlug): string
@@ -803,8 +1714,11 @@ final class EmailAutomationService
         return $value !== '' ? $value : $fallback;
     }
 
-    /** @return array{success: bool, error: string, transport: string, fallback_path?: string} */
-    private function sendHtmlMail(string $to, string $subject, string $htmlBody, string $senderType): array
+    /**
+     * @param list<array{filename: string, mime_type: string, content_base64: string}> $attachments
+     * @return array{success: bool, error: string, transport: string, fallback_path?: string}
+     */
+    private function sendHtmlMail(string $to, string $subject, string $htmlBody, string $senderType, array $attachments = []): array
     {
         $transport = strtolower(trim((string) config('mail.transport', 'smtp')));
         $senderConfigKey = 'mail.senders.' . ($senderType !== '' ? $senderType : 'support');
@@ -819,7 +1733,7 @@ final class EmailAutomationService
             $subjectHeader = mb_encode_mimeheader($subject, 'UTF-8', 'B', "\r\n");
         }
 
-        $mailPayload = $this->buildMailPayload($htmlBody);
+        $mailPayload = $this->buildMailPayload($htmlBody, $attachments);
 
         $headers = array_merge($mailPayload['headers'], [
             sprintf('From: %s <%s>', $fromName !== '' ? $fromName : 'Support', $fromAddress),
@@ -989,11 +1903,50 @@ final class EmailAutomationService
         return ['success' => true, 'error' => '', 'transport' => 'smtp'];
     }
 
-    /** @return array{headers: list<string>, body: string} */
-    private function buildMailPayload(string $htmlBody): array
+    /**
+     * @param list<array{filename: string, mime_type: string, content_base64: string}> $attachments
+     * @return array{headers: list<string>, body: string}
+     */
+    private function buildMailPayload(string $htmlBody, array $attachments = []): array
     {
         $normalizedHtml = str_replace(["\r\n", "\r"], "\n", $htmlBody);
         $normalizedHtml = str_replace("\n", "\r\n", $normalizedHtml);
+
+        if ($attachments !== []) {
+            $boundary = 'gb-mix-' . bin2hex(random_bytes(12));
+            $body = '';
+            $body .= '--' . $boundary . "\r\n";
+            $body .= "Content-Type: text/html; charset=UTF-8\r\n";
+            $body .= "Content-Transfer-Encoding: 8bit\r\n\r\n";
+            $body .= $normalizedHtml . "\r\n";
+
+            foreach ($attachments as $attachment) {
+                $fileName = trim((string) ($attachment['filename'] ?? ''));
+                $mimeType = trim((string) ($attachment['mime_type'] ?? 'application/octet-stream'));
+                $contentBase64 = trim((string) ($attachment['content_base64'] ?? ''));
+
+                if ($fileName === '' || $contentBase64 === '') {
+                    continue;
+                }
+
+                $safeName = str_replace(['"', "\r", "\n"], '', $fileName);
+                $body .= '--' . $boundary . "\r\n";
+                $body .= 'Content-Type: ' . $mimeType . '; name="' . $safeName . '"' . "\r\n";
+                $body .= "Content-Transfer-Encoding: base64\r\n";
+                $body .= 'Content-Disposition: attachment; filename="' . $safeName . '"' . "\r\n\r\n";
+                $body .= chunk_split($contentBase64, 76, "\r\n");
+            }
+
+            $body .= '--' . $boundary . "--\r\n";
+
+            return [
+                'headers' => [
+                    'MIME-Version: 1.0',
+                    'Content-Type: multipart/mixed; boundary="' . $boundary . '"',
+                ],
+                'body' => $body,
+            ];
+        }
 
         $embedInlineImages = filter_var((string) config('mail.embed_inline_images', false), FILTER_VALIDATE_BOOL);
         if ($embedInlineImages !== true) {
@@ -1072,6 +2025,126 @@ final class EmailAutomationService
             ],
             'body' => $body,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $context
+     * @return list<array{filename: string, mime_type: string, content_base64: string}>
+     */
+    private function resolveAttachmentsForEvent(string $event, array $context): array
+    {
+        if ($event !== 'invoice.created') {
+            return [];
+        }
+
+        $invoiceId = (int) ($context['invoice']['id'] ?? 0);
+        if ($invoiceId <= 0) {
+            return [];
+        }
+
+        $attachment = $this->buildInvoiceAttachment($invoiceId);
+        return $attachment !== null ? [$attachment] : [];
+    }
+
+    /** @return array{filename: string, mime_type: string, content_base64: string}|null */
+    private function buildInvoiceAttachment(int $invoiceId): ?array
+    {
+        if ($invoiceId <= 0 || !$this->isInvoiceTableAvailable()) {
+            return null;
+        }
+
+        try {
+            $invoice = db('invoices')
+                ->where('id', $invoiceId)
+                ->first();
+
+            if (!is_array($invoice)) {
+                return null;
+            }
+
+            $relativePath = trim((string) ($invoice['pdf_path'] ?? ''));
+            if ($relativePath === '') {
+                $pdfMeta = app(InvoicePdfService::class)->generateForInvoice($invoiceId);
+                $relativePath = trim((string) ($pdfMeta['relative_path'] ?? ''));
+
+                if ($relativePath !== '' && $this->isInvoicePdfPathColumnAvailable()) {
+                    db('invoices')->where('id', $invoiceId)->update([
+                        'pdf_path' => $relativePath,
+                        'pdf_mime_type' => (string) ($pdfMeta['mime_type'] ?? 'application/pdf'),
+                        'pdf_file_size' => (int) ($pdfMeta['file_size'] ?? 0),
+                        'pdf_sha256' => (string) ($pdfMeta['sha256'] ?? ''),
+                        'pdf_generated_at' => (string) ($pdfMeta['generated_at'] ?? date('Y-m-d H:i:s')),
+                    ]);
+                }
+
+                $invoice['pdf_mime_type'] = (string) ($pdfMeta['mime_type'] ?? 'application/pdf');
+            }
+
+            if ($relativePath === '') {
+                return null;
+            }
+
+            $absolutePath = $this->resolveInvoicePdfAbsolutePath($relativePath);
+            if ($absolutePath === '' || !is_file($absolutePath)) {
+                return null;
+            }
+
+            $binary = file_get_contents($absolutePath);
+            if (!is_string($binary) || $binary === '') {
+                return null;
+            }
+
+            $invoiceNumber = (int) ($invoice['invoice_number'] ?? $invoiceId);
+            $mimeType = trim((string) ($invoice['pdf_mime_type'] ?? 'application/pdf'));
+            if ($mimeType === '') {
+                $mimeType = 'application/pdf';
+            }
+
+            return [
+                'filename' => 'Rechnung-' . $invoiceNumber . '.pdf',
+                'mime_type' => $mimeType,
+                'content_base64' => base64_encode($binary),
+            ];
+        } catch (\Throwable $exception) {
+            $this->logAutomation('warning', 'email.invoice_attachment.failed', [
+                'invoice_id' => $invoiceId,
+                'error' => $exception->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
+
+    private function resolveInvoicePdfAbsolutePath(string $relativePath): string
+    {
+        $relativePath = trim($relativePath);
+        if ($relativePath === '') {
+            return '';
+        }
+
+        $normalized = ltrim($relativePath, '/');
+        $candidates = [
+            base_path('storage/media/' . $normalized),
+            base_path('storage/media/invoices/' . $normalized),
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (is_file($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return $candidates[0];
+    }
+
+    private function isInvoicePdfPathColumnAvailable(): bool
+    {
+        if ($this->invoicePdfPathColumnAvailable !== null) {
+            return $this->invoicePdfPathColumnAvailable;
+        }
+
+        $this->invoicePdfPathColumnAvailable = $this->isInvoiceColumnAvailable('pdf_path');
+        return $this->invoicePdfPathColumnAvailable;
     }
 
     /** @param list<int> $expectedCodes @return array{success: bool, error: string, response: string, code: int} */
@@ -1174,6 +2247,47 @@ final class EmailAutomationService
 
         $text = strtolower(trim((string) $value));
         return in_array($text, ['1', 'true', 'yes', 'on'], true);
+    }
+
+    private function maskEmail(string $email): string
+    {
+        $normalized = strtolower(trim($email));
+        if ($normalized === '' || strpos($normalized, '@') === false) {
+            return '';
+        }
+
+        [$local, $domain] = explode('@', $normalized, 2);
+        if ($local === '') {
+            return '***@' . $domain;
+        }
+
+        $prefix = substr($local, 0, min(2, strlen($local)));
+        return $prefix . '***@' . $domain;
+    }
+
+    /** @param array<string, mixed> $context */
+    private function logAutomation(string $level, string $message, array $context = []): void
+    {
+        try {
+            $logger = app(Logger::class);
+            if (!$logger instanceof Logger) {
+                return;
+            }
+
+            if ($level === 'error') {
+                $logger->error($message, $context);
+                return;
+            }
+
+            if ($level === 'warning') {
+                $logger->warning($message, $context);
+                return;
+            }
+
+            $logger->info($message, $context);
+        } catch (\Throwable) {
+            // Debug logging must never interrupt delivery flow.
+        }
     }
 
     /** @param array<string, mixed> $context */

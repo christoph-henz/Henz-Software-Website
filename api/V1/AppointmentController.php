@@ -7,6 +7,7 @@ namespace App\Controllers\Api\V1;
 use App\Controllers\Api\BaseApiController;
 use App\Core\Database\Database;
 use App\Core\Http\Response;
+use App\Services\EmailAutomationService;
 use DateTimeImmutable;
 use DateTimeZone;
 use Throwable;
@@ -145,6 +146,13 @@ final class AppointmentController extends BaseApiController
             'origin' => 'contact_form',
         ]);
 
+        app(EmailAutomationService::class)->dispatch('request.submitted', [
+            'recipient_email' => $email,
+            'client_first_name' => $firstName,
+            'client_last_name' => $lastName,
+            'form_data' => $data,
+        ]);
+
         return $this->ok([
             'request_type' => 'contact',
             'appointment_id' => $appointmentId,
@@ -248,6 +256,11 @@ final class AppointmentController extends BaseApiController
             $branchData,
             $priority !== '' ? $priority : null
         );
+
+        app(EmailAutomationService::class)->dispatch('request.submitted', [
+            'client_id' => $clientId,
+            'form_data' => $data,
+        ]);
 
         return $this->ok([
             'request_type' => 'service',

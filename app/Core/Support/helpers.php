@@ -366,7 +366,7 @@ if (!function_exists('project_page_default_payload')) {
                 'title' => $title,
                 'title_accent' => '',
                 'lead' => $description,
-                'primary_cta' => $projectUrl !== '' ? ['label' => 'Projekt besuchen', 'href' => $projectUrl] : ['label' => 'Zurueck zu Referenzen', 'href' => '/#referenzen'],
+                'primary_cta' => $projectUrl !== '' ? ['label' => 'Projekt besuchen', 'href' => $projectUrl] : ['label' => 'Zurück zu Referenzen', 'href' => '/#referenzen'],
                 'main_image_alt' => $title,
                 'detail_slug' => 'projektüberblick',
                 'detail_title' => 'Projekt',

@@ -331,7 +331,7 @@ final class InvoicePdfService
             . '<table align="right" cellspacing="0" cellpadding="2" style="display:inline-table; margin-top: -1cm; max-width:100%;">
                     <tr>
                         <td style="font-weight:bold;">Kundennummer: </td>
-                        <td style="text-align:left;">&nbsp;0' . $client['id'] . '0</td>
+                        <td style="text-align:left;">&nbsp;' . $client['id'] . '</td>
                     </tr>
                     <tr>
                         <td style="font-weight:bold;">Rechnungsnummer: </td>

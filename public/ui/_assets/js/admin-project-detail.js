@@ -215,7 +215,7 @@
         if (!phaseId) return;
         var phase = state.phases.find(function (item) { return item.id === phaseId; });
         if (!phase || !phase.test_data || parseInt(phase.test_data.template_id, 10) <= 0) {
-            setAlert('phaseAlert', 'Fuer diese Phase wurden noch keine Tests initialisiert.');
+            setAlert('phaseAlert', 'Für diese Phase wurden noch keine Tests initialisiert.');
             return;
         }
 
