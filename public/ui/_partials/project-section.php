@@ -76,24 +76,13 @@ if (empty($rows)) {
                         data-fg-d3bl164="0.8:1.32440:/src/app/App.tsx:516:17:20286:52:e:span:t"
                         data-fgid-d3bl164=":r5a:" style="color: rgb(0, 200, 255);"><?= $header2 ?></span>
                 </h2>
-            </div><button
-                class="hidden md:flex items-center gap-2 text-sm border px-5 py-2.5 rounded transition-all duration-200"
-                data-fg-d3bl166="0.8:1.32440:/src/app/App.tsx:519:13:20390:753:e:button:te" data-fgid-d3bl166=":r5b:"
-                style="color: var(--muted-foreground); border-color: var(--border);"><?= $projects_cta['text'] ?><svg
-                    xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                    class="lucide lucide-arrow-right w-4 h-4"
-                    data-fg-d3bl168="0.8:1.32440:node_modules/lucide-react:531:32:21087:34:e:ArrowRight::::::s5N"
-                    data-fgid-d3bl168=":r5c:" onclick="<?= $projects_cta['url'] ?>">
-                    <path d="M5 12h14"></path>
-                    <path d="m12 5 7 7-7 7"></path>
-                </svg></button>
+            </div>
         </div>
-        <div class="flex flex-col gap-6" data-fg-d3bl169="0.8:1.32440:/src/app/App.tsx:535:11:21172:2636:e:div:x"
+        <div class="flex flex-col gap-10" data-fg-d3bl169="0.8:1.32440:/src/app/App.tsx:535:11:21172:2636:e:div:x"
             data-fgid-d3bl169=":r5d:">
             <?php foreach ($rows as $row): ?>
                 <?php $media = $resolveProjectMedia(is_array($row) ? $row : []); ?>
-                <div class="group grid md:grid-cols-2 gap-0 rounded-xl overflow-hidden border cursor-pointer transition-all duration-300"
+                <div class="group grid md:grid-cols-2 gap-0 rounded-xl overflow-hidden border border-cyan-200 border-2 shadow-lg cursor-pointer transition-all duration-300"
                     data-fg-d3bl171="0.8:1.32440:/src/app/App.tsx:537:15:21285:2490:e:div:ete" data-fgid-d3bl171=":r5e:"
                     style="border-color: rgba(0, 200, 255, 0.1);">
                     <div class="relative overflow-hidden"
@@ -137,18 +126,18 @@ if (empty($rows)) {
                                 data-fgid-d3bl181=":r5m:" style="color: var(--muted-foreground);">
                                 <?= $row['description'] ?? 'No description available' ?></p>
                         </div>
-                        <a class="flex items-center gap-2 mt-8 text-sm opacity-0 group-hover:opacity-100 transition-all duration-200 -translate-x-2 group-hover:translate-x-0"
+                        <a class="flex items-center gap-2 mt-8 text-sm opacity-90 group-hover:opacity-100 transition-all duration-200 -translate-x-2 group-hover:translate-x-0"
                             data-fg-d3bl183="0.8:1.32440:/src/app/App.tsx:581:19:23347:384:e:div:te"
                             data-fgid-d3bl183=":r5n:"
                             style="color: rgb(0, 200, 255); font-family: &quot;JetBrains Mono&quot;, monospace;" href="/<?= $row['project_slug'] ?? '#' ?>">
-                            <?= $row['cta_text'] ?? 'View case study' ?><svg xmlns="http://www.w3.org/2000/svg" width="24"
+                            <?= $cta_text ?? 'View case study' ?><div class="gb-cta-arrow"><svg xmlns="http://www.w3.org/2000/svg" width="24"
                                 height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                                 stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-right w-4 h-4"
                                 data-fg-d3bl185="0.8:1.32440:node_modules/lucide-react:585:37:23672:34:e:ArrowRight::::::s5N"
                                 data-fgid-d3bl185=":r5o:">
                                 <path d="M5 12h14"></path>
                                 <path d="m12 5 7 7-7 7"></path>
-                            </svg>
+                            </svg></div>
                         </a>
                     </div>
                 </div>

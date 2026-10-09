@@ -32,8 +32,8 @@ foreach ($services as $service) {
 
 return [
     'slug' => 'services',
-    'header1' => 'Was wir',
-    'header2' => 'machen',
+    'header1' => 'Unsere',
+    'header2' => 'Leistungen',
     'tag' => 'Angebot in Kürze',
     'title' => 'Meine Begleitungsangebote',
     'rows' => $rows,

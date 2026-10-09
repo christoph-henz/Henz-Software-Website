@@ -23,10 +23,10 @@ foreach ($projects as $project) {
 }
 
 return [
-    'slug' => 'unsere projekte',
-    'header1' => 'In die Produktion',
-    'header2' => 'integriert',
+    'slug' => 'Referenzen',
+    'header1' => 'Unsere',
+    'header2' => 'Projekte',
     'projects_cta' => ['text' => 'Alle Projekte ansehen', 'url' => '/projekte'],
     'rows' => $rows,
-    'cta_text' => 'Projekte ansehen',
+    'cta_text' => 'Projekt ansehen',
 ];

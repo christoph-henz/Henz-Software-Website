@@ -3,11 +3,11 @@
 declare(strict_types=1);
 
 ?>
-<div class="hidden md:block rounded-xl overflow-hidden border" data-fg-d3bl64="0.8:1.32440:/src/app/App.tsx:338:11:12594:3124:e:div:ete"
+<div class="hidden lg:block rounded-xl overflow-hidden border ml-10 mr-0 md:ml-30 md:mr-10 md:mt-10 lg:ml-30 lg:mr-10 select-none shadow-lg" data-fg-d3bl64="0.8:1.32440:/src/app/App.tsx:338:11:12594:3124:e:div:ete"
     data-fgid-d3bl64=":r16:" style="border-color: rgba(0, 200, 255, 0.15); background: var(--card);">
-    <div class="flex items-center gap-2 px-4 py-3 border-b"
+    <div class="flex items-center gap-2 px-4 py-3 border-b bg-gray-200"
         data-fg-d3bl65="0.8:1.32440:/src/app/App.tsx:342:13:12764:651:e:div:etetete" data-fgid-d3bl65=":r17:"
-        style="border-color: rgba(0, 200, 255, 0.1); background: color-mix(in srgb, var(--card) 78%, var(--background) 22%);">
+        style="border-color: rgba(0, 200, 255, 0.1);">
         <div class="w-3 h-3 rounded-full bg-red-500 opacity-70"
             data-fg-d3bl66="0.8:1.32440:/src/app/App.tsx:346:15:12950:62:e:div" data-fgid-d3bl66=":r18:"></div>
         <div class="w-3 h-3 rounded-full bg-yellow-500 opacity-70"
@@ -108,8 +108,8 @@ declare(strict_types=1);
             data-fg-d3bl115="0.8:1.32440:/src/app/App.tsx:389:15:15266:416:e:div:ete" data-fgid-d3bl115=":r2k:"
             style="font-family: &quot;JetBrains Mono&quot;, monospace; font-size: 14px;">
             <span data-fg-d3bl116="0.8:1.32440:/src/app/App.tsx:393:17:15448:43:e:span:t" data-fgid-d3bl116=":r2l:"
-                style="color: rgb(0, 200, 255);">❯</span><span class="w-2 h-4 animate-pulse"
-                data-fg-d3bl118="0.8:1.32440:/src/app/App.tsx:394:17:15508:153:e:span" data-fgid-d3bl118=":r2m:"
+                style="color: rgb(0, 200, 255);">❯</span><span class="gb-terminal-cursor w-2 h-4"
+                    data-fg-d3bl118="0.8:1.32440:/src/app/App.tsx:394:17:15508:153:e:span" data-fgid-d3bl118=":r2m:"
                 style="background: rgb(0, 200, 255); display: inline-block;"></span>
         </div>
     </div>
