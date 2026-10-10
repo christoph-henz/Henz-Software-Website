@@ -866,8 +866,13 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
                 function buildSuccessSummary(currentForm, payload, responseData) {
                     const items = [];
                     const ignoredKeys = new Set(["company", "consents", "consent_version"]);
+                    const submittedFieldNames = collectSubmittedFieldNames(currentForm);
 
                     Object.entries(payload).forEach(([key, rawValue]) => {
+                        if (!submittedFieldNames.has(key)) {
+                            return;
+                        }
+
                         if (ignoredKeys.has(key)) {
                             return;
                         }
@@ -916,6 +921,28 @@ function renderFields(array $fields, string $path = '', array $formState = []): 
                         reference,
                         items,
                     };
+                }
+
+                function collectSubmittedFieldNames(currentForm) {
+                    const names = new Set();
+
+                    currentForm.querySelectorAll("input, select, textarea").forEach(field => {
+                        if (!(field instanceof HTMLInputElement || field instanceof HTMLSelectElement || field instanceof HTMLTextAreaElement)) {
+                            return;
+                        }
+
+                        if (!field.name || field.disabled) {
+                            return;
+                        }
+
+                        if (field.closest(".hidden") || field.closest(".sp-honeypot")) {
+                            return;
+                        }
+
+                        names.add(field.name);
+                    });
+
+                    return names;
                 }
 
                 function resolveReference(responseData) {

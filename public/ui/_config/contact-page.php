@@ -147,8 +147,7 @@ try {
 
 /**
  * @var mixed
- * @todo ContactRequestController mit serverseitiger Validation erstellen, um die Anfrage zu verarbeiten und an die einzelnen Controller wie TicketController weiterzuleiten.
- */
+*/
 $apiBaseUrl = trim((string) env('API_BASE_URL', ''));
 $requestAction = $apiBaseUrl !== ''
     ? rtrim($apiBaseUrl, '/') . '/v1/contact-request'
@@ -473,7 +472,7 @@ return [
                                                 'required' => true,
                                                 'validation' => [
                                                     'rule' => 'minLength',
-                                                    'value' => 30,
+                                                    'value' => 5,
                                                     'message' => 'Bitte geben Sie einen Grund für die Kündigung an (mindestens 30 Zeichen).'
                                                 ]
                                             ],

@@ -3,18 +3,18 @@
 declare(strict_types=1);
 
 $fallbackRows = [
-    ['label' => 'C#', 'category' => '.NET', 'description' => 'Objektorientierte Sprache fuer robuste Business- und API-Logik.'],
-    ['label' => '.NET MAUI', 'category' => '.NET', 'description' => 'Cross-Platform Apps mit gemeinsamer Codebasis fuer Desktop und Mobile.'],
+    ['label' => 'C#', 'category' => '.NET', 'description' => 'Objektorientierte Sprache für robuste Business- und API-Logik.'],
+    ['label' => '.NET MAUI', 'category' => '.NET', 'description' => 'Cross-Platform Apps mit gemeinsamer Codebasis für Desktop und Mobile.'],
     ['label' => '.NET Blazor', 'category' => '.NET', 'description' => 'Interaktive Web-UIs mit C# und komponentenbasiertem Ansatz.'],
-    ['label' => '.NET WPF', 'category' => '.NET', 'description' => 'Desktop-Oberflaechen mit starker Datenbindung fuer interne Tools.'],
-    ['label' => 'PHP', 'category' => 'Backend', 'description' => 'Serverlogik und API-Entwicklung fuer webbasierte Anwendungen.'],
+    ['label' => '.NET WPF', 'category' => '.NET', 'description' => 'Desktop-Oberflaechen mit starker Datenbindung für interne Tools.'],
+    ['label' => 'PHP', 'category' => 'Backend', 'description' => 'Serverlogik und API-Entwicklung für webbasierte Anwendungen.'],
     ['label' => 'JavaScript', 'category' => 'Frontend', 'description' => 'Dynamische Interaktionen und datengetriebene Oberflaechen im Browser.'],
-    ['label' => 'HTML', 'category' => 'Frontend', 'description' => 'Semantische Basisstruktur fuer zugaengliche Weboberflaechen.'],
-    ['label' => 'Tailwind CSS', 'category' => 'Frontend', 'description' => 'Utility-First Styling fuer schnelle, konsistente UI-Entwicklung.'],
+    ['label' => 'HTML', 'category' => 'Frontend', 'description' => 'Semantische Basisstruktur für zugaengliche Weboberflaechen.'],
+    ['label' => 'Tailwind CSS', 'category' => 'Frontend', 'description' => 'Utility-First Styling für schnelle, konsistente UI-Entwicklung.'],
     ['label' => 'Python', 'category' => 'Backend', 'description' => 'Automatisierung, Skripting und datennahe Services.'],
     ['label' => 'React', 'category' => 'Frontend', 'description' => 'Komponentenbasierte Entwicklung moderner Webanwendungen.'],
-    ['label' => 'Next.js', 'category' => 'Frontend', 'description' => 'Framework fuer SSR, Routing und performante Web-Experiences.'],
-    ['label' => 'PostgreSQL', 'category' => 'Database', 'description' => 'Relationale Datenbank fuer strukturierte, transaktionale Datenmodelle.'],
+    ['label' => 'Next.js', 'category' => 'Frontend', 'description' => 'Framework für SSR, Routing und performante Web-Experiences.'],
+    ['label' => 'PostgreSQL', 'category' => 'Database', 'description' => 'Relationale Datenbank für strukturierte, transaktionale Datenmodelle.'],
 ];
 
 /**

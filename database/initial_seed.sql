@@ -1,7 +1,7 @@
 USE henz_software_main;
 
 INSERT INTO users (first_name, last_name, email, password_hash, role_mask, is_active)
-VALUES ('System', 'Administrator', 'webmaster@henz-software.com', '$2y$10$placeholder', 8191, TRUE);
+VALUES ('System', 'Administrator', 'webmaster@henz-software.de', '$2y$10$placeholder', 8191, TRUE);
 
 INSERT INTO henz_software_main.permissions (name, slug, bit_value, description) VALUES
 ('View Appointments', 'view_appointments', 1, 'Can view all appointment records'),
@@ -44,8 +44,8 @@ INSERT INTO henz_software_main.permissions (name, slug, bit_value, description) 
 
 INSERT INTO settings (`key`, value, type, `group`, description, is_public) VALUES
 ('site_name', 'Henz Software', 'string', 'general', 'Displayed site name', TRUE),
-('contact_email', 'info@henz-software.com', 'string', 'general', 'Main contact email', TRUE),
-('support_email', 'support@henz-software.com', 'string', 'general', 'Support contact', TRUE),
+('contact_email', 'info@henz-software.de', 'string', 'general', 'Main contact email', TRUE),
+('support_email', 'support@henz-software.de', 'string', 'general', 'Support contact', TRUE),
 ('contact_phone', '', 'string', 'general', 'Contact phone', TRUE),
 ('appointments_enabled', '1', 'boolean', 'booking', 'Enable booking form', TRUE),
 ('appointments_advance_days', '60', 'integer', 'booking', 'Days ahead clients can book', FALSE),
@@ -238,10 +238,10 @@ JSON_OBJECT(
     'lead', 'Landingpage mit relevanten Informationen und Speisekarte',
     'primary_cta', JSON_OBJECT('label', 'Website besuchen', 'href', 'https://www.dionysos-aburg.de'),
     'main_image_alt', 'Restaurant Dionysos Website',
-    'detail_slug', 'projektueberblick',
-    'detail_title', 'Digitale Praesenz fuer',
+    'detail_slug', 'projektüberblick',
+    'detail_title', 'Digitale Präsenz für',
     'detail_accent', 'Gastronomie',
-    'detail_body', 'Fokus auf Auffindbarkeit, klare Informationsstruktur und einen zeitgemaessen Online-Auftritt fuer Restaurantgaeste.',
+    'detail_body', 'Fokus auf Auffindbarkeit, klare Informationsstruktur und einen zeitgemaessen Online-Auftritt für Restaurantgaeste.',
     'detail_image_alt', 'Restaurant Dionysos Vorschau'
 )),
 ('Villa Athina','Hotelmanagementsystem','Entwicklung eines webbasierten Hotelmanagementsystems zur Verwaltung von Buchungen, Zimmern, Gästen und administrativen Abläufen. Das System automatisiert zentrale Geschäftsprozesse und ermöglicht eine effiziente Verwaltung des Hotelbetriebs.','Villa-Athina-Website.png','project-villa-athina-website','www.villa-athina.eu',
@@ -254,7 +254,7 @@ JSON_OBJECT(
     'lead', 'Entwicklung eines webbasierten Hotelmanagementsystems zur Verwaltung von Buchungen, Zimmern, Gästen und administrativen Abläufen.',
     'primary_cta', JSON_OBJECT('label', 'Projekt ansehen', 'href', 'https://www.villa-athina.eu'),
     'main_image_alt', 'Villa Athina Managementsystem',
-    'detail_slug', 'systemueberblick',
+    'detail_slug', 'systemüberblick',
     'detail_title', 'Verwaltung, Buchung und',
     'detail_accent', 'Betriebsprozesse',
     'detail_body', 'Das System automatisiert zentrale Geschäftsprozesse und ermöglicht eine effiziente Verwaltung des Hotelbetriebs.',
@@ -268,7 +268,7 @@ JSON_OBJECT(
     'title', 'Restaurant Parga',
     'title_accent', 'Managementsystem im Einsatz',
     'lead', 'Entwicklung eines webbasierten Restaurantmanagementsystems zur Verwaltung von Bestellungen, Speisekarten, Reservierungen und Benutzern.',
-    'primary_cta', JSON_OBJECT('label', 'Zurueck zu Referenzen', 'href', '/#referenzen'),
+    'primary_cta', JSON_OBJECT('label', 'Zurück zu Referenzen', 'href', '/#referenzen'),
     'main_image_alt', 'Restaurant Parga Managementsystem',
     'detail_slug', 'prozesslandschaft',
     'detail_title', 'Bestellungen, Reservierungen und',

@@ -60,7 +60,7 @@ ob_start();
 
     <?php if (!$canViewKpiSection && !$canViewRevenueSection && !$canViewActivitySection && !$canViewProjects): ?>
         <section class="rounded-xl border border-border bg-card p-5">
-            <p class="text-xs text-muted-foreground">Keine Berechtigung fuer Dashboard-Sektionen.</p>
+            <p class="text-xs text-muted-foreground">Keine Berechtigung für Dashboard-Sektionen.</p>
         </section>
     <?php endif; ?>
 </div>

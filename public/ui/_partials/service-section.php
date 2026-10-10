@@ -78,7 +78,7 @@ if (empty($rows)) {
                     data-fgid-d3bl149=":r3j:" style="color: var(--muted-foreground);"><?= htmlspecialchars($row['description'] ?? '', ENT_QUOTES, 'UTF-8'); ?></p>
                 <a class="flex items-center gap-1 mt-auto pt-6 text-xs opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                     data-fg-d3bl151="0.8:1.32440:/src/app/App.tsx:487:17:19134:334:e:div:te" data-fgid-d3bl151=":r3k:"
-                    style="color: rgb(0, 200, 255); font-family: &quot;JetBrains Mono&quot;, monospace;" href="<?= htmlspecialchars($row['cta_url'] ?? '#', ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($cta_text ?? 'Learn more', ENT_QUOTES, 'UTF-8'); ?><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                    style="color: rgb(0, 200, 255); font-family: &quot;JetBrains Mono&quot;, monospace;" href="<?= htmlspecialchars(/*$row['cta_url'] ??*/ '/leistungen', ENT_QUOTES, 'UTF-8'); ?>"><?= htmlspecialchars($cta_text ?? 'Learn more', ENT_QUOTES, 'UTF-8'); ?><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
                         fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                         stroke-linejoin="round" class="lucide lucide-chevron-right w-3 h-3"
                         data-fg-d3bl153="0.8:1.32440:node_modules/lucide-react:491:30:19409:36:e:ChevronRight::::::ByYJ"

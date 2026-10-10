@@ -634,7 +634,7 @@
         var initialValue = toDatetimeLocalValue(desiredAt);
 
         var body = '' +
-            '<p class="admin-requests-conflict-hint">Der gewuenschte Termin ist belegt. Bitte stelle einen neuen Termin zwischen 08:00 und 18:00 Uhr in 30-Minuten-Schritten ein.</p>' +
+            '<p class="admin-requests-conflict-hint">Der gewünschtee Termin ist belegt. Bitte stelle einen neuen Termin zwischen 08:00 und 18:00 Uhr in 30-Minuten-Schritten ein.</p>' +
             '<input id="adminRequestConflictDateTime" class="admin-requests-slot-select" type="datetime-local" step="1800" value="' + escapeHtml(initialValue) + '" />';
 
         window.adminOpenModal && window.adminOpenModal('Slot-Konflikt', body, {

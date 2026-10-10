@@ -10,16 +10,19 @@
 
     var canView = !!cfg.can_view_appointments;
     var canManage = !!cfg.can_manage_appointments;
+    var canStorno = !!cfg.can_storno_appointments;
 
     var state = {
         isLoading: false,
         isDetailLoading: false,
         page: parsePositiveInt(cfg.default_page, 1),
-        perPage: parsePositiveInt(cfg.per_page, 25),
+        perPage: parsePositiveInt(cfg.per_page, 10),
         sort: String(cfg.default_sort || 'scheduled_at'),
         direction: String(cfg.default_direction || 'asc'),
         query: '',
         status: '',
+        dateFrom: defaultDateFilter(-1),
+        dateTo: defaultDateFilter(3),
         totalPages: 1,
         total: 0,
         items: [],
@@ -34,6 +37,16 @@
     function parsePositiveInt(value, fallback) {
         var n = parseInt(String(value || ''), 10);
         return Number.isFinite(n) && n > 0 ? n : fallback;
+    }
+
+    function defaultDateFilter(monthOffset) {
+        var date = new Date();
+        date.setHours(12, 0, 0, 0);
+        date.setMonth(date.getMonth() + monthOffset);
+
+        return date.getFullYear() + '-' +
+            String(date.getMonth() + 1).padStart(2, '0') + '-' +
+            String(date.getDate()).padStart(2, '0');
     }
 
     function hydrateFromQuery() {
@@ -58,6 +71,20 @@
         if (status !== '') {
             state.status = status;
         }
+
+        var hasDateFrom = qs.has('date_from');
+        var hasDateTo = qs.has('date_to');
+        if (hasDateFrom) {
+            state.dateFrom = String(qs.get('date_from') || '').trim();
+        }
+        if (hasDateTo) {
+            state.dateTo = String(qs.get('date_to') || '').trim();
+        }
+        if (hasDateFrom && !hasDateTo) {
+            state.dateTo = '';
+        } else if (!hasDateFrom && hasDateTo) {
+            state.dateFrom = '';
+        }
     }
 
     function writeStateToUrl() {
@@ -68,6 +95,12 @@
         }
         if (state.status !== '') {
             qs.set('status', state.status);
+        }
+        if (state.dateFrom !== '') {
+            qs.set('date_from', state.dateFrom);
+        }
+        if (state.dateTo !== '') {
+            qs.set('date_to', state.dateTo);
         }
 
         var basePath = state.selectedId ? '/appointments/' + state.selectedId : '/appointments';
@@ -109,6 +142,12 @@
         if (state.status !== '') {
             params.set('status', state.status);
         }
+        if (state.dateFrom !== '') {
+            params.set('date_from', state.dateFrom);
+        }
+        if (state.dateTo !== '') {
+            params.set('date_to', state.dateTo);
+        }
 
         fetch(apiUrl(cfg.api && cfg.api.list) + '?' + params.toString(), {
             credentials: 'include',
@@ -117,7 +156,7 @@
             .then(function (res) { return res.json(); })
             .then(function (json) {
                 var data = json && json.data ? json.data : {};
-                state.items = Array.isArray(data.appointments) ? data.appointments : [];
+                state.items = sortCurrentPageAppointments(Array.isArray(data.appointments) ? data.appointments : []);
                 state.total = parsePositiveInt(data.meta && data.meta.total, 0);
                 state.totalPages = parsePositiveInt(data.meta && data.meta.total_pages, 1);
 
@@ -146,6 +185,47 @@
                 writeStateToUrl();
                 render();
             });
+    }
+
+    function sortCurrentPageAppointments(items) {
+        return items
+            .map(function (item, index) {
+                return { item: item, index: index };
+            })
+            .sort(function (left, right) {
+                var leftStatus = String(left.item && left.item.status || '').toLowerCase();
+                var rightStatus = String(right.item && right.item.status || '').toLowerCase();
+                var leftPriority = appointmentStatusPriority(leftStatus);
+                var rightPriority = appointmentStatusPriority(rightStatus);
+
+                if (leftPriority !== rightPriority) {
+                    return leftPriority - rightPriority;
+                }
+
+                var leftDate = appointmentTimestamp(left.item && left.item.scheduled_at);
+                var rightDate = appointmentTimestamp(right.item && right.item.scheduled_at);
+                if (leftDate !== rightDate) {
+                    return leftDate - rightDate;
+                }
+
+                return left.index - right.index;
+            })
+            .map(function (entry) {
+                return entry.item;
+            });
+    }
+
+    function appointmentStatusPriority(status) {
+        if (status === 'pending' || status === 'open' || status === 'new') {
+            return 0;
+        }
+
+        return status === 'completed' ? 2 : 1;
+    }
+
+    function appointmentTimestamp(value) {
+        var parsed = new Date(String(value || '').replace(' ', 'T')).getTime();
+        return Number.isNaN(parsed) ? Number.MAX_SAFE_INTEGER : parsed;
     }
 
     function fetchDetail(id) {
@@ -216,6 +296,309 @@
                 }
             });
     }
+
+        function parsePromptDateTime(value) {
+            var input = String(value || '').trim();
+            if (input === '') {
+                return null;
+            }
+
+            var normalized = input.replace('T', ' ').replace(/\s+/g, ' ');
+            var match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})$/);
+            if (!match) {
+                return null;
+            }
+
+            var year = parseInt(match[1], 10);
+            var month = parseInt(match[2], 10) - 1;
+            var day = parseInt(match[3], 10);
+            var hour = parseInt(match[4], 10);
+            var minute = parseInt(match[5], 10);
+            var date = new Date(year, month, day, hour, minute, 0, 0);
+
+            if (date.getFullYear() !== year || date.getMonth() !== month || date.getDate() !== day || date.getHours() !== hour || date.getMinutes() !== minute) {
+                return null;
+            }
+
+            return year + '-' + match[2] + '-' + match[3] + ' ' + match[4] + ':' + match[5] + ':00';
+        }
+
+        function toInputDateTimeParts(value) {
+            var normalized = normalizeDisplayDateTime(value);
+            var match = normalized.match(/^(\d{4}-\d{2}-\d{2})\s(\d{2}:\d{2})$/);
+            if (!match) {
+                var now = new Date();
+                return {
+                    date: now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0'),
+                    time: String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0')
+                };
+            }
+
+            return { date: match[1], time: match[2] };
+        }
+
+        function normalizeDisplayDateTime(value) {
+            var raw = String(value || '').trim();
+            if (raw === '') {
+                return '';
+            }
+
+            var match = raw.match(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})/);
+            if (match) {
+                return match[1] + ' ' + match[2];
+            }
+
+            var parsed = new Date(raw.replace(' ', 'T'));
+            if (Number.isNaN(parsed.getTime())) {
+                return raw;
+            }
+
+            return parsed.getFullYear() + '-' + String(parsed.getMonth() + 1).padStart(2, '0') + '-' + String(parsed.getDate()).padStart(2, '0') + ' ' + String(parsed.getHours()).padStart(2, '0') + ':' + String(parsed.getMinutes()).padStart(2, '0');
+        }
+
+        function hasLocalAppointmentConflict(id, startedAt, durationMinutes) {
+            var newStart = new Date(String(startedAt || '').replace(' ', 'T'));
+            if (Number.isNaN(newStart.getTime())) {
+                return false;
+            }
+
+            var newEnd = new Date(newStart.getTime() + (parsePositiveInt(durationMinutes, 60) * 60000));
+
+            for (var i = 0; i < state.items.length; i += 1) {
+                var item = state.items[i];
+                if (!item || Number(item.id) === Number(id)) {
+                    continue;
+                }
+
+                var currentStart = new Date(String(item.scheduled_at || '').replace(' ', 'T'));
+                if (Number.isNaN(currentStart.getTime())) {
+                    continue;
+                }
+
+                var currentDuration = parsePositiveInt(item.duration_minutes, durationMinutes);
+                var currentEnd = new Date(currentStart.getTime() + (currentDuration * 60000));
+                if (newStart < currentEnd && newEnd > currentStart) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        function cancelAppointment(id) {
+            if (!canStorno || !id) {
+                return;
+            }
+
+            var canUseModal = typeof window.adminOpenModal === 'function' && typeof window.adminCloseModal === 'function';
+            if (!canUseModal) {
+                var fallbackReason = window.prompt('Storno-Grund (optional):', '');
+                if (fallbackReason === null) {
+                    return;
+                }
+
+                submitCancellation(id, String(fallbackReason || '').trim());
+                return;
+            }
+
+            var body = '' +
+                '<div class="admin-appointments-cancel-form">' +
+                '  <label for="appointmentCancelReason" class="admin-appointments-hint" style="display:block;margin-bottom:6px;">Stornierungsgrund (optional)</label>' +
+                '  <textarea id="appointmentCancelReason" class="admin-appointments-input" rows="4" placeholder="z. B. Terminwunsch geändert"></textarea>' +
+                '</div>';
+
+            window.adminOpenModal('Termin stornieren', body, {
+                buttons: [
+                    {
+                        label: 'Abbrechen',
+                        onClick: function () {
+                            window.adminCloseModal();
+                        }
+                    },
+                    {
+                        label: 'Stornieren',
+                        onClick: function () {
+                            var reasonInput = document.getElementById('appointmentCancelReason');
+                            var reason = reasonInput ? String(reasonInput.value || '').trim() : '';
+                            submitCancellation(id, reason, true);
+                        }
+                    }
+                ]
+            });
+        }
+
+        function submitCancellation(id, reason, closeModalOnSuccess) {
+            fetch(apiUrl(cfg.api && cfg.api.cancel, id), {
+                method: 'PATCH',
+                credentials: 'include',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ cancellation_reason: String(reason || '').trim() })
+            })
+                .then(function (res) { return res.json().then(function (json) { return { ok: res.ok, json: json }; }); })
+                .then(function (result) {
+                    if (!result.ok) {
+                        throw new Error('cancel_failed');
+                    }
+
+                    if (closeModalOnSuccess && typeof window.adminCloseModal === 'function') {
+                        window.adminCloseModal();
+                    }
+
+                    if (window.adminShowNotification) {
+                        window.adminShowNotification('success', 'Appointment wurde storniert.');
+                    }
+
+                    fetchList();
+                })
+                .catch(function () {
+                    if (window.adminShowNotification) {
+                        window.adminShowNotification('error', 'Storno konnte nicht durchgeführt werden.');
+                    }
+                });
+        }
+
+        function rescheduleAppointment(id) {
+            if (!canManage || !id || !state.detail) {
+                return;
+            }
+
+            var canUseModal = typeof window.adminOpenModal === 'function' && typeof window.adminCloseModal === 'function';
+            if (!canUseModal) {
+                var fallbackValue = normalizeDisplayDateTime(state.detail.scheduled_at || '');
+                var promptValue = window.prompt('Neuer Termin (YYYY-MM-DD HH:MM):', fallbackValue);
+                if (promptValue === null) {
+                    return;
+                }
+
+                submitRescheduleFromValue(id, promptValue, parsePositiveInt(state.detail.duration_minutes, 60));
+                return;
+            }
+
+            var current = toInputDateTimeParts(state.detail.scheduled_at || '');
+            var body = '' +
+                '<div class="admin-appointments-reschedule-form">' +
+                '  <label for="appointmentRescheduleDate" class="admin-appointments-hint" style="display:block;margin-bottom:6px;">Datum</label>' +
+                '  <input id="appointmentRescheduleDate" type="date" class="admin-appointments-input" value="' + escapeHtml(current.date) + '" />' +
+                '  <label for="appointmentRescheduleTime" class="admin-appointments-hint" style="display:block;margin:12px 0 6px;">Uhrzeit</label>' +
+                '  <input id="appointmentRescheduleTime" type="time" step="1800" class="admin-appointments-input" value="' + escapeHtml(current.time) + '" />' +
+                '</div>';
+
+            window.adminOpenModal('Termin umbuchen', body, {
+                buttons: [
+                    {
+                        label: 'Abbrechen',
+                        onClick: function () {
+                            window.adminCloseModal();
+                        }
+                    },
+                    {
+                        label: 'Umbuchen',
+                        onClick: function () {
+                            var dateInput = document.getElementById('appointmentRescheduleDate');
+                            var timeInput = document.getElementById('appointmentRescheduleTime');
+                            var dateValue = dateInput ? String(dateInput.value || '').trim() : '';
+                            var timeValue = timeInput ? String(timeInput.value || '').trim() : '';
+
+                            if (dateValue === '' || timeValue === '') {
+                                if (window.adminShowNotification) {
+                                    window.adminShowNotification('error', 'Bitte Datum und Uhrzeit auswählen.');
+                                }
+                                return;
+                            }
+
+                            submitRescheduleFromValue(id, dateValue + ' ' + timeValue, parsePositiveInt(state.detail.duration_minutes, 60), true);
+                        }
+                    }
+                ]
+            });
+        }
+
+        function submitRescheduleFromValue(id, nextValue, durationMinutes, closeModalOnSuccess) {
+            var parsed = parsePromptDateTime(nextValue);
+            if (!parsed) {
+                if (window.adminShowNotification) {
+                    window.adminShowNotification('error', 'Bitte ein gültiges Datum im Format YYYY-MM-DD HH:MM eingeben.');
+                }
+                return;
+            }
+
+            if (hasLocalAppointmentConflict(id, parsed, durationMinutes)) {
+                if (window.adminShowNotification) {
+                    window.adminShowNotification('error', 'Der neue Termin kollidiert mit einem bestehenden Termin.');
+                }
+                return;
+            }
+
+            fetch(apiUrl(cfg.api && cfg.api.reschedule, id), {
+                method: 'PATCH',
+                credentials: 'include',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    started_at: parsed,
+                    duration_minutes: durationMinutes
+                })
+            })
+                .then(function (res) { return res.json().then(function (json) { return { ok: res.ok, json: json }; }); })
+                .then(function (result) {
+                    if (!result.ok) {
+                        throw new Error('reschedule_failed');
+                    }
+
+                    if (closeModalOnSuccess && typeof window.adminCloseModal === 'function') {
+                        window.adminCloseModal();
+                    }
+
+                    if (window.adminShowNotification) {
+                        window.adminShowNotification('success', 'Appointment wurde umgebucht.');
+                    }
+
+                    fetchList();
+                })
+                .catch(function () {
+                    if (window.adminShowNotification) {
+                        window.adminShowNotification('error', 'Umbuchung konnte nicht durchgeführt werden.');
+                    }
+                });
+        }
+
+            function markNoShow(id) {
+                if (!canManage || !id) {
+                    return;
+                }
+
+                fetch(apiUrl(cfg.api && cfg.api.update, id), {
+                    method: 'PATCH',
+                    credentials: 'include',
+                    headers: {
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ status: 'no_show' })
+                })
+                    .then(function (res) { return res.json().then(function (json) { return { ok: res.ok, json: json }; }); })
+                    .then(function (result) {
+                        if (!result.ok) {
+                            throw new Error('no_show_failed');
+                        }
+
+                        if (window.adminShowNotification) {
+                            window.adminShowNotification('success', 'Termin als No-Show markiert.');
+                        }
+
+                        fetchList();
+                    })
+                    .catch(function () {
+                        if (window.adminShowNotification) {
+                            window.adminShowNotification('error', 'No-Show konnte nicht gesetzt werden.');
+                        }
+                    });
+            }
 
     function statusLabel(status) {
         var labels = cfg.status_labels || {};
@@ -311,12 +694,15 @@
             '    <div class="admin-appointments-toolbar">' +
             '      <form data-appointments-search class="admin-appointments-search">' +
             '        <input name="q" type="search" class="admin-appointments-input" placeholder="Suche nach Client oder Service" value="' + escapeHtml(state.query) + '" />' +
+            '        <label class="admin-appointments-hint">Von <input name="date_from" type="date" class="admin-appointments-input" value="' + escapeHtml(state.dateFrom) + '" /></label>' +
+            '        <label class="admin-appointments-hint">Bis <input name="date_to" type="date" class="admin-appointments-input" value="' + escapeHtml(state.dateTo) + '" /></label>' +
             '        <select name="status" class="admin-appointments-select">' +
             '          <option value="">Alle Stati</option>' +
             '          <option value="pending"' + (state.status === 'pending' ? ' selected' : '') + '>Ausstehend</option>' +
             '          <option value="accepted"' + (state.status === 'accepted' ? ' selected' : '') + '>Angenommen</option>' +
             '          <option value="declined"' + (state.status === 'declined' ? ' selected' : '') + '>Abgelehnt</option>' +
             '          <option value="completed"' + (state.status === 'completed' ? ' selected' : '') + '>Abgeschlossen</option>' +
+            '          <option value="no_show"' + (state.status === 'no_show' ? ' selected' : '') + '>No-Show</option>' +
             '          <option value="storno"' + (state.status === 'storno' ? ' selected' : '') + '>Storno</option>' +
             '        </select>' +
             '        <button type="submit" class="admin-appointments-btn">Filtern</button>' +
@@ -376,7 +762,11 @@
         var email = item.client && item.client.email ? item.client.email : '-';
         var serviceName = item.service && item.service.name ? item.service.name : '-';
         var notes = parseNotes(item.notes);
-        var canAct = canManage && String(item.status || '') === 'pending';
+        var status = String(item.status || '').toLowerCase();
+        var canAct = canManage && status === 'pending';
+        var canReschedule = canManage && (status === 'pending' || status === 'accepted');
+        var canCancel = canStorno && status === 'accepted';
+        var canNoShow = canManage && status === 'completed';
 
         return '' +
             '<h3>Appointment #' + item.id + '</h3>' +
@@ -388,12 +778,15 @@
             '  <dt>Service</dt><dd>' + escapeHtml(serviceName) + '</dd>' +
             '  <dt>Notizen</dt><dd>' + escapeHtml(notes) + '</dd>' +
             '</dl>' +
-            (canAct
-                ? '<div class="admin-appointments-actions">' +
-                    '<button type="button" class="admin-appointments-btn admin-appointments-btn--accept" data-status="accepted">Annehmen</button>' +
-                    '<button type="button" class="admin-appointments-btn admin-appointments-btn--decline" data-status="declined">Ablehnen</button>' +
-                  '</div>'
-                : '');
+                        ((canAct || canReschedule || canCancel || canNoShow)
+                                ? '<div class="admin-appointments-actions">' +
+                                        (canAct ? '<button type="button" class="admin-appointments-btn admin-appointments-btn--accept" data-status="accepted">Annehmen</button>' : '') +
+                                        (canAct ? '<button type="button" class="admin-appointments-btn admin-appointments-btn--decline" data-status="declined">Ablehnen</button>' : '') +
+                                        (canReschedule ? '<button type="button" class="admin-appointments-btn" data-action="reschedule">Umbuchen</button>' : '') +
+                                        (canCancel ? '<button type="button" class="admin-appointments-btn admin-appointments-btn--danger" data-action="cancel">Stornieren</button>' : '') +
+                                        (canNoShow ? '<button type="button" class="admin-appointments-btn admin-appointments-btn--decline" data-action="no-show">No-Show markieren</button>' : '') +
+                                    '</div>'
+                                : '');
     }
 
     function bindEvents() {
@@ -404,6 +797,8 @@
                 var fd = new FormData(form);
                 state.query = String(fd.get('q') || '').trim();
                 state.status = String(fd.get('status') || '').trim();
+                state.dateFrom = String(fd.get('date_from') || '').trim();
+                state.dateTo = String(fd.get('date_to') || '').trim();
                 state.page = 1;
                 fetchList();
             });
@@ -445,5 +840,32 @@
                 }
             });
         });
+
+        var rescheduleBtn = root.querySelector('[data-action="reschedule"]');
+        if (rescheduleBtn) {
+            rescheduleBtn.addEventListener('click', function () {
+                if (state.detail && state.detail.id) {
+                    rescheduleAppointment(Number(state.detail.id));
+                }
+            });
+        }
+
+        var cancelBtn = root.querySelector('[data-action="cancel"]');
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', function () {
+                if (state.detail && state.detail.id) {
+                    cancelAppointment(Number(state.detail.id));
+                }
+            });
+        }
+
+        var noShowBtn = root.querySelector('[data-action="no-show"]');
+        if (noShowBtn) {
+            noShowBtn.addEventListener('click', function () {
+                if (state.detail && state.detail.id) {
+                    markNoShow(Number(state.detail.id));
+                }
+            });
+        }
     }
 })();

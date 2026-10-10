@@ -25,15 +25,15 @@ return [
     ],
     'senders' => [
         'communication' => [
-            'address' => env('MAIL_FROM_COMMUNICATION', 'info@henz-software.com'),
+            'address' => env('MAIL_FROM_COMMUNICATION', 'info@henz-software.de'),
             'name' => env('MAIL_FROM_COMMUNICATION_NAME', 'Henz Software Solutions'),
         ],
         'noreply' => [
-            'address' => env('MAIL_FROM_NOREPLY', 'noreply@henz-software.com'),
+            'address' => env('MAIL_FROM_NOREPLY', 'noreply@henz-software.de'),
             'name' => env('MAIL_FROM_NOREPLY_NAME', 'Henz Software Solutions'),
         ],
         'support' => [
-            'address' => env('MAIL_FROM_SUPPORT', 'support@henz-software.com'),
+            'address' => env('MAIL_FROM_SUPPORT', 'support@henz-software.de'),
             'name' => env('MAIL_FROM_SUPPORT_NAME', 'Henz Software Solutions Support'),
         ],
     ],

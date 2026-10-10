@@ -55,17 +55,17 @@ $cta2 = $cfg['cta2'] ?? [];
                 style="color: var(--muted-foreground);"><?= $subtitle; ?></p>
             <div class="flex flex-wrap gap-4" data-fg-d3bl57="0.8:1.32440:/src/app/App.tsx:302:13:10886:1645:e:div:ete"
                 data-fgid-d3bl57=":r12:"><button
-                    class="group flex items-center gap-2 px-7 py-3.5 rounded font-semibold text-sm transition-all duration-200"
+                    class="group gb-cta-border-pulse flex items-center gap-2 px-7 py-3.5 rounded font-semibold text-sm transition-all duration-200"
                     data-fg-d3bl58="0.8:1.32440:/src/app/App.tsx:303:15:10939:707:e:button:te" data-fgid-d3bl58=":r13:"
-                    style="background: var(--primary); color: var(--primary-foreground); font-family: &quot;JetBrains Mono&quot;, monospace;" onclick="location.href='<?= $cta1['href'] ?? '#'; ?>'"><?= $cta1['label'] ?? ''; ?><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                    style="background: var(--primary); color: var(--primary-foreground); font-family: &quot;JetBrains Mono&quot;, monospace;" onclick="location.href='<?= $cta1['href'] ?? '#'; ?>'"><?= $cta1['label'] ?? ''; ?><div class="gb-cta-arrow ml-2 -mr-2"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
                         fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
                         stroke-linejoin="round"
-                        class="lucide lucide-arrow-right w-4 h-4 transition-transform duration-200 group-hover:translate-x-1"
+                        class="lucide lucide-arrow-right w-4 h-4"
                         data-fg-d3bl60="0.8:1.32440:node_modules/lucide-react:314:17:11528:94:e:ArrowRight::::::s5N"
                         data-fgid-d3bl60=":r14:">
                         <path d="M5 12h14"></path>
                         <path d="m12 5 7 7-7 7"></path>
-                    </svg></button>
+                    </svg></div></button>
                     <button class="flex items-center gap-2 px-7 py-3.5 rounded font-medium text-sm border transition-all duration-200"
                     data-fg-d3bl61="0.8:1.32440:/src/app/App.tsx:316:15:11661:851:e:button:t" data-fgid-d3bl61=":r15:"
                     style="color: var(--foreground); border-color: var(--border); background: transparent;" onclick="location.href='<?= $cta2['href'] ?? '#'; ?>'"><?= $cta2['label'] ?? ''; ?></button></div>

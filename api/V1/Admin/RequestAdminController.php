@@ -260,13 +260,16 @@ final class RequestAdminController extends BaseApiController
             $updatedRow['booking_id'] = $result['booking_id'] ?? ($updatedRow['booking_id'] ?? null);
         }
 
-        $paymentAutomationEnabled = filter_var(
-            (string) config('mail.payment.automation_enabled', false),
-            FILTER_VALIDATE_BOOL
-        ) === true;
+        if ($newStatus === 'accepted') {
+            app(EmailAutomationService::class)->dispatch('appointment.accepted', [
+                'request_id' => $id,
+                'booking_id' => (int) ($result['booking_id'] ?? 0),
+                'client_id' => (int) ($row['client_id'] ?? 0),
+            ]);
+        }
 
-        if (!($newStatus === 'accepted' && $paymentAutomationEnabled)) {
-            app(EmailAutomationService::class)->dispatch('request.' . $newStatus, [
+        if ($newStatus === 'rejected') {
+            app(EmailAutomationService::class)->dispatch('appointment.rejected', [
                 'request_id' => $id,
                 'booking_id' => (int) ($result['booking_id'] ?? 0),
                 'client_id' => (int) ($row['client_id'] ?? 0),

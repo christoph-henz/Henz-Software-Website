@@ -10,7 +10,7 @@ return [
     'field1' => [
         'name' => 'E-Mail-Adresse',
         'icon' => '👤',
-        'placeholder' => 'name@henz-software.com',
+        'placeholder' => 'name@henz-software.de',
     ],
     'field2' => [
         'name' => 'Neues Passwort',

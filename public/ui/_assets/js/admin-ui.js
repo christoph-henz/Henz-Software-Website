@@ -239,10 +239,155 @@
     });
   };
 
+  const bindBadgeManager = () => {
+    const sources = new Map();
+    const values = new Map();
+    let legacyMenuBadge = { visible: false, text: '!', title: '' };
+    const sourceDefinitions = [
+      { key: 'appointments', url: '/appointments/data/summary', targetId: 'adminSidebarBookingsBadge', group: 'clients' },
+      { key: 'tickets', url: '/tickets/data/summary', targetId: 'adminSidebarTicketsBadge', group: 'clients' },
+    ];
+
+    const setElementBadge = (id, count, title) => {
+      const element = document.getElementById(id);
+      if (!element) {
+        return;
+      }
+
+      const visible = count > 0;
+      element.textContent = visible ? '!' : '';
+      element.hidden = !visible;
+      element.setAttribute('aria-hidden', visible ? 'false' : 'true');
+      if (visible) {
+        element.title = title;
+        element.setAttribute('aria-label', title);
+      } else {
+        element.removeAttribute('title');
+        element.removeAttribute('aria-label');
+      }
+    };
+
+    const refreshGroupBadges = () => {
+      const groups = new Set(Array.from(sources.values()).map((source) => source.group).filter(Boolean));
+      groups.forEach((groupKey) => {
+        let total = 0;
+        const labels = [];
+        sources.forEach((source) => {
+          if (source.group !== groupKey) {
+            return;
+          }
+          const count = Number(values.get(source.key) || 0);
+          total += count;
+          if (count > 0) {
+            labels.push(`${count} ${source.label}`);
+          }
+        });
+
+        const groupElement = document.querySelector('[data-badge-group="' + groupKey + '"]');
+        const group = groupElement ? groupElement.closest('.admin-sidebar-nav-group') : null;
+        const expanded = !!(group && group.classList.contains('is-expanded'));
+        const targetId = 'adminSidebar' + groupKey.charAt(0).toUpperCase() + groupKey.slice(1) + 'Badge';
+        setElementBadge(targetId, expanded ? 0 : total, labels.join(', '));
+      });
+    };
+
+    const refreshMenuBadge = () => {
+      let total = 0;
+      values.forEach((value) => {
+        total += Number(value || 0);
+      });
+      renderMenuBadge({
+        text: '!',
+        kind: 'warning',
+        visible: total > 0 || legacyMenuBadge.visible,
+        title: total > 0 ? 'Offene Termine oder Tickets vorhanden' : legacyMenuBadge.title,
+        ariaLabel: total > 0 ? 'Offene Termine oder Tickets vorhanden' : legacyMenuBadge.title,
+      });
+    };
+
+    const renderMenuBadge = (options = {}) => {
+      const element = document.getElementById('adminMenuBadge');
+      if (!element) return;
+      const visible = !!options.visible;
+      element.textContent = visible ? String(options.text || '!') : '';
+      element.hidden = !visible;
+      element.setAttribute('aria-hidden', visible ? 'false' : 'true');
+      if (visible) element.title = String(options.title || '');
+      else element.removeAttribute('title');
+    };
+
+    const refreshBadges = () => {
+      sources.forEach((source) => {
+        const count = Number(values.get(source.key) || 0);
+        setElementBadge(source.targetId, count, `${count} ${source.label}`);
+      });
+      refreshGroupBadges();
+      refreshMenuBadge();
+    };
+
+    const readSource = (source) => fetch(source.url, {
+      credentials: 'include',
+      headers: { Accept: 'application/json' },
+    })
+      .then((response) => response.json())
+      .then((json) => {
+        const summary = json && json.data && json.data.summary ? json.data.summary : {};
+        values.set(source.key, Math.max(0, Number(summary[source.valueKey] || 0)));
+        refreshBadges();
+      })
+      .catch(() => {
+        values.set(source.key, 0);
+        refreshBadges();
+      });
+
+    const register = (definition) => {
+      const source = {
+        key: String(definition.key || ''),
+        url: String(definition.url || ''),
+        valueKey: String(definition.valueKey || 'count'),
+        targetId: String(definition.targetId || ''),
+        group: String(definition.group || ''),
+        label: String(definition.label || definition.key || 'offene Einträge'),
+      };
+      if (source.key === '' || source.url === '') {
+        return;
+      }
+      sources.set(source.key, source);
+      values.set(source.key, 0);
+      readSource(source);
+    };
+
+    window.adminSetBadge = (id, options = {}) => {
+      setElementBadge(String(id || ''), options.visible ? 1 : 0, String(options.title || options.ariaLabel || ''));
+    };
+    window.adminSetMenuBadge = (options = {}) => {
+      legacyMenuBadge = {
+        visible: !!options.visible,
+        text: String(options.text || '!'),
+        title: String(options.title || options.ariaLabel || ''),
+      };
+      renderMenuBadge(legacyMenuBadge);
+    };
+    window.adminRegisterBadgeSource = register;
+
+    sourceDefinitions.forEach((definition) => register({
+      ...definition,
+      valueKey: definition.key === 'appointments' ? 'pending_count' : 'open_count',
+      label: definition.key === 'appointments' ? 'offene Termine' : 'offene Tickets',
+    }));
+
+    document.querySelectorAll('.admin-sidebar-nav-toggle').forEach((toggle) => {
+      toggle.addEventListener('click', () => window.setTimeout(refreshBadges, 0));
+    });
+
+    window.setInterval(() => sources.forEach(readSource), 30000);
+  };
+
   onReady(() => {
     bindLayoutInteractions();
     bindModal();
     bindToasts();
     bindSidebarNavToggles();
+    bindBadgeManager();
   });
 })();

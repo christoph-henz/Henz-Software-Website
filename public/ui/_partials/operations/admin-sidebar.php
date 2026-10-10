@@ -120,6 +120,9 @@ if (!function_exists('_adminRenderNavItems')) {
                 echo '<button type="button" class="' . $itemClasses . ' admin-sidebar-nav-toggle" role="listitem" aria-expanded="' . ($isActive ? 'true' : 'false') . '">';
                 echo '<span class="admin-sidebar-icon" aria-hidden="true">' . _adminIcon($icon) . '</span>';
                 echo '<span>' . $label . '</span>';
+                if ($hrefRaw === '/clients') {
+                    echo '<span class="admin-badge admin-badge--warning admin-sidebar-item-badge" id="adminSidebarClientsBadge" data-badge-group="clients" hidden aria-hidden="true">!</span>';
+                }
                 echo '<span class="admin-sidebar-caret" aria-hidden="true">';
                 echo '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>';
                 echo '</span>';
@@ -137,8 +140,10 @@ if (!function_exists('_adminRenderNavItems')) {
 
             if ($hrefRaw === '/requests') {
                 echo '<span class="admin-badge admin-badge--warning admin-sidebar-item-badge" id="adminSidebarRequestsBadge" hidden aria-hidden="true">!</span>';
-            } elseif ($hrefRaw === '/bookings') {
+            } elseif ($hrefRaw === '/bookings' || $hrefRaw === '/appointments') {
                 echo '<span class="admin-badge admin-badge--warning admin-sidebar-item-badge" id="adminSidebarBookingsBadge" hidden aria-hidden="true">!</span>';
+            } elseif ($hrefRaw === '/tickets') {
+                echo '<span class="admin-badge admin-badge--warning admin-sidebar-item-badge" id="adminSidebarTicketsBadge" hidden aria-hidden="true">!</span>';
             }
 
             echo '</a>';

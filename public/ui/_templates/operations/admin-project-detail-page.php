@@ -23,7 +23,7 @@ ob_start();
         <h1 class="admin-page-title">Projektdetails</h1>
         <p class="admin-page-subtitle">Projektphasen und Teammitglieder anlegen, einsehen und verwalten.</p>
     </div>
-    <a href="/projects" class="admin-users-action-btn admin-project-detail-back" id="projectBackToList">Zurueck zur Liste</a>
+    <a href="/projects" class="admin-users-action-btn admin-project-detail-back" id="projectBackToList">Zurück zur Liste</a>
 </div>
 
 <section class="admin-users-section" id="adminProjectDetailRoot" data-project-id="<?= (int) ($projectDetailConfig['project_id'] ?? 0); ?>">
@@ -46,7 +46,7 @@ ob_start();
                 <input id="phaseName" class="admin-users-input" type="text" required />
             </div>
             <div>
-                <label class="admin-users-label" for="phaseDueDate">Faelligkeit</label>
+                <label class="admin-users-label" for="phaseDueDate">Fälligkeit</label>
                 <input id="phaseDueDate" class="admin-users-input" type="date" />
             </div>
             <div>

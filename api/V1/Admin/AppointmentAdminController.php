@@ -25,6 +25,8 @@ final class AppointmentAdminController extends BaseApiController
     private ?bool $invoiceAppointmentLinkAvailable = null;
     private ?bool $clientTimezoneColumnAvailable = null;
     private ?bool $packagePurchaseTableAvailable = null;
+    private ?bool $appointmentStatusAuditTableAvailable = null;
+    private ?bool $bookingStatusAuditTableAvailable = null;
     /** @var array<string, bool> */
     private array $appointmentColumnAvailability = [];
 
@@ -42,16 +44,34 @@ final class AppointmentAdminController extends BaseApiController
         $sorting = $this->resolveSorting($request);
         $statusFilter = strtolower(trim((string) $request->query('status', '')));
         $searchTerm = strtolower(trim((string) $request->query('q', '')));
+        $dateFrom = $this->resolveDateFilter($request->query('date_from', ''));
+        $dateTo = $this->resolveDateFilter($request->query('date_to', ''));
 
-        $allowedStatuses = ['pending', 'accepted', 'declined', 'completed', 'storno'];
+        if ($dateFrom === null && $dateTo === null) {
+            $today = new DateTimeImmutable('today', $this->berlinTimezone());
+            $dateFrom = $today->modify('-1 month')->format('Y-m-d');
+            $dateTo = $today->modify('+3 months')->format('Y-m-d');
+        }
+
+        if ($dateFrom !== null && $dateTo === null) {
+            $dateTo = $dateFrom;
+        } elseif ($dateFrom === null && $dateTo !== null) {
+            $dateFrom = $dateTo;
+        }
+
+        if ($dateFrom !== null && $dateTo !== null && $dateFrom > $dateTo) {
+            [$dateFrom, $dateTo] = [$dateTo, $dateFrom];
+        }
+
+        $allowedStatuses = ['pending', 'accepted', 'declined', 'completed', 'storno', 'no_show'];
         if ($statusFilter !== '' && !in_array($statusFilter, $allowedStatuses, true)) {
             return $this->fail('Validation failed', 422, [
                 'status' => ['invalid_status'],
             ]);
         }
 
-        $total = $this->countAppointmentRows($statusFilter, $searchTerm);
-        $rows = $this->fetchAppointmentRows($pagination, $sorting, $statusFilter, $searchTerm);
+        $total = $this->countAppointmentRows($statusFilter, $searchTerm, $dateFrom, $dateTo);
+        $rows = $this->fetchAppointmentRows($pagination, $sorting, $statusFilter, $searchTerm, $dateFrom, $dateTo);
 
         $appointments = array_map(fn (array $row): array => $this->formatAppointment($row), $rows);
 
@@ -87,12 +107,17 @@ final class AppointmentAdminController extends BaseApiController
             ''
         );
 
+        $pendingCount = 0;
         $outstandingCount = 0;
         $outstandingTotal = 0.0;
 
         foreach ($rows as $row) {
             if (!is_array($row)) {
                 continue;
+            }
+
+            if (strtolower(trim((string) ($row['status'] ?? ''))) === 'pending') {
+                $pendingCount++;
             }
 
             $amount = $this->resolveOpenPaymentAmount($row);
@@ -106,6 +131,7 @@ final class AppointmentAdminController extends BaseApiController
 
         return $this->ok([
             'summary' => [
+                'pending_count' => $pendingCount,
                 'outstanding_count' => $outstandingCount,
                 'outstanding_total' => round($outstandingTotal, 2),
             ],
@@ -362,9 +388,10 @@ final class AppointmentAdminController extends BaseApiController
             return $this->fail('Appointment not found', 404);
         }
 
-        if (in_array((string) ($appointment['status'] ?? ''), ['storno', 'declined'], true)) {
+        $currentStatus = strtolower(trim((string) ($appointment['status'] ?? 'pending')));
+        if (!in_array($currentStatus, ['pending', 'accepted'], true)) {
             return $this->fail('Invalid appointment state', 409, [
-                'status' => ['cannot_reschedule_cancelled'],
+                'status' => ['reschedule_allowed_only_for_pending_or_accepted'],
             ]);
         }
 
@@ -423,6 +450,14 @@ final class AppointmentAdminController extends BaseApiController
 
         $updated = $this->fetchAppointmentRow($id);
 
+        $mailContext = $this->resolveAppointmentMailContext($updated ?? $appointment);
+        app(EmailAutomationService::class)->dispatch('appointment.reschedule', [
+            'appointment_id' => $id,
+            'client_id' => $mailContext['client_id'],
+            'recipient_email' => $mailContext['recipient_email'],
+            'client_first_name' => $mailContext['client_first_name'],
+        ]);
+
         return $this->ok([
             'appointment' => $this->formatAppointment($updated ?? $appointment),
             'duration_minutes' => $durationMinutes,
@@ -431,7 +466,7 @@ final class AppointmentAdminController extends BaseApiController
 
     public function cancel(Request $request): Response
     {
-        if (!$this->canManageAppointments($request)) {
+        if (!$this->canStornoAppointments($request)) {
             return $this->fail('Forbidden', 403, [
                 'permission' => ['insufficient_role'],
             ]);
@@ -457,9 +492,9 @@ final class AppointmentAdminController extends BaseApiController
             ]);
         }
 
-        if (!in_array($currentStatus, ['pending', 'accepted'], true)) {
+        if ($currentStatus !== 'accepted') {
             return $this->fail('Invalid appointment state', 409, [
-                'status' => ['cancellation_allowed_only_until_accepted'],
+                'status' => ['cancellation_allowed_only_for_accepted'],
             ]);
         }
 
@@ -504,14 +539,14 @@ final class AppointmentAdminController extends BaseApiController
             ->where('id', $id)
             ->update($cancelUpdate);
 
-        db('appointment_status_audit_log')->insert([
-            'appointment_id' => $id,
-            'old_status' => $currentStatus,
-            'new_status' => 'storno',
-            'changed_by_user_id' => $userId,
-            'revert_reason' => null,
-            'ip_address' => $this->resolveIpAddress($request),
-        ]);
+        $this->insertStatusAuditLog(
+            $id,
+            $currentStatus,
+            'storno',
+            $userId,
+            null,
+            $this->resolveIpAddress($request)
+        );
 
         $packageAction = null;
         $packagePurchaseRefunded = false;
@@ -532,9 +567,12 @@ final class AppointmentAdminController extends BaseApiController
         }
 
         $updated = $this->fetchAppointmentRow($id);
-        app(EmailAutomationService::class)->dispatch('appointment.canceled', [
+        $mailContext = $this->resolveAppointmentMailContext($updated ?? $appointment);
+        app(EmailAutomationService::class)->dispatch('appointment.storno', [
             'appointment_id' => $id,
-            'client_id' => (int) (($updated['client_id'] ?? $appointment['client_id']) ?? 0),
+            'client_id' => $mailContext['client_id'],
+            'recipient_email' => $mailContext['recipient_email'],
+            'client_first_name' => $mailContext['client_first_name'],
         ]);
 
         return $this->ok([
@@ -641,12 +679,15 @@ final class AppointmentAdminController extends BaseApiController
 
         if (array_key_exists('status', $data)) {
             $status = strtolower(trim((string) ($data['status'] ?? '')));
-            $allowedStatuses = ['pending', 'accepted', 'declined', 'completed', 'storno'];
+            $allowedStatuses = ['pending', 'accepted', 'declined', 'completed', 'storno', 'no_show'];
 
             if ($status === '' || !in_array($status, $allowedStatuses, true)) {
                 $errors['status'] = ['invalid_status'];
             } else {
                 $currentStatus = strtolower(trim((string) ($appointment['status'] ?? 'pending')));
+                if ($status === 'no_show' && $currentStatus !== 'completed') {
+                    $errors['status'] = ['no_show_allowed_only_from_completed'];
+                }
                 if ($status !== $currentStatus) {
                     $updates['status'] = $status;
                 }
@@ -695,20 +736,79 @@ final class AppointmentAdminController extends BaseApiController
             ->update($updates);
 
         if (isset($updates['status'])) {
-            db('appointment_status_audit_log')->insert([
-                'appointment_id' => $id,
-                'old_status' => (string) ($appointment['status'] ?? 'pending'),
-                'new_status' => (string) $updates['status'],
-                'changed_by_user_id' => $userId,
-                'revert_reason' => null,
-                'ip_address' => $this->resolveIpAddress($request),
-            ]);
+            $this->insertStatusAuditLog(
+                $id,
+                (string) ($appointment['status'] ?? 'pending'),
+                (string) $updates['status'],
+                $userId,
+                null,
+                $this->resolveIpAddress($request)
+            );
         }
 
         $updated = $this->fetchAppointmentRow($id);
 
+        $mailRecipientEmail = strtolower(trim((string) (
+            $updated['email']
+            ?? $updated['prospect_email']
+            ?? $appointment['email']
+            ?? $appointment['prospect_email']
+            ?? ''
+        )));
+        $mailFirstName = trim((string) (
+            $updated['name']
+            ?? $updated['prospect_name']
+            ?? $appointment['name']
+            ?? $appointment['prospect_name']
+            ?? ''
+        ));
+
+        $emailDispatch = null;
+        if (isset($updates['status'])) {
+            $event = null;
+            $newStatus = strtolower((string) $updates['status']);
+            if ($newStatus === 'accepted') {
+                $event = 'appointment.accepted';
+            } elseif ($newStatus === 'declined') {
+                $event = 'appointment.rejected';
+            } elseif ($newStatus === 'no_show') {
+                $event = 'appointment.no_show';
+            }
+
+            if ($event !== null) {
+                try {
+                    $emailDispatch = app(EmailAutomationService::class)->dispatch($event, [
+                        'appointment_id' => $id,
+                        'client_id' => (int) (($updated['client_id'] ?? $appointment['client_id']) ?? 0),
+                        'recipient_email' => $mailRecipientEmail,
+                        'client_first_name' => $mailFirstName,
+                    ]);
+                } catch (\Throwable $e) {
+                    $emailDispatch = [
+                        'status' => 'error',
+                        'reason' => 'dispatch_exception',
+                    ];
+
+                    error_log('[email-automation] appointment status dispatch exception ' . json_encode([
+                        'appointment_id' => $id,
+                        'event' => $event,
+                        'message' => $e->getMessage(),
+                    ], JSON_UNESCAPED_SLASHES | JSON_PARTIAL_OUTPUT_ON_ERROR));
+                }
+
+                error_log('[email-automation] appointment status dispatch ' . json_encode([
+                    'appointment_id' => $id,
+                    'from_status' => (string) ($appointment['status'] ?? 'pending'),
+                    'to_status' => (string) $updates['status'],
+                    'event' => $event,
+                    'result' => $emailDispatch,
+                ], JSON_UNESCAPED_SLASHES | JSON_PARTIAL_OUTPUT_ON_ERROR));
+            }
+        }
+
         return $this->ok([
             'appointment' => $this->formatAppointment($updated ?? $appointment),
+            'email_dispatch' => $emailDispatch,
         ]);
     }
 
@@ -756,6 +856,40 @@ final class AppointmentAdminController extends BaseApiController
         return ($roleMask & $manageMask) !== 0;
     }
 
+    private function canStornoAppointments(Request $request): bool
+    {
+        $roleMask = $this->getUserRoleMask($request);
+        $stornoMask = PermissionBits::resolve('storno_appointment', 4);
+
+        return ($roleMask & $stornoMask) !== 0;
+    }
+
+    /**
+     * @param array<string, mixed> $appointment
+     * @return array{client_id:int, recipient_email:string, client_first_name:string}
+     */
+    private function resolveAppointmentMailContext(array $appointment): array
+    {
+        $recipientEmail = strtolower(trim((string) (
+            $appointment['email']
+            ?? $appointment['prospect_email']
+            ?? ''
+        )));
+
+        $clientFirstName = trim((string) (
+            $appointment['first_name']
+            ?? $appointment['name']
+            ?? $appointment['prospect_name']
+            ?? ''
+        ));
+
+        return [
+            'client_id' => (int) ($appointment['client_id'] ?? 0),
+            'recipient_email' => $recipientEmail,
+            'client_first_name' => $clientFirstName,
+        ];
+    }
+
     private function getUserRoleMask(Request $request): int
     {
         $session = $request->session();
@@ -789,12 +923,12 @@ final class AppointmentAdminController extends BaseApiController
     private function resolvePagination(Request $request): array
     {
         $page = max(1, (int) $request->query('page', 1));
-        $perPage = (int) $request->query('per_page', 20);
+        $perPage = (int) $request->query('per_page', 10);
 
         if ($perPage < 1) {
-            $perPage = 20;
+            $perPage = 10;
         }
-        $perPage = min($perPage, 100);
+        $perPage = min($perPage, 10);
 
         $offsetRaw = $request->query('offset', null);
         if (is_numeric($offsetRaw)) {
@@ -914,18 +1048,19 @@ final class AppointmentAdminController extends BaseApiController
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function fetchAppointmentRows(array $pagination, array $sorting, string $statusFilter, string $searchTerm): array
+    private function fetchAppointmentRows(array $pagination, array $sorting, string $statusFilter, string $searchTerm, ?string $dateFrom = null, ?string $dateTo = null): array
     {
         $database = app(Database::class);
         $pdo = $database->connection();
 
         $sql = $this->buildAppointmentSql();
-        $sql .= $this->buildAppointmentWhereSql($statusFilter, $searchTerm);
-        $sql .= ' ORDER BY ' . $sorting['column'] . ' ' . strtoupper($sorting['direction']);
+        $sql .= $this->buildAppointmentWhereSql($statusFilter, $searchTerm, $dateFrom, $dateTo);
+        $sql .= ' ORDER BY CASE WHEN LOWER(b.status) IN (\'pending\', \'open\', \'new\') THEN 0 ELSE 1 END ASC, '
+            . $sorting['column'] . ' ' . strtoupper($sorting['direction']);
         $sql .= ' LIMIT :limit OFFSET :offset';
 
         $stmt = $pdo->prepare($sql);
-        foreach ($this->buildAppointmentParams($statusFilter, $searchTerm) as $key => $value) {
+        foreach ($this->buildAppointmentParams($statusFilter, $searchTerm, $dateFrom, $dateTo) as $key => $value) {
             $stmt->bindValue(':' . $key, $value);
         }
         $stmt->bindValue(':limit', (int) $pagination['per_page'], \PDO::PARAM_INT);
@@ -936,7 +1071,7 @@ final class AppointmentAdminController extends BaseApiController
         return is_array($rows) ? $rows : [];
     }
 
-    private function countAppointmentRows(string $statusFilter, string $searchTerm): int
+    private function countAppointmentRows(string $statusFilter, string $searchTerm, ?string $dateFrom = null, ?string $dateTo = null): int
     {
         $database = app(Database::class);
         $pdo = $database->connection();
@@ -944,10 +1079,10 @@ final class AppointmentAdminController extends BaseApiController
         $sql = 'SELECT COUNT(*) AS aggregate FROM appointments b'
             . ' LEFT JOIN clients c ON c.id = b.client_id'
             . ' INNER JOIN services s ON s.id = b.service_id';
-        $sql .= $this->buildAppointmentWhereSql($statusFilter, $searchTerm);
+        $sql .= $this->buildAppointmentWhereSql($statusFilter, $searchTerm, $dateFrom, $dateTo);
 
         $stmt = $pdo->prepare($sql);
-        foreach ($this->buildAppointmentParams($statusFilter, $searchTerm) as $key => $value) {
+        foreach ($this->buildAppointmentParams($statusFilter, $searchTerm, $dateFrom, $dateTo) as $key => $value) {
             $stmt->bindValue(':' . $key, $value);
         }
         $stmt->execute();
@@ -1040,12 +1175,19 @@ final class AppointmentAdminController extends BaseApiController
         }
     }
 
-    private function buildAppointmentWhereSql(string $statusFilter, string $searchTerm): string
+    private function buildAppointmentWhereSql(string $statusFilter, string $searchTerm, ?string $dateFrom = null, ?string $dateTo = null): string
     {
         $parts = [];
 
         if ($statusFilter !== '' && $this->isAppointmentColumnAvailable('status')) {
             $parts[] = 'b.status = :status_filter';
+        }
+
+        if ($dateFrom !== null) {
+            $parts[] = 'b.appointment_date >= :date_from';
+        }
+        if ($dateTo !== null) {
+            $parts[] = 'b.appointment_date < DATE_ADD(:date_to, INTERVAL 1 DAY)';
         }
 
         if ($searchTerm !== '') {
@@ -1063,12 +1205,19 @@ final class AppointmentAdminController extends BaseApiController
     /**
      * @return array<string, mixed>
      */
-    private function buildAppointmentParams(string $statusFilter, string $searchTerm): array
+    private function buildAppointmentParams(string $statusFilter, string $searchTerm, ?string $dateFrom = null, ?string $dateTo = null): array
     {
         $params = [];
 
         if ($statusFilter !== '' && $this->isAppointmentColumnAvailable('status')) {
             $params['status_filter'] = $statusFilter;
+        }
+
+        if ($dateFrom !== null) {
+            $params['date_from'] = $dateFrom . ' 00:00:00';
+        }
+        if ($dateTo !== null) {
+            $params['date_to'] = $dateTo . ' 00:00:00';
         }
 
         if ($searchTerm !== '') {
@@ -1080,6 +1229,16 @@ final class AppointmentAdminController extends BaseApiController
         }
 
         return $params;
+    }
+
+    private function resolveDateFilter(mixed $value): ?string
+    {
+        $date = trim((string) $value);
+        $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+
+        return $date !== '' && $parsed instanceof DateTimeImmutable && $parsed->format('Y-m-d') === $date
+            ? $date
+            : null;
     }
 
     /**
@@ -2013,14 +2172,104 @@ final class AppointmentAdminController extends BaseApiController
                 continue;
             }
 
-            db('appointment_status_audit_log')->insert([
+            $this->insertStatusAuditLog(
+                $appointmentId,
+                'accepted',
+                'completed',
+                null,
+                'auto_elapsed_completion',
+                null
+            );
+        }
+    }
+
+    private function insertStatusAuditLog(
+        int $appointmentId,
+        string $oldStatus,
+        string $newStatus,
+        ?int $changedByUserId,
+        ?string $revertReason,
+        ?string $ipAddress
+    ): void {
+        if ($appointmentId <= 0) {
+            return;
+        }
+
+        try {
+            if ($this->isAppointmentStatusAuditTableAvailable()) {
+                db('appointment_status_audit_log')->insert([
+                    'appointment_id' => $appointmentId,
+                    'old_status' => $oldStatus,
+                    'new_status' => $newStatus,
+                    'changed_by_user_id' => $changedByUserId,
+                    'revert_reason' => $revertReason,
+                    'ip_address' => $ipAddress,
+                ]);
+                return;
+            }
+
+            if ($this->isBookingStatusAuditTableAvailable()) {
+                db('booking_status_audit_log')->insert([
+                    'booking_id' => $appointmentId,
+                    'old_status' => $oldStatus,
+                    'new_status' => $newStatus,
+                    'changed_by_user_id' => $changedByUserId,
+                    'revert_reason' => $revertReason,
+                    'ip_address' => $ipAddress,
+                ]);
+                return;
+            }
+        } catch (\Throwable $e) {
+            error_log('[appointments] status audit insert failed ' . json_encode([
                 'appointment_id' => $appointmentId,
-                'old_status' => 'accepted',
-                'new_status' => 'completed',
-                'changed_by_user_id' => null,
-                'revert_reason' => 'auto_elapsed_completion',
-                'ip_address' => null,
-            ]);
+                'old_status' => $oldStatus,
+                'new_status' => $newStatus,
+                'message' => $e->getMessage(),
+            ], JSON_UNESCAPED_SLASHES | JSON_PARTIAL_OUTPUT_ON_ERROR));
+        }
+
+        error_log('[appointments] status audit table missing; skipping audit insert');
+    }
+
+    private function isAppointmentStatusAuditTableAvailable(): bool
+    {
+        if ($this->appointmentStatusAuditTableAvailable !== null) {
+            return $this->appointmentStatusAuditTableAvailable;
+        }
+
+        $this->appointmentStatusAuditTableAvailable = $this->isTableAvailable('appointment_status_audit_log');
+
+        return $this->appointmentStatusAuditTableAvailable;
+    }
+
+    private function isBookingStatusAuditTableAvailable(): bool
+    {
+        if ($this->bookingStatusAuditTableAvailable !== null) {
+            return $this->bookingStatusAuditTableAvailable;
+        }
+
+        $this->bookingStatusAuditTableAvailable = $this->isTableAvailable('booking_status_audit_log');
+
+        return $this->bookingStatusAuditTableAvailable;
+    }
+
+    private function isTableAvailable(string $tableName): bool
+    {
+        try {
+            $pdo = app(Database::class)->connection();
+            $statement = $pdo->prepare(
+                'SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = :table_name LIMIT 1'
+            );
+            $statement->execute(['table_name' => $tableName]);
+
+            return (bool) $statement->fetchColumn();
+        } catch (\Throwable $e) {
+            error_log('[appointments] table availability check failed ' . json_encode([
+                'table' => $tableName,
+                'message' => $e->getMessage(),
+            ], JSON_UNESCAPED_SLASHES | JSON_PARTIAL_OUTPUT_ON_ERROR));
+
+            return false;
         }
     }
 

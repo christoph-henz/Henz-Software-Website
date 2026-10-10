@@ -19,7 +19,7 @@ $canViewProjects = (bool) ($canViewProjects ?? false);
 
     <?php if (!$canViewProjects): ?>
         <p class="m-6 rounded-lg border border-border bg-background/20 p-4 text-xs text-muted-foreground">
-            Keine Berechtigung fuer Projekte.
+            Keine Berechtigung für Projekte.
         </p>
     <?php elseif ($projectRows === []): ?>
         <p class="m-6 rounded-lg border border-border bg-background/20 p-4 text-xs text-muted-foreground">

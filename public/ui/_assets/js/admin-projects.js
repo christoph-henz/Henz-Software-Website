@@ -107,7 +107,7 @@
                 '  </header>' +
                 '  <div class="admin-projects-entry-meta">' +
                 '    <span class="admin-projects-entry-meta-item"><strong>Klient:</strong> ' + escHtml(p.client_name || '-') + '</span>' +
-                '    <span class="admin-projects-entry-meta-item"><strong>Faellig:</strong> ' + escHtml(dueText) + '</span>' +
+                '    <span class="admin-projects-entry-meta-item"><strong>Fällig:</strong> ' + escHtml(dueText) + '</span>' +
                 '  </div>' +
                 '  <p class="admin-projects-entry-description">' + escHtml((p.description || '').trim() || 'Keine Beschreibung hinterlegt.') + '</p>' +
                 actionsFooter +
@@ -231,7 +231,7 @@
                 '<textarea id="cpDescription" class="admin-users-input">' + escHtml(createDraft.description) + '</textarea>' +
             '</div>' +
             '<div class="admin-users-field">' +
-                '<label class="admin-users-label" for="cpDueDate">Faellig am</label>' +
+                '<label class="admin-users-label" for="cpDueDate">Fällig am</label>' +
                 '<input type="date" id="cpDueDate" class="admin-users-input" value="' + escHtml(createDraft.due_date) + '" />' +
             '</div>' +
             '<div class="admin-users-field">' +
@@ -419,7 +419,7 @@
                 '<textarea id="epDescription" class="admin-users-input">' + escHtml(editDraft.description) + '</textarea>' +
             '</div>' +
             '<div class="admin-users-field">' +
-                '<label class="admin-users-label" for="epDueDate">Faellig am</label>' +
+                '<label class="admin-users-label" for="epDueDate">Fällig am</label>' +
                 '<input type="date" id="epDueDate" class="admin-users-input" value="' + escHtml(editDraft.due_date) + '" />' +
             '</div>' +
             '<div class="admin-users-field">' +

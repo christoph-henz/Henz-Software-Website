@@ -6,6 +6,7 @@ namespace App\Controllers\Api\V1;
 
 use App\Controllers\Api\BaseApiController;
 use App\Core\Http\Response;
+use App\Services\EmailAutomationService;
 use Throwable;
 
 final class TicketController extends BaseApiController
@@ -75,6 +76,11 @@ final class TicketController extends BaseApiController
             'payload_json' => is_string($payloadJson) ? $payloadJson : null,
             'source' => 'contact_form',
             'status' => 'new',
+        ]);
+
+        app(EmailAutomationService::class)->dispatch('request.submitted', [
+            'client_id' => $clientId,
+            'form_data' => $data,
         ]);
 
         return $this->ok([

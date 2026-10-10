@@ -326,8 +326,8 @@ final class PaymentReminderScheduler
     private function sendReminder(int $stage, int $bookingId, int $clientId, int $invoiceId): array
     {
         $event = $stage === self::REMINDER_STAGE_1
-            ? 'booking.payment_reminder_1'
-            : 'booking.payment_reminder_2';
+            ? 'invoice.payment_reminder_1'
+            : 'invoice.payment_reminder_2';
 
         $result = app(EmailAutomationService::class)->dispatch($event, [
             'booking_id' => $bookingId,

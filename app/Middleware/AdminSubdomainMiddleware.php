@@ -19,7 +19,7 @@ final class AdminSubdomainMiddleware implements MiddlewareInterface
             $title = 'Seite nicht gefunden';
             $message = 'Diese Route ist nur auf der Operations-Subdomain verfuegbar.';
             $hints = [
-                'Rufe diesen Bereich ueber die Operations-Subdomain auf.',
+                'Rufe diesen Bereich über die Operations-Subdomain auf.',
                 'Auf der Hauptdomain liefern Admin-Routen absichtlich einen 404-Status.',
             ];
 

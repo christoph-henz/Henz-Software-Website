@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 return [
     'status'=>'SYSTEM ONLINE · ACCEPTING PROJECTS',
-    'title' => 'Wir entwickeln Software die hält',
-    'subtitle' => 'Von verteilten Backends bis hin zu präzisen Schnittstellen – wir liefern produktionsreife Software, die skaliert, leistungsstark ist und auch unter Belastung standhält.',
+    'title' => 'Wir entwickeln Software, die hält',
+    'subtitle' => 'Von leistungsstarken Backend-Systemen bis hin zu nahtlosen Schnittstellen – wir entwickeln zuverlässige Software, die mit Ihren Anforderungen wächst und auch bei hoher Auslastung schnell und stabil bleibt.',
     'cta1' => [
-        'label' => 'Projekt anfragen',
+        'label' => 'Mein Projekt besprechen',
         'href' => '/contact',
     ],
     'cta2' => [
-        'label' => 'Unsere Projekte',
-        'href' => '/referenzen',
+        'label' => 'Abgeschlossene Projekte',
+        'href' => '#projekte',
     ]
 ];
