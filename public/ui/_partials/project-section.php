@@ -90,13 +90,13 @@ if (empty($rows)) {
                         style="min-height: 260px; background: var(--card);">
                         <?php if ($media['isVideo']): ?>
                                             <video autoplay muted loop playsinline preload="none" data-deferred-video="1" data-video-src="<?= $media['src'] ?>" data-video-type="<?= $media['mimeType'] ?>"
-                                class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                class="gb-reference-media w-full h-full transition-transform duration-500 group-hover:scale-105"
                                 data-fg-d3bl173="0.8:1.32440:/src/app/App.tsx:549:19:21959:265:e:img" data-fgid-d3bl173=":r5g:"
                                 style="position: absolute; inset: 0px;">
                             </video>
                         <?php else: ?>
                             <img src="<?= $media['src'] ?>" alt="<?= $row['title'] ?? 'Project Image' ?>" loading="lazy" decoding="async"
-                                class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                class="gb-reference-media w-full h-full transition-transform duration-500 group-hover:scale-105"
                                 data-fg-d3bl173="0.8:1.32440:/src/app/App.tsx:549:19:21959:265:e:img" data-fgid-d3bl173=":r5g:"
                                 style="position: absolute; inset: 0px;">
                         <?php endif; ?>

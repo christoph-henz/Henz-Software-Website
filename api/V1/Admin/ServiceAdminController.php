@@ -313,6 +313,54 @@ final class ServiceAdminController extends BaseApiController
         ]);
     }
 
+    public function previewReferencedProject(Request $request): Response
+    {
+        if (!$this->canManageServices($request)) {
+            return $this->fail('Forbidden', 403, [
+                'permission' => ['insufficient_role'],
+            ]);
+        }
+
+        $payload = $request->all();
+        $errors = [];
+        $structure = $this->normalizeJsonPayload($payload['structure'] ?? '', true, 'structure', $errors);
+        $data = $this->normalizeJsonPayload($payload['data'] ?? '', false, 'data', $errors);
+        if ($errors !== []) {
+            return $this->fail('Validation failed', 422, $errors);
+        }
+
+        $service = [
+            'structure' => json_decode($structure, true, 512, JSON_THROW_ON_ERROR),
+            'data' => json_decode($data, true, 512, JSON_THROW_ON_ERROR),
+        ];
+        if ($service['structure'] === []) {
+            $fallback = project_page_default_payload($payload);
+            $service['structure'] = $fallback['structure'];
+            $service['data'] = $fallback['data'];
+        }
+
+        $routeSlug = trim((string) ($payload['project_slug'] ?? $payload['slug'] ?? ''));
+        $mediaFallback = project_media_public_url((string) ($payload['project_image_path'] ?? ''));
+        foreach (structured_page_image_slots($service['structure']) as $slotKey) {
+            $slotFallback = in_array($slotKey, ['main_image', 'detail_image'], true)
+                ? $mediaFallback
+                : '/ui/_assets/images/profile-placeholder.svg';
+            $service[$slotKey] = $routeSlug !== ''
+                ? page_media_slot_url('project', $routeSlug, $slotKey, $slotFallback)
+                : $slotFallback;
+        }
+
+        ob_start();
+        try {
+            require base_path('public/ui/_templates/operations/admin-project-preview.php');
+            $html = (string) ob_get_contents();
+        } finally {
+            ob_end_clean();
+        }
+
+        return $this->ok(['html' => $html])->withHeader('Cache-Control', 'no-store');
+    }
+
     public function showReferencedProject(Request $request): Response
     {
         if (!$this->canManageServices($request)) {
@@ -626,13 +674,13 @@ final class ServiceAdminController extends BaseApiController
     private function normalizeJsonPayload(mixed $value, bool $requireList, string $field, array &$errors): string
     {
         if (is_string($value)) {
-            $decoded = json_decode($value, true);
-            if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+            $decoded = json_decode($value);
+            if (json_last_error() !== JSON_ERROR_NONE || (!is_array($decoded) && !$decoded instanceof \stdClass)) {
                 $errors[$field][] = 'invalid_json';
                 return $requireList ? '[]' : '{}';
             }
 
-            if ($requireList && !array_is_list($decoded)) {
+            if ($requireList && !is_array($decoded)) {
                 $errors[$field][] = 'invalid_shape';
                 return '[]';
             }
@@ -754,8 +802,8 @@ final class ServiceAdminController extends BaseApiController
             'project_image_path' => (string) ($row['project_image_path'] ?? ''),
             'project_slug' => (string) ($row['project_slug'] ?? ''),
             'project_url' => (string) ($row['project_url'] ?? ''),
-            'structure' => is_string($structureRaw) ? (json_decode($structureRaw, true) ?: []) : (is_array($structureRaw) ? $structureRaw : []),
-            'data' => is_string($dataRaw) ? (json_decode($dataRaw, true) ?: []) : (is_array($dataRaw) ? $dataRaw : []),
+            'structure' => is_string($structureRaw) ? json_decode($structureRaw, false, 512, JSON_THROW_ON_ERROR) : $structureRaw,
+            'data' => is_string($dataRaw) ? json_decode($dataRaw, false, 512, JSON_THROW_ON_ERROR) : $dataRaw,
             'sort_order' => (int) ($row['sort_order'] ?? 0),
             'is_active' => (int) ($row['is_active'] ?? 0) === 1,
             'created_at' => (string) ($row['created_at'] ?? ''),

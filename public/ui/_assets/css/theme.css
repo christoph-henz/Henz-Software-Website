@@ -20,6 +20,7 @@
   --destructive: #ff4757;
   --destructive-foreground: #ffffff;
   --border: rgba(0, 200, 255, 0.12);
+  --content-card-shadow: 0 12px 32px rgba(0, 0, 0, 0.32), 0 2px 8px rgba(0, 0, 0, 0.18);
   --input: transparent;
   --input-background: #111d2b;
   --switch-background: #1e3048;
@@ -62,6 +63,7 @@
     --destructive: #d8293c;
     --destructive-foreground: #ffffff;
     --border: rgba(13, 27, 42, 0.12);
+    --content-card-shadow: 0 12px 32px rgba(13, 27, 42, 0.10), 0 2px 8px rgba(13, 27, 42, 0.06);
     --input: transparent;
     --input-background: #edf3f9;
     --switch-background: #c7d6e5;
@@ -78,6 +80,7 @@
 }
 
 .dark {
+  --content-card-shadow: 0 12px 32px rgba(0, 0, 0, 0.32), 0 2px 8px rgba(0, 0, 0, 0.18);
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.145 0 0);
@@ -217,6 +220,36 @@
   }
 }
 
+.gb-content-card {
+  box-shadow: var(--content-card-shadow);
+}
+
+.gb-split-panel-media {
+  container-type: inline-size;
+}
+
+.gb-reference-media {
+  object-fit: contain;
+  object-position: center;
+}
+
+.gb-split-panel-image {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: min(600px, 300cqw);
+  margin-inline: auto;
+  object-fit: contain;
+  object-position: center top;
+}
+
+@media (max-width: 767px) {
+  .gb-split-panel-image {
+    max-height: min(360px, 300cqw);
+  }
+}
+
 .gb-submenu {
     display: none;
   background-color: color-mix(in srgb, #edfaff 94%, transparent);
@@ -324,4 +357,3 @@
         display: block;
     }
 }
-

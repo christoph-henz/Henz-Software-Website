@@ -130,6 +130,14 @@ return [
                 'match_patterns' => [],
             ],
             [
+                'label' => 'Referenzprojekte',
+                'href' => '/referenced-projects',
+                'exact' => false,
+                'icon' => 'projects',
+                'permission_bit' => Role::resolve('manage_services', 8192),
+                'match_patterns' => [],
+            ],
+            [
                 'label' => 'Öffnungszeiten & Betriebsurlaub',
                 'href' => '/availability',
                 'exact' => false,

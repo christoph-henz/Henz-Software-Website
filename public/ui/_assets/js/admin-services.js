@@ -8,13 +8,31 @@
     }
 
     var canManage = !!cfg.can_manage_services;
+    var referencedProjectsOnly = !!cfg.referenced_projects_only;
 
     var state = {
         services: [],
         referencedProjects: [],
         loading: true,
         initialServiceId: parsePositiveInt(cfg.initial_service_id, 0) || null,
+        initialReferencedProjectId: parsePositiveInt(cfg.initial_referenced_project_id, 0) || null,
     };
+
+    window.addEventListener('popstate', function () {
+        var match = window.location.pathname.match(/^\/referenced-projects\/(\d+)\/?$/);
+        if (match) {
+            if (state.loading) {
+                state.initialReferencedProjectId = Number(match[1]);
+            } else {
+                openReferencedProjectById(Number(match[1]));
+            }
+        } else {
+            state.initialReferencedProjectId = null;
+            if (document.getElementById('referencedProjectPreview')) {
+                window.adminCloseModal && window.adminCloseModal();
+            }
+        }
+    });
 
     fetchData();
 
@@ -23,7 +41,7 @@
         render();
 
         return Promise.allSettled([
-            fetchJson(apiUrl(cfg.api && cfg.api.services && cfg.api.services.list)),
+            referencedProjectsOnly ? Promise.resolve(null) : fetchJson(apiUrl(cfg.api && cfg.api.services && cfg.api.services.list)),
             fetchJson(apiUrl(cfg.api && cfg.api.referenced_projects && cfg.api.referenced_projects.list)),
         ]).then(function (results) {
             var serviceResult = results[0] && results[0].status === 'fulfilled' ? results[0].value : null;
@@ -41,7 +59,7 @@
             state.loading = false;
             render();
 
-            if (!serviceRequestOk) {
+            if (!referencedProjectsOnly && !serviceRequestOk) {
                 notify('error', 'Services konnten nicht geladen werden.');
             }
 
@@ -56,6 +74,11 @@
                     openServiceModal(found, false);
                 }
             }
+            if (state.initialReferencedProjectId && referencedProjectsRequestOk) {
+                var projectId = state.initialReferencedProjectId;
+                state.initialReferencedProjectId = null;
+                openReferencedProjectById(projectId);
+            }
         }).catch(function () {
             state.services = [];
             state.referencedProjects = [];
@@ -67,12 +90,13 @@
 
     function render() {
         if (state.loading) {
-            root.innerHTML = '<div class="admin-services-section"><div class="admin-services-empty">Lade Leistungen...</div></div>';
+            root.innerHTML = '<div class="admin-services-section"><div class="admin-services-empty">' +
+                (referencedProjectsOnly ? 'Lade Referenzprojekte...' : 'Lade Leistungen...') + '</div></div>';
             return;
         }
 
         root.innerHTML = '' +
-            renderServicesSection() +
+            (referencedProjectsOnly ? '' : renderServicesSection()) +
             renderReferencedProjectsSection();
 
         bindEvents();
@@ -201,12 +225,22 @@
         }
     }
 
+    function openReferencedProjectById(id) {
+        var project = findById(state.referencedProjects, id);
+        if (!project) {
+            window.adminCloseModal && window.adminCloseModal();
+            notify('error', 'Referenzprojekt #' + id + ' wurde nicht gefunden.');
+            return;
+        }
+        openReferencedProjectModal(project, false);
+    }
+
     function openReferencedProjectModal(project, pushState) {
         var isEdit = !!project;
 
         var body = '' +
             '<div class="admin-services-modal-note">Referenzprojekte steuern die Referenzen im Frontend inklusive Route-Slug und optionaler externer URL.</div>' +
-            '<div class="admin-services-form-grid">' +
+            '<div class="admin-project-editor"><div class="admin-services-form-grid">' +
             field('Titel', '<input id="referencedProjectTitle" class="admin-services-input" type="text" value="' + escapeHtml(project ? project.title || '' : '') + '" />') +
             field('Slug', '<input id="referencedProjectSlug" class="admin-services-input" type="text" value="' + escapeHtml(project ? project.slug || '' : '') + '" placeholder="automatisch aus dem Titel" />') +
             field('Route-Slug', '<input id="referencedProjectRouteSlug" class="admin-services-input" type="text" value="' + escapeHtml(project ? project.project_slug || '' : '') + '" placeholder="z. B. projekt-dionysos" />') +
@@ -214,20 +248,107 @@
             field('Media-Datei', '<input id="referencedProjectImagePath" class="admin-services-input" type="text" value="' + escapeHtml(project ? project.project_image_path || '' : '') + '" placeholder="z. B. Dionysos-Website-1.mp4" />') +
             field('Sortierung', '<input id="referencedProjectSortOrder" class="admin-services-input" type="number" step="1" value="' + escapeHtml(String(project ? project.sort_order || 0 : 0)) + '" />') +
             field('Beschreibung', '<textarea id="referencedProjectDescription" class="admin-services-textarea">' + escapeHtml(project ? project.description || '' : '') + '</textarea>', true) +
+            field('Struktur (JSON-Array)', '<textarea id="referencedProjectStructure" aria-label="Struktur (JSON-Array)" class="admin-services-textarea admin-services-json" spellcheck="false">' + escapeHtml(JSON.stringify(project ? project.structure : [], null, 2)) + '</textarea>', true) +
+            field('Daten (JSON-Objekt oder -Array)', '<textarea id="referencedProjectData" aria-label="Daten (JSON-Objekt oder -Array)" class="admin-services-textarea admin-services-json" spellcheck="false">' + escapeHtml(JSON.stringify(project ? project.data : {}, null, 2)) + '</textarea>', true) +
             field('Status', checkbox('referencedProjectActive', 'Aktiv', project ? !!project.is_active : true), true) +
-            '</div>';
+            '</div><section class="admin-project-preview" aria-label="Projektvorschau">' +
+            '<h3>Live-Vorschau</h3>' +
+            '<p id="referencedProjectPreviewStatus" role="status">Vorschau wird geladen...</p>' +
+            '<iframe id="referencedProjectPreview" title="Gerenderte Projektvorschau" sandbox="" hidden></iframe>' +
+            '</section></div>';
 
         window.adminOpenModal && window.adminOpenModal(isEdit ? 'Referenzprojekt #' + project.id : 'Neues Referenzprojekt', body, {
             type: 'form',
+            onClose: function () {
+                if (isEdit && window.location.pathname === '/referenced-projects/' + project.id) {
+                    window.history.replaceState(null, '', '/referenced-projects');
+                }
+            },
             buttons: [
                 { label: 'Speichern', variant: 'primary', onClick: function () { saveReferencedProject(project && project.id ? project.id : null); } },
                 { label: 'Abbrechen', variant: 'secondary', onClick: function () { window.adminCloseModal && window.adminCloseModal(); } },
             ],
         });
 
+        bindProjectPreview();
+
         if (pushState) {
-            window.history.pushState(null, '', '/services');
+            window.history.pushState(null, '', isEdit
+                ? '/referenced-projects/' + project.id
+                : (referencedProjectsOnly ? '/referenced-projects' : '/services'));
         }
+    }
+
+    function bindProjectPreview() {
+        var frame = document.getElementById('referencedProjectPreview');
+        var status = document.getElementById('referencedProjectPreviewStatus');
+        if (!frame || !status) {
+            return;
+        }
+
+        var version = 0;
+        var timer;
+        function isCurrent(requestVersion) {
+            return version === requestVersion && document.getElementById('referencedProjectPreview') === frame;
+        }
+
+        function updatePreview(requestVersion) {
+            var payload = referencedProjectPayload();
+            try {
+                validateProjectJson(payload.structure, true, 'Struktur');
+                validateProjectJson(payload.data, false, 'Daten');
+            } catch (err) {
+                frame.hidden = true;
+                status.textContent = err.message;
+                return;
+            }
+
+            status.textContent = 'Vorschau wird aktualisiert...';
+            fetchJson(apiUrl(cfg.api && cfg.api.referenced_projects && cfg.api.referenced_projects.preview), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            }).then(function (result) {
+                if (!isCurrent(requestVersion)) {
+                    return;
+                }
+                if (!result.ok) {
+                    throw new Error(buildErrorMessage(result, 'Vorschau konnte nicht geladen werden.'));
+                }
+                var html = result.json && result.json.data && result.json.data.html;
+                if (typeof html !== 'string' || html.trim() === '') {
+                    throw new Error('Der Server hat keine gültige Vorschau geliefert.');
+                }
+                frame.srcdoc = html;
+                frame.hidden = false;
+                status.textContent = 'Vorschau der aktuellen Eingaben. Änderungen sind noch nicht gespeichert.';
+            }).catch(function (err) {
+                if (isCurrent(requestVersion)) {
+                    frame.hidden = true;
+                    status.textContent = err.message || 'Vorschau konnte nicht geladen werden.';
+                }
+            });
+        }
+
+        [
+            'referencedProjectStructure', 'referencedProjectData', 'referencedProjectTitle',
+            'referencedProjectSlug', 'referencedProjectRouteSlug', 'referencedProjectUrl',
+            'referencedProjectImagePath', 'referencedProjectDescription',
+        ].forEach(function (id) {
+            document.getElementById(id).addEventListener('input', function () {
+                version++;
+                clearTimeout(timer);
+                status.textContent = 'Vorschau wird aktualisiert...';
+                var requestVersion = version;
+                timer = setTimeout(function () {
+                    if (isCurrent(requestVersion)) {
+                        updatePreview(requestVersion);
+                    }
+                }, 350);
+            });
+        });
+
+        updatePreview(version);
     }
 
     function saveService(id) {
@@ -260,17 +381,17 @@
     }
 
     function saveReferencedProject(id) {
-        var payload = {
-            title: getValue('referencedProjectTitle'),
-            slug: getValue('referencedProjectSlug'),
-            project_slug: getValue('referencedProjectRouteSlug'),
-            project_url: getValue('referencedProjectUrl'),
-            project_image_path: getValue('referencedProjectImagePath'),
-            sort_order: getValue('referencedProjectSortOrder'),
-            description: getValue('referencedProjectDescription'),
-            is_active: isChecked('referencedProjectActive'),
-        };
+        var structure = getValue('referencedProjectStructure');
+        var data = getValue('referencedProjectData');
+        try {
+            validateProjectJson(structure, true, 'Struktur');
+            validateProjectJson(data, false, 'Daten');
+        } catch (err) {
+            notify('error', err.message);
+            return;
+        }
 
+        var payload = referencedProjectPayload();
         var endpoint = id ? apiUrl(cfg.api && cfg.api.referenced_projects && cfg.api.referenced_projects.update, id) : apiUrl(cfg.api && cfg.api.referenced_projects && cfg.api.referenced_projects.create);
         fetchJson(endpoint, {
             method: id ? 'PATCH' : 'POST',
@@ -287,6 +408,34 @@
         }).catch(function (err) {
             notify('error', err && err.message ? err.message : 'Referenzprojekt konnte nicht gespeichert werden.');
         });
+    }
+
+    function referencedProjectPayload() {
+        return {
+            title: getValue('referencedProjectTitle'),
+            slug: getValue('referencedProjectSlug'),
+            project_slug: getValue('referencedProjectRouteSlug'),
+            project_url: getValue('referencedProjectUrl'),
+            project_image_path: getValue('referencedProjectImagePath'),
+            sort_order: getValue('referencedProjectSortOrder'),
+            description: getValue('referencedProjectDescription'),
+            is_active: isChecked('referencedProjectActive'),
+            structure: getValue('referencedProjectStructure'),
+            data: getValue('referencedProjectData'),
+        };
+    }
+
+    function validateProjectJson(value, requireList, label) {
+        var parsed;
+        try {
+            parsed = JSON.parse(value);
+        } catch (err) {
+            throw new Error(label + ': Ungültiges JSON. ' + err.message);
+        }
+
+        if (requireList ? !Array.isArray(parsed) : parsed === null || typeof parsed !== 'object') {
+            throw new Error(label + (requireList ? ': Ein JSON-Array wird erwartet.' : ': Ein JSON-Objekt oder -Array wird erwartet.'));
+        }
     }
 
     function fetchJson(url, options) {

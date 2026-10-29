@@ -130,9 +130,12 @@ Router::group('', function (): void {
     Router::post('/availability/data/blocked', [AvailabilityAdminController::class, 'createBlockedTime'])->name('admin.availability.data.blocked.store');
     Router::delete('/availability/data/blocked/{id}', [AvailabilityAdminController::class, 'deleteBlockedTime'])->name('admin.availability.data.blocked.delete');
     Router::get('/referenced-projects/data', [ServiceAdminController::class, 'referencedProjects'])->name('admin.referenced_projects.data.index');
+    Router::post('/referenced-projects/preview', [ServiceAdminController::class, 'previewReferencedProject'])->name('admin.referenced_projects.preview');
     Router::post('/referenced-projects/data', [ServiceAdminController::class, 'storeReferencedProject'])->name('admin.referenced_projects.data.store');
     Router::get('/referenced-projects/data/{id}', [ServiceAdminController::class, 'showReferencedProject'])->name('admin.referenced_projects.data.show');
     Router::patch('/referenced-projects/data/{id}', [ServiceAdminController::class, 'updateReferencedProject'])->name('admin.referenced_projects.data.update');
+    Router::get('/referenced-projects', [ServicesPageController::class, 'referencedProjects'])->name('admin.referenced_projects.index');
+    Router::get('/referenced-projects/{id}', [ServicesPageController::class, 'referencedProjects'])->name('admin.referenced_projects.show');
     Router::get('/services', [ServicesPageController::class, 'index'])->name('admin.services.index');
     Router::get('/services/{id}', [ServicesPageController::class, 'show'])->name('admin.services.show');
     Router::get('/availability', [AvailabilityPageController::class, 'index'])->name('admin.availability.index');

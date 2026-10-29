@@ -24,7 +24,17 @@ final class ServicesPageController
         return $this->renderPage($request, $id > 0 ? $id : null);
     }
 
-    private function renderPage(Request $request, ?int $pathServiceId): Response
+    public function referencedProjects(Request $request): Response
+    {
+        $id = (string) $request->attribute('id', '');
+        if ($id !== '' && (!ctype_digit($id) || (int) $id <= 0)) {
+            return $this->renderError(404, 'Referenzprojekt nicht gefunden', 'Die Projekt-ID ist ungültig.');
+        }
+
+        return $this->renderPage($request, null, true, $id !== '' ? (int) $id : null);
+    }
+
+    private function renderPage(Request $request, ?int $pathServiceId, bool $referencedProjectsOnly = false, ?int $referencedProjectId = null): Response
     {
         $session = $request->session();
         $sessionKey = (string) config('admin.session_key', 'admin_user');
@@ -41,9 +51,11 @@ final class ServicesPageController
         $config = require base_path('public/ui/_config/operations/admin-services.php');
         $config['can_manage_services'] = $canManage;
         $config['initial_service_id'] = $pathServiceId;
+        $config['initial_referenced_project_id'] = $referencedProjectId;
+        $config['referenced_projects_only'] = $referencedProjectsOnly;
 
         return $this->render('admin-services-page.php', [
-            'pageTitle' => 'Leistungen - Henz Software',
+            'pageTitle' => ($referencedProjectsOnly ? 'Referenzprojekte' : 'Leistungen') . ' - Henz Software',
             'adminUser' => $adminUser,
             'logoutAction' => '/logout',
             'csrfToken' => app(CsrfTokenManager::class)->token(),

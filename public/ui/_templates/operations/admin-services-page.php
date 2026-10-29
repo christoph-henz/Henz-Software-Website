@@ -7,6 +7,7 @@ $adminUser = is_array($adminUser ?? null) ? $adminUser : [];
 $logoutAction = (string) ($logoutAction ?? '/logout');
 $csrfToken = (string) ($csrfToken ?? '');
 $servicesConfig = is_array($servicesConfig ?? null) ? $servicesConfig : [];
+$referencedProjectsOnly = (bool) ($servicesConfig['referenced_projects_only'] ?? false);
 
 $extraHead = '<link rel="stylesheet" href="/ui/_assets/css/admin-services.css" /><link rel="icon" type="image/svg+xml" href="/ui/_assets/images/favicon.svg" />';
 $extraScripts = '<script>window.__ADMIN_SERVICES_CONFIG = ' . json_encode(
@@ -19,8 +20,10 @@ ob_start();
 ?>
 <div class="admin-page-header admin-services-header">
     <div>
-        <h1 class="admin-page-title">Leistungen</h1>
-        <p class="admin-page-subtitle">Zwei untereinanderliegende Bereiche für Services und Referenzprojekte. Sichtbar nur mit passender Berechtigung.</p>
+        <h1 class="admin-page-title"><?= $referencedProjectsOnly ? 'Referenzprojekte' : 'Leistungen'; ?></h1>
+        <p class="admin-page-subtitle"><?= $referencedProjectsOnly
+            ? 'Referenzprojekte sowie ihre Seitenstruktur und Inhalte als JSON verwalten.'
+            : 'Zwei untereinanderliegende Bereiche für Services und Referenzprojekte. Sichtbar nur mit passender Berechtigung.'; ?></p>
     </div>
 </div>
 

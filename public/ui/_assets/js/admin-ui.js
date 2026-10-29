@@ -60,16 +60,23 @@
       return;
     }
 
+    let onClose = null;
     const closeModal = () => {
       backdrop.classList.remove('is-open');
       backdrop.setAttribute('aria-hidden', 'true');
       bodyEl.innerHTML = '';
       footerEl.innerHTML = '';
+      const callback = onClose;
+      onClose = null;
+      if (callback) {
+        callback();
+      }
     };
 
     window.adminCloseModal = closeModal;
 
     window.adminOpenModal = (title, bodyHtml, options = {}) => {
+      onClose = typeof options.onClose === 'function' ? options.onClose : null;
       titleEl.textContent = typeof title === 'string' ? title : '';
       bodyEl.innerHTML = typeof bodyHtml === 'string' ? bodyHtml : '';
       footerEl.innerHTML = '';

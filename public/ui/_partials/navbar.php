@@ -36,7 +36,7 @@ $renderNavItems = static function (array $items): string {
             $html .= '<span>' . $label . '</span>';
             $html .= '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="gb-caret h-4 w-4 transition-transform duration-200" data-caret="true" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z" clip-rule="evenodd" /></svg>';
             $html .= '</button>';
-            $html .= '<ul class="gb-submenu gb-submenu-panel hidden space-y-1 pl-3 md:absolute md:left-0 md:top-full md:z-30 md:mt-3 md:min-w-56 md:space-y-0 md:rounded-xl md:p-2 md:pl-2 md:backdrop-blur-lg md:shadow-2xl" role="menu">';
+            $html .= '<ul class="gb-submenu gb-submenu-panel hidden space-y-1 pl-3 md:absolute md:left-0 md:top-full md:z-30 md:min-w-56 md:space-y-0 md:rounded-xl md:p-2 md:pl-2 md:backdrop-blur-lg md:shadow-2xl" role="menu">';
 
             foreach ($children as $child) {
                 $childLabel = htmlspecialchars((string) ($child['label'] ?? ''), ENT_QUOTES, 'UTF-8');
